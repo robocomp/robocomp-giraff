@@ -1,0 +1,13 @@
+import "Laser.idsl";
+import "DifferentialRobot.idsl";
+import "CameraRGBDSimple.idsl";
+
+Component chocachoca
+{
+    Communications
+    {
+        requires Laser, DifferentialRobot, CameraRGBDSimple;
+    };
+    language Cpp11;
+};
+
