@@ -1,9 +1,9 @@
 CommonBehavior.Endpoints=tcp -p 10000
 
 # Proxies for required interfaces
-CameraRGBDSimpleProxy = camerargbdsimple:tcp -h localhost -p 0
-DifferentialRobotProxy = differentialrobot:tcp -h localhost -p 10004
-LaserProxy = laser:tcp -h localhost -p 10003
+CameraRGBDSimpleProxy = camerargbdsimple:tcp -h 158.49.247.193 -p 0 
+DifferentialRobotProxy = differentialrobot:tcp -h 158.49.247.193 -p 10004
+LaserProxy = laser:tcp -h 158.49.247.193 -p 10003
 
 
 

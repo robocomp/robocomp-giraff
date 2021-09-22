@@ -17,7 +17,7 @@
  *    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "specificworker.h"
-
+#include <cppitertools/sliding_window.hpp>
 /**
 * \brief Default constructor
 */
@@ -71,18 +71,29 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    int threshold = 400;
-    float adv = 0, rot = 0;
+    int threshold = 400, threshold2=600;
+    float adv = 0, rot = 0, m = 3/1000.f, n = -1.2;
     if(auto ldata = laser_proxy->getLaserData(); !ldata.empty() ){
-        std:sort(ldata.begin() + ldata.size()/3, ldata.end() - ldata.size()/3, [=](RoboCompLaser::TData a, RoboCompLaser::TData b){return a.dist < b.dist;});
-        if(auto lValue = ldata[ldata.size()/3]; lValue.dist < threshold){
-            adv = 0; rot = 0.6;
-        }else{
-            adv = 400; rot = 0;
+        std::vector<float> distances;
+        for(auto point : ldata)
+            distances.push_back(point.dist);
+        if(distances[0] < 200)
+            distances[0] = 200;
+        for(auto &&window : iter::sliding_window(distances, 2)){
+            if(window[1] < 200)
+                window[1] = window[0];
         }
+        auto limit = distances.size()/3;
+        std::sort(distances.begin() + limit, distances.end() - limit, [=](float a, float b){return a < b;});
 
+        auto minValue = distances[ldata.size()/3];
+        bool stop = minValue < threshold;
+        bool slow = minValue < threshold2;
+        adv = (stop) ? 0 : (slow) ? m*minValue + n: 0.6;
+        rot = (stop) ? 0.3 : 0;
         differentialrobot_proxy->setSpeedBase(adv, rot);
     }
+    std::cout << adv << " - " << rot << std::endl;
 }
 
 int SpecificWorker::startup_check()
