@@ -75,8 +75,8 @@ void SpecificWorker::compute()
     //dist > x2 --> dist = y2
     //else      --> dist = m * dist + n
     //int x1 = 600, x2 = 1000, y1 = 0, y2 = 600, residue = 300, trim = 3; //COPPELIA VALUES
-    int x1 = 600, x2 = 1000, y1 = 0, y2 = 0.6, residue = 0, trim = 3;   //GIRAFF ROBO VALUES
-    float adv, rot = 0.3, m = (y2 - y1) / (x2 - x1) * 1., n = y1 - m * x1 + residue;
+    float x1 = 650.0, x2 = 1250.0, y1 = 0.0, y2 = 0.6, residue = 0.1, trim = 3.0;   //GIRAFF ROBO VALUES
+    float adv, rot = 0.8, m = (y2 - y1) * 1. / (x2 - x1) , n = y1 - m * x1 + residue;
 
     if(auto ldata = laser_proxy->getLaserData(); !ldata.empty()) {
         //Using only distance values
@@ -95,7 +95,7 @@ void SpecificWorker::compute()
         //Sort and take the lower distance value
         int limit = distances.size()/trim;
         std::sort(distances.begin() + limit, distances.end() - limit, [=](float a, float b){return a < b;});
-        auto minValue = distances[limit];
+        float minValue = distances[limit];
 
         //Set the speeds depending on minValue, x1, x2, y1, y2
         bool stop = minValue < x1, slow = minValue < x2;
