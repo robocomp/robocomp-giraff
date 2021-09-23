@@ -17,7 +17,7 @@
  *    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "specificworker.h"
-#include <cppitertools/sliding_window.hpp>
+#include "cppitertools/sliding_window.hpp"
 /**
 * \brief Default constructor
 */
@@ -71,29 +71,40 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    int threshold = 400, threshold2=600;
-    float adv = 0, rot = 0, m = 3/1000.f, n = -1.2;
-    if(auto ldata = laser_proxy->getLaserData(); !ldata.empty() ){
+    //dist < x1 --> dist = y1
+    //dist > x2 --> dist = y2
+    //else      --> dist = m * dist + n
+    //int x1 = 600, x2 = 1000, y1 = 0, y2 = 600, residue = 300, trim = 3; //COPPELIA VALUES
+    int x1 = 600, x2 = 1000, y1 = 0, y2 = 0.6, residue = 0, trim = 3;   //GIRAFF ROBO VALUES
+    float adv, rot = 0.3, m = (y2 - y1) / (x2 - x1) * 1., n = y1 - m * x1 + residue;
+
+    if(auto ldata = laser_proxy->getLaserData(); !ldata.empty()) {
+        //Using only distance values
         std::vector<float> distances;
         for(auto point : ldata)
             distances.push_back(point.dist);
+
+        //Filter, try to fix laser measure errors
         if(distances[0] < 200)
             distances[0] = 200;
         for(auto &&window : iter::sliding_window(distances, 2)){
             if(window[1] < 200)
                 window[1] = window[0];
         }
-        auto limit = distances.size()/3;
-        std::sort(distances.begin() + limit, distances.end() - limit, [=](float a, float b){return a < b;});
 
-        auto minValue = distances[ldata.size()/3];
-        bool stop = minValue < threshold;
-        bool slow = minValue < threshold2;
-        adv = (stop) ? 0 : (slow) ? m*minValue + n: 0.6;
-        rot = (stop) ? 0.3 : 0;
-        differentialrobot_proxy->setSpeedBase(adv, rot);
+        //Sort and take the lower distance value
+        int limit = distances.size()/trim;
+        std::sort(distances.begin() + limit, distances.end() - limit, [=](float a, float b){return a < b;});
+        auto minValue = distances[limit];
+
+        //Set the speeds depending on minValue, x1, x2, y1, y2
+        bool stop = minValue < x1, slow = minValue < x2;
+        adv = (stop) ? y1 : (slow) ? m * minValue + n : y2;
+        try{
+            std::cout << adv << std::endl;
+            differentialrobot_proxy->setSpeedBase(adv, (stop) ? rot : 0);
+        }catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
     }
-    std::cout << adv << " - " << rot << std::endl;
 }
 
 int SpecificWorker::startup_check()
