@@ -57,7 +57,6 @@ import differentialrobotI
 import joystickadapterI
 import coppeliautilsI
 import fullposeestimationI
-import ultrasoundI
 import batterystatusI
 import rssistatusI
 import jointmotorsimpleI
@@ -69,6 +68,4 @@ class GenericWorker():
     def __init__(self, mprx):
         super(GenericWorker, self).__init__()
 
-        self.camerargbdsimplepub_proxy = mprx["CameraRGBDSimplePubPub"]
-        self.laserpub_proxy = mprx["LaserPubPub"]
 

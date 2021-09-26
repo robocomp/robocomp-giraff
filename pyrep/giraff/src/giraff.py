@@ -117,44 +117,6 @@ if __name__ == '__main__':
         print(colored('Cannot connect to rcnode! This must be running to use pub/sub.', 'red'))
         exit(1)
 
-    # Create a proxy to publish a CameraRGBDSimplePub topic
-    topic = False
-    try:
-        topic = topicManager.retrieve("CameraRGBDSimplePub")
-    except:
-        pass
-    while not topic:
-        try:
-            topic = topicManager.retrieve("CameraRGBDSimplePub")
-        except IceStorm.NoSuchTopic:
-            try:
-                topic = topicManager.create("CameraRGBDSimplePub")
-            except:
-                print('Another client created the CameraRGBDSimplePub topic? ...')
-    pub = topic.getPublisher().ice_oneway()
-    camerargbdsimplepubTopic = RoboCompCameraRGBDSimplePub.CameraRGBDSimplePubPrx.uncheckedCast(pub)
-    mprx["CameraRGBDSimplePubPub"] = camerargbdsimplepubTopic
-
-    # Create a proxy to publish a LaserPub topic
-    topic = False
-    try:
-        topic = topicManager.retrieve("LaserPub")
-    except:
-        pass
-    while not topic:
-        try:
-            topic = topicManager.retrieve("LaserPub")
-        except IceStorm.NoSuchTopic:
-            try:
-                topic = topicManager.create("LaserPub")
-            except:
-                print('Another client created the LaserPub topic? ...')
-    pub = topic.getPublisher().ice_oneway()
-    laserpubTopic = RoboCompLaserPub.LaserPubPrx.uncheckedCast(pub)
-    mprx["LaserPubPub"] = laserpubTopic
-
-
-
     if status == 0:
         worker = SpecificWorker(mprx)
         worker.setParams(parameters)
@@ -176,10 +138,6 @@ if __name__ == '__main__':
 
     adapter = ic.createObjectAdapter('FullPoseEstimation')
     adapter.add(fullposeestimationI.FullPoseEstimationI(worker), ic.stringToIdentity('fullposeestimation'))
-    adapter.activate()
-
-    adapter = ic.createObjectAdapter('Ultrasound')
-    adapter.add(ultrasoundI.UltrasoundI(worker), ic.stringToIdentity('ultrasound'))
     adapter.activate()
 
     adapter = ic.createObjectAdapter('BatteryStatus')
