@@ -30,19 +30,14 @@ except KeyError:
 
 Ice.loadSlice("-I ./src/ --all ./src/CommonBehavior.ice")
 import RoboCompCommonBehavior
-
 Ice.loadSlice("-I ./src/ --all ./src/CameraRGBDSimple.ice")
-import RoboCompCameraRGBDSimple 
-Ice.loadSlice("-I ./src/ --all ./src/CameraRGBDSimplePub.ice")
-import RoboCompCameraRGBDSimplePub 
+import RoboCompCameraRGBDSimple
 Ice.loadSlice("-I ./src/ --all ./src/GenericBase.ice")
 import RoboCompGenericBase 
 Ice.loadSlice("-I ./src/ --all ./src/JoystickAdapter.ice")
 import RoboCompJoystickAdapter 
 Ice.loadSlice("-I ./src/ --all ./src/Laser.ice")
-import RoboCompLaser 
-Ice.loadSlice("-I ./src/ --all ./src/LaserPub.ice")
-import RoboCompLaserPub
+import RoboCompLaser
 Ice.loadSlice("-I ./src/ --all ./src/DifferentialRobot.ice")
 import RoboCompDifferentialRobot
 Ice.loadSlice("-I ./src/ --all ./src/CoppeliaUtils.ice")
