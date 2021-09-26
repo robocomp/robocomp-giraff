@@ -190,6 +190,10 @@ if __name__ == '__main__':
     adapter.add(rssistatusI.RSSIStatusI(worker), ic.stringToIdentity('rssistatus'))
     adapter.activate()
 
+    adapter = ic.createObjectAdapter('JointMotorSimple')
+    adapter.add(jointmotorsimpleI.JointMotorSimpleI(worker), ic.stringToIdentity('jointmotorsimple'))
+    adapter.activate()
+
     adapter = ic.createObjectAdapter('CoppeliaUtils')
     adapter.add(coppeliautilsI.CoppeliaUtilsI(worker), ic.stringToIdentity('coppeliautils'))
     adapter.activate()

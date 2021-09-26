@@ -58,7 +58,8 @@ class SpecificWorker(GenericWorker):
         print('SpecificWorker destructor')
 
     def setParams(self, params):
-        SCENE_FILE = '../../etc/corralgiraff.ttt'
+        #SCENE_FILE = '../../etc/corralgiraff.ttt'
+        SCENE_FILE = params["scene_file"]
 
         self.pr = PyRep()
         self.pr.launch(SCENE_FILE, headless=False)
@@ -70,14 +71,16 @@ class SpecificWorker(GenericWorker):
         self.right_wheel = Joint("Pioneer_p3dx_rightMotor")
         self.radius = 100  # wheel radius in mm
         self.semi_width = 165  # axle semi width in mm
+        self.speed_robot = []
+        self.speed_robot_ant = []
 
         # cameras
         self.cameras_write = {}
         self.cameras_read = {}
 
-        self.front_camera_name = "pioneer_camera_center"
-        cam = VisionSensor(self.front_camera_name)
-        self.cameras_write[self.front_camera_name] = {"handle": cam,
+        self.tablet_camera_name = "camera_tablet"
+        cam = VisionSensor(self.tablet_camera_name)
+        self.cameras_write[self.tablet_camera_name] = {"handle": cam,
                                                      "id": 0,
                                                      "angle": np.radians(cam.get_perspective_angle()),
                                                      "width": cam.get_resolution()[0],
@@ -87,8 +90,20 @@ class SpecificWorker(GenericWorker):
                                                      "rgb": np.array(0),
                                                      "depth": np.ndarray(0)}
 
+        self.top_camera_name = "camera_top"
+        cam = VisionSensor(self.top_camera_name)
+        self.cameras_write[self.top_camera_name] = {"handle": cam,
+                                                    "id": 0,
+                                                    "angle": np.radians(cam.get_perspective_angle()),
+                                                    "width": cam.get_resolution()[0],
+                                                    "height": cam.get_resolution()[1],
+                                                    "focal": (cam.get_resolution()[0] / 2) / np.tan(
+                                                        np.radians(cam.get_perspective_angle() / 2)),
+                                                    "rgb": np.array(0),
+                                                    "depth": np.ndarray(0),
+                                                    "is_ready": False
+                                                    }
         self.cameras_read = self.cameras_write.copy()
-
 
         # laser
         self.lasers = {}
@@ -127,22 +142,25 @@ class SpecificWorker(GenericWorker):
         self.robot_full_pose_write = RoboCompFullPoseEstimation.FullPoseEuler()
         self.robot_full_pose_read = RoboCompFullPoseEstimation.FullPoseEuler()
 
-
+        # JoyStick
         self.joystick_newdata = []
-        self.speed_robot = []
-        self.speed_robot_ant = []
+
         self.last_received_data_time = 0
+
+        # Tablet tilt motor
+        self.tablet_motor = Joint("tablet_joint")
+        self.tablet_new_pos = None
 
     def compute(self):
         tc = TimeControl(0.05)
         while True:
             self.pr.step()
             self.read_laser()
-            self.read_cameras([self.front_camera_name])
+            self.read_cameras([self.tablet_camera_name])
             self.read_joystick()
             self.read_robot_pose()
             self.move_robot()
-
+            self.move_tablet()
             tc.wait()
 
     ###########################################
@@ -224,7 +242,7 @@ class SpecificWorker(GenericWorker):
                     rot = x.value if np.abs(x.value) > 0.01 else 0
 
             converted = self.convert_base_speed_to_motors_speed(adv, rot)
-            print("Joystick ", [adv, rot], converted)
+            #print("Joystick ", [adv, rot], converted)
             self.joystick_newdata = None
             self.last_received_data_time = time.time()
         else:
@@ -292,11 +310,18 @@ class SpecificWorker(GenericWorker):
     ###########################################
     def move_robot(self):
 
-        if self.speed_robot: #!= self.speed_robot_ant:  # or (isMoving and self.speed_robot == [0,0,0]):
+        if self.speed_robot:
             self.convert_base_speed_to_motors_speed(self.speed_robot[0], self.speed_robot[1])
-            # print("Velocities sent to robot:", self.speed_robot)
-            #self.speed_robot_ant = self.speed_robot
+            print("Velocities sent to robot:", self.speed_robot)
             self.speed_robot = None
+
+    ###########################################
+    ### MOVE ROBOT from Omnirobot interface
+    ###########################################
+    def move_tablet(self):
+        if self.tablet_new_pos:
+            self.tablet_motor.set_joint_position(self.tablet_new_pos)
+            self.tablet_new_pos = None
 
     ##################################################################################
     # SUBSCRIPTION to sendData method from JoystickAdapter interface
@@ -341,7 +366,7 @@ class SpecificWorker(GenericWorker):
             raise e
 
     ##############################################
-    ## Omnibase
+    ## Differentialbase
     #############################################
 
     #
@@ -354,19 +379,22 @@ class SpecificWorker(GenericWorker):
     # getBasePose
     #
     def DifferentialRobot_getBasePose(self):
-        #
-        # implementCODE
-        #
-        x = self.bState.x
-        z = self.bState.z
-        alpha = self.bState.alpha
-        return [x, z, alpha]
+        if self.bState:
+            x = self.bState.x
+            z = self.bState.z
+            alpha = self.bState.alpha
+            return [x, z, alpha]
+        else:
+            return RoboCompGenericBase.TBaseState()
 
     #
     # getBaseState
     #
     def DifferentialRobot_getBaseState(self):
-        return self.bState
+        if self.bState:
+            return self.bState
+        else:
+            return RoboCompGenericBase.TBaseState()
 
     #
     # resetOdometer
@@ -553,4 +581,49 @@ class SpecificWorker(GenericWorker):
 
     def Laser_getLaserData(self):
         return self.ldata_read
+
+ # ===================================================================
+    # IMPLEMENTATION of getMotorParams method from JointMotorSimple interface
+    # ===================================================================
+
+    def JointMotorSimple_getMotorParams(self, motor):
+        ret = RoboCompJointMotorSimple.MotorParams()
+        return ret
+
+    #
+    # IMPLEMENTATION of getMotorState method from JointMotorSimple interface
+    #
+    def JointMotorSimple_getMotorState(self, motor):
+        ret = RoboCompJointMotorSimple.MotorState()
+        return ret
+
+    #
+    # IMPLEMENTATION of setPosition method from JointMotorSimple interface
+    #
+    def JointMotorSimple_setPosition(self, name, goal):
+        print("JointMotorSimple_setPosition: ", name, goal)
+        self.tablet_new_pos = goal.position
+
+    #
+    # IMPLEMENTATION of setVelocity method from JointMotorSimple interface
+    #
+    def JointMotorSimple_setVelocity(self, name, goal):
+
+        #
+        # write your CODE here
+        #
+        pass
+
+    #
+    # IMPLEMENTATION of setZeroPos method from JointMotorSimple interface
+    #
+    def JointMotorSimple_setZeroPos(self, name):
+
+        #
+        # write your CODE here
+        #
+        pass
+
+    # ===================================================================
+    # ===================================================================
 
