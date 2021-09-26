@@ -36,21 +36,6 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
-//	THE FOLLOWING IS JUST AN EXAMPLE
-//	To use innerModelPath parameter you should uncomment specificmonitor.cpp readConfig method content
-//	try
-//	{
-//		RoboCompCommonBehavior::Parameter par = params.at("InnerModelPath");
-//		std::string innermodel_path = par.value;
-//		innerModel = std::make_shared(innermodel_path);
-//	}
-//	catch(const std::exception &e) { qFatal("Error reading config params"); }
-
-
-
-
-
-
 	return true;
 }
 
@@ -66,7 +51,6 @@ void SpecificWorker::initialize(int period)
 	{
 		timer.start(Period);
 	}
-
 }
 
 void SpecificWorker::compute()
@@ -75,35 +59,50 @@ void SpecificWorker::compute()
     //dist > x2 --> dist = y2
     //else      --> dist = m * dist + n
     //int x1 = 600, x2 = 1000, y1 = 0, y2 = 600, residue = 300, trim = 3; //COPPELIA VALUES
-    float x1 = 650.0, x2 = 1250.0, y1 = 0.0, y2 = 0.6, residue = 0.1, trim = 3.0;   //GIRAFF ROBO VALUES
-    float adv, rot = 0.8, m = (y2 - y1) * 1. / (x2 - x1) , n = y1 - m * x1 + residue;
+    float x1 = 650.0, x2 = 1250.0;
+    float y1 = 0.0;
+    float y2 = 0.6;
+    float residue = 0.1;
+    float trim = 3.0;   // GIRAFF  VALUES
+    float adv = 0.8;
+    float rot = 0.8;
+    float m = (y2 - y1) * 1. / (x2 - x1);
+    float n = y1 - m * x1 + residue;
 
-    if(auto ldata = laser_proxy->getLaserData(); !ldata.empty()) {
+    if( auto ldata = laser_proxy->getLaserData(); !ldata.empty())
+    {
         //Using only distance values
         std::vector<float> distances;
-        for(auto point : ldata)
+        for(auto &point : ldata)
             distances.push_back(point.dist);
 
         //Filter, try to fix laser measure errors
         if(distances[0] < 200)
             distances[0] = 200;
-        for(auto &&window : iter::sliding_window(distances, 2)){
+        for(auto &&window : iter::sliding_window(distances, 2))
+        {
             if(window[1] < 200)
                 window[1] = window[0];
         }
 
         //Sort and take the lower distance value
         int limit = distances.size()/trim;
-        std::sort(distances.begin() + limit, distances.end() - limit, [=](float a, float b){return a < b;});
+        std::sort(distances.begin() + limit, distances.end() - limit, [](float a, float b){return a < b;});
         float minValue = distances[limit];
 
         //Set the speeds depending on minValue, x1, x2, y1, y2
-        bool stop = minValue < x1, slow = minValue < x2;
+        bool stop = minValue < x1;
+        bool slow = minValue < x2;
         adv = (stop) ? y1 : (slow) ? m * minValue + n : y2;
-        try{
-            std::cout << adv << std::endl;
+        qInfo() << __FUNCTION__ << adv*2000 << rot;
+        adv *= 2000;
+
+        try
+        {
             differentialrobot_proxy->setSpeedBase(adv, (stop) ? rot : 0);
-        }catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
+        }
+        catch(const Ice::Exception &e)
+            { std::cout << e.what() << std::endl;}
     }
 }
 

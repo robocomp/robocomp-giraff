@@ -73,6 +73,7 @@ class SpecificWorker(GenericWorker):
         self.semi_width = 165  # axle semi width in mm
         self.speed_robot = []
         self.speed_robot_ant = []
+        self.bState = RoboCompGenericBase.TBaseState()
 
         # cameras
         self.cameras_write = {}
@@ -80,28 +81,30 @@ class SpecificWorker(GenericWorker):
 
         self.tablet_camera_name = "camera_tablet"
         cam = VisionSensor(self.tablet_camera_name)
-        self.cameras_write[self.tablet_camera_name] = {"handle": cam,
+        self.cameras_write[self.tablet_camera_name] = { "handle": cam,
+                                                        "id": 0,
+                                                        "angle": np.radians(cam.get_perspective_angle()),
+                                                        "width": cam.get_resolution()[0],
+                                                        "height": cam.get_resolution()[1],
+                                                        "focal": (cam.get_resolution()[0] / 2) / np.tan(
+                                                         np.radians(cam.get_perspective_angle() / 2)),
+                                                        "rgb": np.array(0),
+                                                        "depth": np.ndarray(0),
+                                                        "is_ready": False
+                                                    }
+
+        self.top_camera_name = "camera_top"
+        cam = VisionSensor(self.top_camera_name)
+        self.cameras_write[self.top_camera_name] = { "handle": cam,
                                                      "id": 0,
                                                      "angle": np.radians(cam.get_perspective_angle()),
                                                      "width": cam.get_resolution()[0],
                                                      "height": cam.get_resolution()[1],
                                                      "focal": (cam.get_resolution()[0] / 2) / np.tan(
-                                                         np.radians(cam.get_perspective_angle() / 2)),
-                                                     "rgb": np.array(0),
-                                                     "depth": np.ndarray(0)}
-
-        self.top_camera_name = "camera_top"
-        cam = VisionSensor(self.top_camera_name)
-        self.cameras_write[self.top_camera_name] = {"handle": cam,
-                                                    "id": 0,
-                                                    "angle": np.radians(cam.get_perspective_angle()),
-                                                    "width": cam.get_resolution()[0],
-                                                    "height": cam.get_resolution()[1],
-                                                    "focal": (cam.get_resolution()[0] / 2) / np.tan(
                                                         np.radians(cam.get_perspective_angle() / 2)),
-                                                    "rgb": np.array(0),
-                                                    "depth": np.ndarray(0),
-                                                    "is_ready": False
+                                                     "rgb": np.array(0),
+                                                     "depth": np.ndarray(0),
+                                                     "is_ready": False
                                                     }
         self.cameras_read = self.cameras_write.copy()
 
@@ -170,10 +173,15 @@ class SpecificWorker(GenericWorker):
     def read_laser(self):
         data = self.pr.script_call("get_depth_data@Hokuyo", 1)
         if len(data[1]) > 0:
+            self.hokuyo = Shape("Hokuyo")
+            h_pos = self.hokuyo.get_position()
             polar = np.zeros(shape=(int(len(data[1])/3), 2))
             i = 0
-            for x,y,z in self.grouper(data[1], 3):                      # extract non-intersecting groups of 3
-                polar[i] = [-np.arctan2(y, x), np.linalg.norm([x, y])]  # add to list in polar coordinates
+            for x, y, z in self.grouper(data[1], 3):                      # extract non-intersecting groups of 3
+                # translate to the robot center
+                #x += h_pos[0]
+                #y += h_pos[1]
+                polar[i] = [-np.arctan2(y, x), np.linalg.norm([x, y])]    # add to list in polar coordinates
                 i += 1
 
             angles = np.linspace(-np.radians(120), np.radians(120), 360)  # create regular angular values
@@ -219,13 +227,9 @@ class SpecificWorker(GenericWorker):
                                                            focalx=cam["focal"], focaly=cam["focal"],
                                                            alivetime=time.time(), depthFactor=1.0,
                                                            depth=depth.tobytes())
+            cam["is_ready"] = True
 
         self.cameras_write, self.cameras_read = self.cameras_read, self.cameras_write
-
-            # try:
-            #    self.camerargbdsimplepub_proxy.pushRGBD(cam["rgb"], cam["depth"])
-            # except Ice.Exception as e:
-            #    print(e)
 
     ###########################################
     ### JOYSITCK read and move the robot
@@ -336,7 +340,7 @@ class SpecificWorker(GenericWorker):
     # getAll
     #
     def CameraRGBDSimple_getAll(self, camera):
-        if camera in self.cameras_read.keys():
+        if camera in self.cameras_read.keys() and self.cameras_read[camera]["is_ready"]:
             return RoboCompCameraRGBDSimple.TRGBD(self.cameras_read[camera]["rgb"], self.cameras_read[camera]["depth"])
         else:
             e = RoboCompCameraRGBDSimple.HardwareFailedException()
@@ -347,7 +351,7 @@ class SpecificWorker(GenericWorker):
     # getDepth
     #
     def CameraRGBDSimple_getDepth(self, camera):
-        if camera in self.cameras_read.keys():
+        if camera in self.cameras_read.keys() and self.cameras_read[camera]["is_ready"]:
             return self.cameras_read[camera]["depth"]
         else:
             e = RoboCompCameraRGBDSimple.HardwareFailedException()
@@ -358,7 +362,7 @@ class SpecificWorker(GenericWorker):
     # getImage
     #
     def CameraRGBDSimple_getImage(self, camera):
-        if camera in self.cameras_read.keys():
+        if camera in self.cameras_read.keys() and self.cameras_read[camera]["is_ready"]:
             return self.cameras_read[camera]["rgb"]
         else:
             e = RoboCompCameraRGBDSimple.HardwareFailedException()
