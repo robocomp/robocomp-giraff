@@ -55,19 +55,15 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    //dist < x1 --> dist = y1
-    //dist > x2 --> dist = y2
-    //else      --> dist = m * dist + n
-    //int x1 = 600, x2 = 1000, y1 = 0, y2 = 600, residue = 300, trim = 3; //COPPELIA VALUES
-    float x1 = 650.0, x2 = 1250.0;
-    float y1 = 0.0;
-    float y2 = 0.6;
-    float residue = 0.1;
-    float trim = 3.0;   // GIRAFF  VALUES
+    int stop_threshold = 650, slow_threshold = 1250, min_speed = 0, max_speed = 700, residue = 200, trim = 3; //COPPELIA VALUES
+//    float stop_threshold = 650.0, slow_threshold = 1250.0;
+//    float min_speed = 0.0, max_speed = 0.6;
+//    float residue = 0.1;
+//    float trim = 3.0;   // GIRAFF  VALUES
     float adv = 0.8;
-    float rot = 0.8;
-    float m = (y2 - y1) * 1. / (x2 - x1);
-    float n = y1 - m * x1 + residue;
+    float rot = 0;
+    float m = (max_speed - min_speed) * 1. / (slow_threshold - stop_threshold);
+    float n = min_speed - m * stop_threshold + residue;
 
     if( auto ldata = laser_proxy->getLaserData(); !ldata.empty())
     {
@@ -91,15 +87,18 @@ void SpecificWorker::compute()
         float minValue = distances[limit];
 
         //Set the speeds depending on minValue, x1, x2, y1, y2
-        bool stop = minValue < x1;
-        bool slow = minValue < x2;
-        adv = (stop) ? y1 : (slow) ? m * minValue + n : y2;
-        qInfo() << __FUNCTION__ << adv*2000 << rot;
-        adv *= 2000;
+        if(minValue < stop_threshold) {
+            rot = 0.8;
+            adv = min_speed;
+        }else if(minValue < slow_threshold)
+            adv = m * minValue + n;
+        else
+            adv = max_speed;
 
         try
         {
-            differentialrobot_proxy->setSpeedBase(adv, (stop) ? rot : 0);
+            cout << "adv: " << adv << "     rot: " << rot << endl;
+            differentialrobot_proxy->setSpeedBase(adv, rot);
         }
         catch(const Ice::Exception &e)
             { std::cout << e.what() << std::endl;}
