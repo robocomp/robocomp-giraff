@@ -1,13 +1,13 @@
 # Endpoints for implements interfaces
-CameraRGBDSimple.Endpoints=tcp -p 10096
+CameraRGBDSimple.Endpoints=tcp -p 10095
 Laser.Endpoints=tcp -p 10003
 DifferentialRobot.Endpoints=tcp -p 10004
 CoppeliaUtils.Endpoints = tcp -p 10666
-FullPoseEstimation.Endpoints=tcp -p 10216
-Ultrasound.Endpoints=tcp -p 10015
-BatteryStatus.Endpoints=tcp -p 10014
-RSSIStatus.Endpoints=tcp -p 10017
+FullPoseEstimation.Endpoints=tcp -p 10696
+BatteryStatus.Endpoints=tcp -p 10050
+RSSIStatus.Endpoints=tcp -p 10060
 JointMotorSimple.Endpoints=tcp -p 10086
+
 
 # Endpoints for subscriptions interfaces
 JoystickAdapterTopic.Endpoints=tcp -p 13100
