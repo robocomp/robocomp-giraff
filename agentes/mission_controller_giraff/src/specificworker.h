@@ -99,11 +99,8 @@ private:
     void send_command_to_robot(const std::tuple<float, float, float> &speeds);   //adv, side, rot
 
     // Camera
-    //DoubleBuffer<std::vector<std::uint8_t>, cv::Mat> virtual_camera_buffer;
     DoubleBuffer<std::vector<std::uint8_t>, std::vector<std::uint8_t>> virtual_camera_buffer;
-    void project_robot_on_image(const DSR::Node &robot_node, const QPolygonF &robot_polygon, cv::Mat virtual_frame, float focal);
-    void project_laser_on_image(const DSR::Node &robot_node, const QPolygonF &laser_poly_local, cv::Mat virtual_frame, float focal);
-    void project_path_on_image(const std::vector<Eigen::Vector3d> &path, const DSR::Node robot_node, cv::Mat virtual_frame, float focal);
+    void read_camera();
 
     // Missions
     DoubleBuffer<Plan, Plan> plan_buffer;

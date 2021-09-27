@@ -46,7 +46,6 @@ public:
     QLabel *labelY;
     QPushButton *pushButton_save_coords;
     QLabel *label_rgb;
-    QLabel *label_map;
     QSpinBox *coordX;
     QSpinBox *coordY;
 
@@ -54,7 +53,7 @@ public:
     {
         if (local_guiDlg->objectName().isEmpty())
             local_guiDlg->setObjectName(QString::fromUtf8("local_guiDlg"));
-        local_guiDlg->resize(1642, 937);
+        local_guiDlg->resize(838, 937);
         verticalLayout_2 = new QVBoxLayout(local_guiDlg);
         verticalLayout_2->setObjectName(QString::fromUtf8("verticalLayout_2"));
         verticalLayout = new QVBoxLayout();
@@ -130,18 +129,16 @@ public:
         label_rgb = new QLabel(frame);
         label_rgb->setObjectName(QString::fromUtf8("label_rgb"));
         label_rgb->setGeometry(QRect(12, 496, 761, 401));
-        label_map = new QLabel(frame);
-        label_map->setObjectName(QString::fromUtf8("label_map"));
-        label_map->setGeometry(QRect(800, 20, 761, 401));
         coordX = new QSpinBox(frame);
         coordX->setObjectName(QString::fromUtf8("coordX"));
         coordX->setGeometry(QRect(150, 390, 101, 41));
+        coordX->setMinimum(-12000);
+        coordX->setMaximum(12000);
         coordY = new QSpinBox(frame);
         coordY->setObjectName(QString::fromUtf8("coordY"));
         coordY->setGeometry(QRect(370, 390, 101, 41));
-
-        coordX->setRange(-12000, 12000);
-        coordY->setRange(-34000, 34000);
+        coordY->setMinimum(-35000);
+        coordY->setMaximum(35000);
 
         verticalLayout->addWidget(frame);
 
@@ -166,7 +163,6 @@ public:
         labelY->setText(QApplication::translate("local_guiDlg", "Coordenada Y:", nullptr));
         pushButton_save_coords->setText(QApplication::translate("local_guiDlg", "Guardar coordenadas", nullptr));
         label_rgb->setText(QApplication::translate("local_guiDlg", "TextLabel", nullptr));
-        label_map->setText(QApplication::translate("local_guiDlg", "TextLabel", nullptr));
     } // retranslateUi
 
 };

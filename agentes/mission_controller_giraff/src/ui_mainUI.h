@@ -38,7 +38,6 @@ public:
     {
         if (guiDlg->objectName().isEmpty())
             guiDlg->setObjectName(QString::fromUtf8("guiDlg"));
-        guiDlg->resize(800, 600);
         actionStart_Stop = new QAction(guiDlg);
         actionStart_Stop->setObjectName(QString::fromUtf8("actionStart_Stop"));
         centralwidget = new QWidget(guiDlg);
@@ -63,7 +62,7 @@ public:
         guiDlg->setCentralWidget(centralwidget);
         menubar = new QMenuBar(guiDlg);
         menubar->setObjectName(QString::fromUtf8("menubar"));
-        menubar->setGeometry(QRect(0, 0, 780, 25));
+        menubar->setGeometry(QRect(0, 0, 850, 22));
         menuSimulation = new QMenu(menubar);
         menuSimulation->setObjectName(QString::fromUtf8("menuSimulation"));
         guiDlg->setMenuBar(menubar);

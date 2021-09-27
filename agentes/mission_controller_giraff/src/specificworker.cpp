@@ -159,21 +159,7 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    static QPixmap pix;
-    auto robot_node = get_robot_node();
-    if (auto vframe_t = virtual_camera_buffer.try_get(); vframe_t.has_value())
-    {
-        auto vframe = cv::Mat(cam_api->get_height(), cam_api->get_width(), CV_8UC3, vframe_t.value().data());
-        project_robot_on_image(robot_node, robot_polygon, vframe, cam_api->get_focal_x());
-        if (auto laser_o = laser_buffer.try_get(); laser_o.has_value() and not vframe.empty())
-        {
-            const auto &[angles, dists, laser_poly_local, laser_cart_world] = laser_o.value();
-            project_laser_on_image(robot_node, laser_poly_local, vframe, cam_api->get_focal_x());
-        }
-        project_path_on_image(path, robot_node, vframe, cam_api->get_focal_x());
-        pix = QPixmap::fromImage(QImage(vframe.data, vframe.cols, vframe.rows, QImage::Format_RGB888));
-        custom_widget.label_rgb->setPixmap(pix);
-    }
+    read_camera();
 
     // check for existing missions
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
@@ -187,21 +173,25 @@ void SpecificWorker::compute()
         // add to the plan the check points
     }
     // Compute next step of m_plan and check that it matches the current state
-
-//    QPointF position( 2679,  -22367);
-//    std::string name = custom_widget.list_plan->currentText().toStdString();
-//    qInfo() << __FUNCTION__ << " New mission to " << QString::fromStdString(name);
-//    auto node = G ->get_node(name);
-//    qInfo() << __FUNCTION__ << " Prueba " << custom_widget.list_plan->itemText(2);
-//    create_mission(position,node.value().id());
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////
+void SpecificWorker::read_camera()
+{
+    static QPixmap pix;
+    auto robot_node = get_robot_node();
+    if (auto vframe_t = virtual_camera_buffer.try_get(); vframe_t.has_value())
+    {
+        auto vframe = cv::Mat(cam_api->get_height(), cam_api->get_width(), CV_8UC3, vframe_t.value().data());
+        pix = QPixmap::fromImage(QImage(vframe.data, vframe.cols, vframe.rows, QImage::Format_RGB888));
+        custom_widget.label_rgb->setPixmap(pix);
+    }
+}
 
 void SpecificWorker::create_mission(const QPointF &pos, std::uint64_t target_node_id)
 {
 
 }
-
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -216,89 +206,8 @@ DSR::Node SpecificWorker::get_robot_node()
     }
 }
 
-void SpecificWorker::project_robot_on_image(const DSR::Node &robot_node, const QPolygonF &robot_polygon, cv::Mat virtual_frame, float focal)
-{
-    if (auto local_velocity = G->get_attrib_by_name<robot_local_linear_velocity_att>(robot_node); local_velocity.has_value())
-    {
-        float robot_adv_speed = local_velocity.value().get()[1];   // Y component of linear speed in robot's coordinate frame
-        int delta_time = 1;  // 1 sec
-        if (fabs(robot_adv_speed) < 50) return;    // only do if advance velocity is greater than 50
-        // displace robot polygon by offset
-        QPolygonF robot_polygon_projected(robot_polygon);
-        robot_polygon_projected.translate(0, robot_adv_speed * delta_time);
-        // transform projected polygon to virtual camera coordinate frame and project into virtual camera
-        std::vector<cv::Point> cv_poly;
-        for (const auto &p : robot_polygon_projected)
-        {
-            if(auto projected_point = inner_eigen->transform(giraff_camera_usb_name, Eigen::Vector3d(p.x(), p.y(), 0.f), robot_name); projected_point.has_value())
-            {
-                auto point = cam_api->project(projected_point.value());
-                if( point.y() > virtual_frame.rows / 2)
-                    cv_poly.emplace_back(cv::Point(point.x(), point.y()));
-            }
-        }
-        // paint on image
-        const cv::Point *pts = (const cv::Point *) cv::Mat(cv_poly).data;
-        int npts = cv::Mat(cv_poly).rows;
-        cv::polylines(virtual_frame, &pts, &npts, 1, true, cv::Scalar(0, 255, 0), 8);
-    }
-    else{ std::cout << __FUNCTION__ << " No robot_local_linear_velocity attribute in robot: " << robot_name << std::endl; }
-}
-void SpecificWorker::project_path_on_image(const std::vector<Eigen::Vector3d> &path, const DSR::Node robot_node, cv::Mat virtual_frame, float focal)
-{
-    int cont = 0;
-    std::vector<cv::Point> cv_points;
-    Eigen::Hyperplane<double, 3> robot_plane(Eigen::Vector3d(0.0, 1.0, 0.0), 1000);
 
-    auto cmp = [](auto &a, auto &b) { return std::get<double>(a) < std::get<double>(b); };
-    std::set<std::tuple<Eigen::Vector3d, double>, decltype(cmp)> ahead_of_robot;
-    for (const auto &p : path)
-    {
-        auto apr = inner_eigen->transform(robot_name, p, world_name).value();
-        auto d = robot_plane.signedDistance(apr);
-        if (d > 0)
-            ahead_of_robot.insert(std::make_tuple(p, d));
-    }
-    std::transform(ahead_of_robot.cbegin(), ahead_of_robot.cend(), std::back_inserter(cv_points), [this, virtual_frame](auto &p) {
-        if (auto projected_point = inner_eigen->transform(giraff_camera_usb_name, std::get<0>(p), world_name); projected_point.has_value())
-        {
-            auto point = cam_api->project(projected_point.value());
-            if (point.y() > virtual_frame.rows / 2)
-                return cv::Point(point.x(), point.y());
-        } else
-            return cv::Point();
-    });
-    for (const auto &p : cv_points)
-        cv::circle(virtual_frame, p, 6, cv::Scalar(51, 165, 50), cv::FILLED);
-    for (auto &&p: iter::sliding_window(cv_points, 2))
-        cv::line(virtual_frame, p[0], p[1], cv::Scalar(190, 234, 182), 2);
-}
-void SpecificWorker::project_laser_on_image(const DSR::Node &robot_node, const QPolygonF &laser_poly_local, cv::Mat virtual_frame, float focal)
-{
-        std::vector<cv::Point> cv_poly;
-        // transform laser polygon to virtual camera coordinate frame
-        for(const auto &p : laser_poly_local)
-        {
-            if(auto projected_point = inner_eigen->transform(giraff_camera_usb_name, Eigen::Vector3d(p.x(), p.y(), 0.f), robot_name); projected_point.has_value())
-            {
-                auto point = cam_api->project(projected_point.value());
-                if( point.x() < virtual_frame.cols and point.y() < virtual_frame.rows and point.x() >= 0 and point.y()>=0 )
-                    cv_poly.emplace_back(cv::Point(point.x(), point.y()));
-            }
-        }
-        // add two points to close de polygon
-        cv_poly.emplace_back(cv::Point(virtual_frame.cols/2,virtual_frame.rows));
-        cv_poly.insert(cv_poly.begin(), cv::Point(virtual_frame.cols/2, virtual_frame.rows));
-        // paint on image
-        cv::Mat overlay;  // declaring overlay matrix, we'll copy source image to this matrix
-        double alpha = 0.3;  // defining opacity value, 0 means fully transparent, 1 means fully opaque
-        virtual_frame.copyTo(overlay);
-        const cv::Point *pts = (const cv::Point*) cv::Mat(cv_poly).data;
-        int npts = cv::Mat(cv_poly).rows;
-        cv::polylines(overlay, &pts, &npts, 1, true, cv::Scalar(255,192,203), 3);
-        cv::fillPoly(overlay, &pts, &npts, 1, cv::Scalar(255,182,193));
-        cv::addWeighted(overlay, alpha, virtual_frame, 1 - alpha, 0, virtual_frame);  // blending the overlay (with alpha opacity) with the source image (with 1-alpha opacity)
-}
+/////////////////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d)
 {
     static std::vector<QGraphicsLineItem *> scene_road_points;

@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>1642</width>
+    <width>838</width>
     <height>937</height>
    </rect>
   </property>
@@ -149,19 +149,6 @@
          <string>TextLabel</string>
         </property>
        </widget>
-       <widget class="QLabel" name="label_map">
-        <property name="geometry">
-         <rect>
-          <x>800</x>
-          <y>20</y>
-          <width>761</width>
-          <height>401</height>
-         </rect>
-        </property>
-        <property name="text">
-         <string>TextLabel</string>
-        </property>
-       </widget>
        <widget class="QSpinBox" name="coordX">
         <property name="geometry">
          <rect>
@@ -170,6 +157,12 @@
           <width>101</width>
           <height>41</height>
          </rect>
+        </property>
+        <property name="minimum">
+         <number>-12000</number>
+        </property>
+        <property name="maximum">
+         <number>12000</number>
         </property>
        </widget>
        <widget class="QSpinBox" name="coordY">
@@ -180,6 +173,12 @@
           <width>101</width>
           <height>41</height>
          </rect>
+        </property>
+        <property name="minimum">
+         <number>-35000</number>
+        </property>
+        <property name="maximum">
+         <number>35000</number>
         </property>
        </widget>
       </widget>
