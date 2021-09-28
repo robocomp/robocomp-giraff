@@ -215,12 +215,15 @@ std::tuple<float, float, float> SpecificWorker::socialize_speeds(std::tuple<floa
     }else {
         cout << "NO PERSONAL SPACE" << endl;
     }
+    cout << "ADV: " << adv_ << endl;
 
     return std::make_tuple(adv_, side_, rot_);
 }
 
 float SpecificWorker::sigmoid(float dMin){
-    return (1./(1- pow(M_E, dMin)));
+    float x = 2.f / (1.f + exp(-dMin * 0.0015)) - 1.f;
+    cout << "dMin: " << dMin << "   sigmoid:  " << x << endl;
+    return (x);
 }
 
 float SpecificWorker::smallest_distance_to_person(std::vector<DSR::Node> personal_space)

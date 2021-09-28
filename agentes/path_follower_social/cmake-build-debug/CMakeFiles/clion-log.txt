@@ -1,4 +1,4 @@
-/snap/clion/164/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_DEPENDS_USE_COMPILER=FALSE -G "CodeBlocks - Unix Makefiles" /home/robo02/robocomp/components/robocomp-giraff/agentes/path_follower_social
+/snap/clion/164/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_DEPENDS_USE_COMPILER=FALSE -G "CodeBlocks - Unix Makefiles" /home/javier/robocomp/components/robocomp-giraff/agentes/path_follower_social
 CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
   Compatibility with CMake < 2.8.12 will be removed from a future version of
   CMake.
@@ -39,15 +39,6 @@ CMake Warning at src/CMakeLists.txt:5 (MESSAGE):
 -- Found Ice: /usr/bin/slice2cpp (found version "3.7.3") 
 -- RoboComp root is now set to /opt/robocomp//
 -- 
--- Looking for pthread.h
--- Looking for pthread.h - found
--- Performing Test CMAKE_HAVE_LIBC_PTHREAD
--- Performing Test CMAKE_HAVE_LIBC_PTHREAD - Failed
--- Looking for pthread_create in pthreads
--- Looking for pthread_create in pthreads - not found
--- Looking for pthread_create in pthread
--- Looking for pthread_create in pthread - found
--- Found Threads: TRUE  
 -- Ice version: 3.7.3
 -- Found the following Ice libraries:
 --   Ice (required)
@@ -55,9 +46,9 @@ CMake Warning at src/CMakeLists.txt:5 (MESSAGE):
 -- The following Ice libraries were not found:
 --   IceUtil (optional)
 -- Found Ice: /usr/bin/slice2cpp (found version "3.7.3") 
--- BU Adding rule to generate /home/robo02/robocomp/components/robocomp-giraff/agentes/path_follower_social/src/CommonBehavior.ice from /opt/robocomp//interfaces/IDSLs/CommonBehavior.idsl
--- BU ice=>h/cpp: Adding rule to generate CommonBehavior.h and CommonBehavior.cpp from /home/robo02/robocomp/components/robocomp-giraff/agentes/path_follower_social/src/CommonBehavior.ice
+-- BU Adding rule to generate /home/javier/robocomp/components/robocomp-giraff/agentes/path_follower_social/src/CommonBehavior.ice from /opt/robocomp//interfaces/IDSLs/CommonBehavior.idsl
+-- BU ice=>h/cpp: Adding rule to generate CommonBehavior.h and CommonBehavior.cpp from /home/javier/robocomp/components/robocomp-giraff/agentes/path_follower_social/src/CommonBehavior.ice
 -- Generating header file from mainUI.ui
 -- Configuring done
 -- Generating done
--- Build files have been written to: /home/robo02/robocomp/components/robocomp-giraff/agentes/path_follower_social/cmake-build-debug
+-- Build files have been written to: /home/javier/robocomp/components/robocomp-giraff/agentes/path_follower_social
