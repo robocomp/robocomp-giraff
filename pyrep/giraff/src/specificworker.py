@@ -270,13 +270,26 @@ class SpecificWorker(GenericWorker):
     ### ROBOT POSE get and publish robot position
     ###########################################
     def read_robot_pose(self):
+
+        pose = self.robot_object.get_position()
+        rot = self.robot_object.get_orientation()
+        linear_vel, ang_vel = self.robot_object.get_velocity()
+
+        isMoving = np.abs(linear_vel[0]) > 0.01 or np.abs(linear_vel[1]) > 0.01 or np.abs(ang_vel[2]) > 0.01
+        self.bState = RoboCompGenericBase.TBaseState(x=pose[0] * 1000,
+                                                     z=pose[1] * 1000,
+                                                     alpha=rot[2] - np.pi,
+                                                     advVx=linear_vel[0] * 1000,
+                                                     advVz=linear_vel[1] * 1000,
+                                                     rotV=ang_vel[2],
+                                                     isMoving=isMoving)
         
         self.robot_full_pose_write.x = pose[0] * 1000
         self.robot_full_pose_write.y = pose[1] * 1000
         self.robot_full_pose_write.z = pose[2] * 1000
         self.robot_full_pose_write.rx = rot[0]
         self.robot_full_pose_write.ry = rot[1]
-        self.robot_full_pose_write.rz = rot[2] - np.pi
+        self.robot_full_pose_write.rz = rot[2]
         self.robot_full_pose_write.vx = linear_vel[0] * 1000.0
         self.robot_full_pose_write.vy = linear_vel[1] * 1000.0
         self.robot_full_pose_write.vz = linear_vel[2] * 1000.0
