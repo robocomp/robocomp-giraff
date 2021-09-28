@@ -1433,7 +1433,7 @@ src/CMakeFiles/path_follower.dir/main.cpp.o: \
  ../src/main.cpp \
  ../src/specificmonitor.h \
  ../src/specificworker.h \
- /home/robo02/robocomp/components/dsr-graph/etc/graph_names.h \
+ /home/robo02/robocomp/components/robocomp-giraff/etc/graph_names.h \
  /opt/robocomp/classes/doublebuffer/DoubleBuffer.h \
  /opt/robocomp/classes/fps/fps.h \
  /opt/robocomp/classes/qlog/qlog.h \
@@ -2394,7 +2394,7 @@ src/CMakeFiles/path_follower.dir/path_follower_autogen/mocs_compilation.cpp.o: \
  ../src/genericworker.h \
  ../src/specificmonitor.h \
  ../src/specificworker.h \
- /home/robo02/robocomp/components/dsr-graph/etc/graph_names.h \
+ /home/robo02/robocomp/components/robocomp-giraff/etc/graph_names.h \
  /opt/robocomp/classes/doublebuffer/DoubleBuffer.h \
  /opt/robocomp/classes/fps/fps.h \
  /opt/robocomp/classes/qlog/qlog.h \
@@ -3353,7 +3353,7 @@ src/CMakeFiles/path_follower.dir/specificworker.cpp.o: \
  ../src/localPerson.h \
  ../src/specificworker.cpp \
  ../src/specificworker.h \
- /home/robo02/robocomp/components/dsr-graph/etc/graph_names.h \
+ /home/robo02/robocomp/components/robocomp-giraff/etc/graph_names.h \
  /opt/robocomp/classes/doublebuffer/DoubleBuffer.h \
  /opt/robocomp/classes/fps/fps.h \
  /opt/robocomp/classes/qlog/qlog.h \

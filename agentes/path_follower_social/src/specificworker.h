@@ -159,6 +159,7 @@ class SpecificWorker : public GenericWorker
 
     std::tuple<float, float, float> socialize_speeds(std::tuple<float, float, float> &speeds, const std::vector<Eigen::Vector2f> &path);
     float sigmoid(float dMin);
+    float smallest_distance_to_person(std::vector<DSR::Node> personal_space);
 
 };
 #endif

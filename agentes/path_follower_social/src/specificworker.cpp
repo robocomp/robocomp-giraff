@@ -208,14 +208,46 @@ std::tuple<float, float, float> SpecificWorker::socialize_speeds(std::tuple<floa
     auto &[adv_, side_, rot_] = speeds;
     auto robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
     auto robot_pose = Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
-    auto minPoint = std::ranges::min_element(path, [robot_pose](auto &a, auto &b){ return (robot_pose - a).norm() < (robot_pose - b).norm();})[0];
-    float dMin = sqrt(pow((minPoint[0] - robot_pose[0]),2)+pow((minPoint[1] - robot_pose[1]),2));
-    adv_ *= sigmoid(dMin);
+
+    if(auto personal_space = G->get_nodes_by_type("personal_space"); not personal_space.empty()) {
+        float dMin = smallest_distance_to_person(personal_space);
+        adv_ *= sigmoid(dMin);
+    }else {
+        cout << "NO PERSONAL SPACE" << endl;
+    }
+    cout << "ADV: " << adv_ << endl;
+
     return std::make_tuple(adv_, side_, rot_);
 }
 
 float SpecificWorker::sigmoid(float dMin){
-    return (1./(1- pow(M_E, dMin)));
+    float x = 2.f / (1.f + exp(-dMin * 0.0015)) - 1.f;
+    cout << "dMin: " << dMin << "   sigmoid:  " << x << endl;
+    return (x);
+}
+
+float SpecificWorker::smallest_distance_to_person(std::vector<DSR::Node> personal_space)
+{
+    std::vector<QPointF> all_gauss;
+    for (int i = 0; i < personal_space.size(); ++i)
+    {
+        const auto &gauss_x= G->get_attrib_by_name<ps_intimate_x_pos_att>(personal_space[i]).value().get();
+        const auto &gauss_y = G->get_attrib_by_name<ps_intimate_y_pos_att>(personal_space[i]).value().get();
+        for(int j = 0; j < 9; j++)
+        {
+            QPointF newPoint(gauss_x[j], gauss_y[j]);
+            all_gauss.push_back(newPoint);
+        }
+    }
+    auto robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
+    auto robot_pose = Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
+    auto min = std::ranges::min_element(all_gauss, [robot_pose](QPointF &a, QPointF &b){
+        float distA = sqrt(pow(a.x() - robot_pose[0], 2) + pow(a.y() - robot_pose[1], 2));
+        float distB = sqrt(pow(b.x() - robot_pose[0], 2) + pow(b.y() - robot_pose[1], 2));
+        return distA < distB;
+    });
+
+    return sqrt(pow(min->x() - robot_pose[0], 2) + pow(min->y() - robot_pose[1], 2));
 }
 
 void SpecificWorker::path_follower_initialize()
