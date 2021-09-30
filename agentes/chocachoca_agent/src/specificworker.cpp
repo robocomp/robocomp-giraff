@@ -17,7 +17,7 @@
  *    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "specificworker.h"
-
+#include "cppitertools/sliding_window.hpp"
 /**
 * \brief Default constructor
 */
@@ -117,20 +117,13 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-	//computeCODE
-	//QMutexLocker locker(mutex);
-	//try
-	//{
-	//  camera_proxy->getYImage(0,img, cState, bState);
-	//  memcpy(image_gray.data, &img[0], m_width*m_height*sizeof(uchar));
-	//  searchTags(image_gray);
-	//}
-	//catch(const Ice::Exception &e)
-	//{
-	//  std::cout << "Error reading from Camera" << e << std::endl;
-	//}
-	
-	
+    if(auto intention = G->get_node(current_intention_name); intention.has_value()){
+        if (std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value()); plan.has_value()) {
+            Plan plan_o = Plan(plan.value());
+            if(plan_o.action==Plan::Actions::CHOCACHOCA)
+                chocachoca();
+        }
+    }
 }
 
 int SpecificWorker::startup_check()
@@ -139,7 +132,66 @@ int SpecificWorker::startup_check()
 	QTimer::singleShot(200, qApp, SLOT(quit()));
 	return 0;
 }
+void SpecificWorker::chocachoca()
+{
+    static int stop_threshold = 650, slow_threshold = 1250, min_speed = 0, max_speed = 700, residue = 200, trim = 3; //COPPELIA VALUES
+//    float stop_threshold = 650.0, slow_threshold = 1250.0;
+//    float min_speed = 0.0, max_speed = 0.6;
+//    float residue = 0.1;
+//    float trim = 3.0;   // GIRAFF  VALUES
+    static float adv = 0.8,rot = 0, m = (max_speed - min_speed) * 1. / (slow_threshold - stop_threshold),n = min_speed - m * stop_threshold + residue;
+//    if( auto ldata = laser_proxy->getLaserData(); !ldata.empty())
+    if (auto laser_node= G->get_node(laser_name);laser_node.has_value())
+    {
+        auto laser=laser_node.value();
+        //Using only distance values
+        auto distances = G->get_attrib_by_name<laser_dists_att>(laser).value().get();
+        //Filter, try to fix laser measure errors
+        if(distances[0] < 200)
+            distances[0] = 200;
+        for(auto &&window : iter::sliding_window(distances, 2))
+        {
+            if(window[1] < 200)
+            window[1] = window[0];
+        }
 
+        //Sort and take the lower distance value
+        int limit = distances.size()/trim;
+        std::sort(distances.begin() + limit, distances.end() - limit, [](float a, float b){return a < b;});
+        float minValue = distances[limit];
+
+        //Set the speeds depending on minValue, x1, x2, y1, y2
+        if(minValue < stop_threshold) {
+            rot = 0.8;
+            adv = min_speed;
+        }
+        else if(minValue < slow_threshold)
+            adv = m * minValue + n;
+        else
+            adv = max_speed;
+
+        try
+        {
+            cout << "adv: " << adv << "     rot: " << rot << endl;
+            send_command_to_robot(std::make_tuple(adv, rot));
+        }
+        catch(const Ice::Exception &e)
+            { std::cout << e.what() << std::endl;}
+    }
+}
+
+std::tuple<float, float> SpecificWorker::send_command_to_robot(const std::tuple<float, float> &speeds) //adv, side, rot
+{
+    auto &[adv_, rot_] = speeds;
+    if(auto robot_node = G->get_node(robot_name); robot_node.has_value())
+    {
+        G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) adv_);
+        G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) rot_);
+        G->update_node(robot_node.value());
+    }
+    else qWarning() << __FUNCTION__ << "No robot node found";
+    return std::make_tuple(adv_, rot_);
+}
 
 
 

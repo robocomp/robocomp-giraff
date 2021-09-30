@@ -31,6 +31,8 @@
 #include "dsr/api/dsr_api.h"
 #include "dsr/gui/dsr_gui.h"
 #include <doublebuffer/DoubleBuffer.h>
+#include  "/home/robo02/robocomp/components/dsr-graph/etc/graph_names.h"
+#include "plan.h"
 
 class SpecificWorker : public GenericWorker
 {
@@ -46,6 +48,7 @@ public slots:
 	void compute();
 	int startup_check();
 	void initialize(int period);
+
 private:
 	// DSR graph
 	std::shared_ptr<DSR::DSRGraph> G;
@@ -69,6 +72,8 @@ private:
 	void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag){};
 	void del_node_slot(std::uint64_t from){};     
 	bool startup_check_flag;
+    void chocachoca();
+    std::tuple<float, float> send_command_to_robot(const std::tuple<float, float> &speeds);
 
 };
 
