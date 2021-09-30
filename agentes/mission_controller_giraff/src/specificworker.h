@@ -36,6 +36,7 @@
 #include <opencv2/opencv.hpp>
 #include "plan.h"
 #include <QListWidget>
+#include "ui_mission_pointUI.h"
 
 class SpecificWorker : public GenericWorker
 {
@@ -88,6 +89,7 @@ private:
     // local widgets
     DSR::QScene2dViewer* widget_2d;
     Custom_widget custom_widget;
+    Ui_point_guiDlg point_dialog;
 
     // Laser
     using LaserData = std::tuple<std::vector<float>, std::vector<float>>;  //<angles, dists>
@@ -108,6 +110,9 @@ private:
     Plan list_plan;
     void insert_intention_node(const Plan &plan);
     void create_mission(const QPointF &pos,  std::uint64_t target_node_id);
+    void read_index();
+    void mission_chocachoca();
+    int indice();
 
     //Path
     std::vector<Eigen::Vector3d> path;

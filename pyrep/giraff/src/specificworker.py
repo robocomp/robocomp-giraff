@@ -246,7 +246,7 @@ class SpecificWorker(GenericWorker):
                     rot = x.value if np.abs(x.value) > 0.01 else 0
 
             converted = self.convert_base_speed_to_motors_speed(adv, rot)
-            #print("Joystick ", [adv, rot], converted)
+            print("Joystick ", [adv, rot], converted)
             self.joystick_newdata = None
             self.last_received_data_time = time.time()
         else:
@@ -454,7 +454,7 @@ class SpecificWorker(GenericWorker):
     def FullPoseEstimation_getFullPoseEuler(self):
         return self.robot_full_pose_read
 
-    def FullPoseEstimation_getFullPoseMatrix(self):
+    def FullPoseEstimation_getFullPoseMatrix(self): # NO USAR
         t = self.tm.get_transform("origin", "robot")
         m = RoboCompFullPoseEstimation.FullPoseMatrix()
         m.m00 = t[0][0]

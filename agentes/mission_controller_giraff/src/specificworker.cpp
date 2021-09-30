@@ -65,9 +65,12 @@ void SpecificWorker::initialize(int period)
 	else
 	{
 		timer.start(Period);
-		// create graph
+
+        // create graph
 		G = std::make_shared<DSR::DSRGraph>(0, agent_name, agent_id, ""); // Init nodes
-		std::cout<< __FUNCTION__ << "Graph loaded" << std::endl;  
+		std::cout<< __FUNCTION__ << "Graph loaded" << std::endl;
+
+
 
 		//dsr update signals
 		connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::add_or_assign_node_slot);
@@ -100,12 +103,13 @@ void SpecificWorker::initialize(int period)
         connect(custom_widget.pushButton_start_mission, SIGNAL(clicked()), this, SLOT(slot_start_mission()));
         connect(custom_widget.pushButton_stop_mission, SIGNAL(clicked()), this, SLOT(slot_stop_mission()));
         connect(custom_widget.pushButton_cancel_mission, SIGNAL(clicked()), this, SLOT(slot_cancel_mission()));
-        connect(custom_widget.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
+
 
         //List of missions
-        custom_widget.list_plan->addItem("Misión punto");
-        custom_widget.list_plan->addItem("Misión secuencia de puntos");
-        custom_widget.list_plan->addItem("Misión choca-choca");
+        custom_widget.list_plan->addItem("Select a mission");
+        custom_widget.list_plan->addItem("Mission point");
+        custom_widget.list_plan->addItem("Mission point sequence"); //cargar un plan con diferentes puntos y más adelante, más planes
+        custom_widget.list_plan->addItem("\"Choca-choca\" mission");
 
         // 2D widget
         widget_2d = qobject_cast<DSR::QScene2dViewer *>(graph_viewer->get_widget(opts::scene));
@@ -152,6 +156,7 @@ void SpecificWorker::initialize(int period)
         OctaveFormat = Eigen::IOFormat(Eigen::StreamPrecision, 0, ", ", ";\n", "", "", "[", "]");
         CommaInitFmt = Eigen::IOFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", " << ", ";");
 
+
         this->Period = 100;
 		timer.start(Period);
 	}
@@ -160,8 +165,7 @@ void SpecificWorker::initialize(int period)
 void SpecificWorker::compute()
 {
     read_camera();
-
-    // check for existing missions
+  // check for existing missions
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
         current_plan = plan_o.value();
@@ -173,6 +177,15 @@ void SpecificWorker::compute()
         // add to the plan the check points
     }
     // Compute next step of m_plan and check that it matches the current state
+
+    //Conecto diálogos en función del índice del desplegable
+    if (indice()==1)
+    {
+        point_dialog.setupUi(custom_widget.empty_widget);
+        connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
+        custom_widget.empty_widget->show();
+
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -186,6 +199,55 @@ void SpecificWorker::read_camera()
         pix = QPixmap::fromImage(QImage(vframe.data, vframe.cols, vframe.rows, QImage::Format_RGB888));
         custom_widget.label_rgb->setPixmap(pix);
     }
+}
+
+void SpecificWorker::read_index()
+{/*
+    int index = custom_widget.list_plan->currentIndex();
+
+    cout << "El índice es " << index << endl;
+
+    switch (index)
+    {
+        case 1: //misión punto (quiero abrir ventana nueva con coordX y coordY
+
+        point_dialog.setupUi(custom_widget.empty_widget);
+        custom_widget.empty_widget->show();
+        connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
+
+        break;
+
+        case 2: //misión secuencia puntos (se carga un plan de diferentes puntos preestablecidos)
+        break;
+
+        case 3: //misión chocachoca (creo plan que en vez de "goto" sea "chocachoca")
+
+        mission_chocachoca();
+
+        break;
+    }*/
+}
+
+
+int SpecificWorker::indice()
+{
+    int index = custom_widget.list_plan->currentIndex();
+
+    cout << "El índice es " << index << endl;
+
+    return index;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////
+
+void SpecificWorker::mission_chocachoca()
+{
+    Plan plan;
+    std::string plan_string;
+
+    plan_string = R"({"plan":[{"action":"chocachoca","params":{)" R"(,"object":")" "\"}}]}";
+    current_plan = Plan(plan_string);
+    current_plan.print();
 }
 
 void SpecificWorker::create_mission(const QPointF &pos, std::uint64_t target_node_id)
@@ -457,8 +519,8 @@ void SpecificWorker::slot_save_coords()
 {
     //cuadros detexto --> nodo intención
 
-    int coordX = custom_widget.coordX->value();
-    int coordY = custom_widget.coordY->value();
+    int coordX = point_dialog.coordX->value();
+    int coordY = point_dialog.coordY->value();
 
     cout<< "Coordenada X: " << coordX << " | Coordenada Y: " << coordY << endl;
 
@@ -470,8 +532,7 @@ void SpecificWorker::slot_save_coords()
     plan_string = R"({"plan":[{"action":"goto","params":{"location":)" + location.str() + R"(,"object":")" + "\"}}]}";
     current_plan = Plan(plan_string);
     current_plan.print();
-    //insert_intention_node(plan);
-    //plan_buffer.put(std::move(plan));
+
 
     //Actualizar el currentplan
 }
