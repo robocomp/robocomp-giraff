@@ -34,13 +34,14 @@
 #endif
 
 #include <ui_localUI.h>
+//#include <ui_mission_pointUI.h>
 
 
-class Custom_widget : public QWidget, public Ui_local_guiDlg
+class Custom_widget : public QWidget, public Ui_local_guiDlg//, public Ui_point_guiDlg
 {
 Q_OBJECT
 public:
-    Custom_widget() : Ui_local_guiDlg()
+    Custom_widget() : Ui_local_guiDlg() //, Ui_point_guiDlg
     {
         setupUi(this);
     }

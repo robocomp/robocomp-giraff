@@ -2,6 +2,14 @@
 <ui version="4.0">
  <class>guiDlg</class>
  <widget class="QMainWindow" name="guiDlg">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1081</width>
+    <height>634</height>
+   </rect>
+  </property>
   <property name="windowTitle">
    <string>controller_dsr</string>
   </property>
@@ -32,7 +40,7 @@
     <rect>
      <x>0</x>
      <y>0</y>
-     <width>850</width>
+     <width>1081</width>
      <height>22</height>
     </rect>
    </property>
