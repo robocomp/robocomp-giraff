@@ -65,6 +65,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 
 void SpecificWorker::initialize(int period)
 {
+    std::srand(std::time(nullptr));
 	std::cout << "Initialize worker" << std::endl;
 	this->Period = period;
 	if(this->startup_check_flag)
@@ -121,6 +122,7 @@ void SpecificWorker::compute()
         if (std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value()); plan.has_value()) {
             Plan plan_o = Plan(plan.value());
             if(plan_o.action==Plan::Actions::CHOCACHOCA)
+                cout << "////////"<<endl;
                 chocachoca();
         }
     }
@@ -134,12 +136,12 @@ int SpecificWorker::startup_check()
 }
 void SpecificWorker::chocachoca()
 {
-    static int stop_threshold = 650, slow_threshold = 1250, min_speed = 0, max_speed = 700, residue = 200, trim = 3; //COPPELIA VALUES
+    static int stop_threshold = 650, slow_threshold = 800, residue = 100, min_speed = 0 + residue, max_speed = 600,  trim = 3; //COPPELIA VALUES
 //    float stop_threshold = 650.0, slow_threshold = 1250.0;
 //    float min_speed = 0.0, max_speed = 0.6;
 //    float residue = 0.1;
 //    float trim = 3.0;   // GIRAFF  VALUES
-    static float adv = 0.8,rot = 0, m = (max_speed - min_speed) * 1. / (slow_threshold - stop_threshold),n = min_speed - m * stop_threshold + residue;
+    float adv = 0.8, rot = 0.0, m = (max_speed - min_speed) * 1. / (slow_threshold - stop_threshold),n = min_speed - m * stop_threshold + residue;
 //    if( auto ldata = laser_proxy->getLaserData(); !ldata.empty())
     if (auto laser_node= G->get_node(laser_name);laser_node.has_value())
     {
@@ -164,6 +166,7 @@ void SpecificWorker::chocachoca()
         if(minValue < stop_threshold) {
             rot = 0.8;
             adv = min_speed;
+            sleep(std::rand() % 3 + 1);
         }
         else if(minValue < slow_threshold)
             adv = m * minValue + n;
