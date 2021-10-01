@@ -112,6 +112,7 @@ private:
 
     //Path
     std::vector<Eigen::Vector3d> path;
+    DoubleBuffer<std::vector<Eigen::Vector3d>,std::vector<Eigen::Vector3d>> path_buffer;
     void draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d);
 
 

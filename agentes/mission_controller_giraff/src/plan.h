@@ -8,11 +8,12 @@
 class Plan
 {
     public:
-        enum class Actions {GOTO, CHOCACHOCA};
+        enum class Actions {GOTO, CHOCACHOCA, PATH};
         Actions action;
         std::string target_place;
         std::map<std::string, double> params;
-        bool is_active = false;
+        void set_active(bool s) {active = s;};
+        bool is_active() const {return active;};
         bool is_empty = true;
         bool is_location(const Mat::Vector2d &loc)
         {
@@ -37,7 +38,9 @@ class Plan
                 ss << "\t" << k << " : " << std::to_string(v) << std::endl;
            return ss.str();
         };
-        //////////////////////////////////////////////7
+    Eigen::Vector3d get_target_trans() { return Eigen::Vector3d(params["x"], params["y"], 0.f);};
+
+    //////////////////////////////////////////////7
         /// parser form JSON plan to Plan structure
         Plan(){};
 
@@ -58,8 +61,13 @@ class Plan
                 action = Plan::Actions::GOTO;
                 target_place = object.toStdString();
             }
-            else if (action_s == "chocachoca")
+            if (action_s == "chocachoca")
                 action = Plan::Actions::CHOCACHOCA;
+            if (action_s == "path")
+            {
+                action = Plan::Actions::PATH;
+            }
+
 
             plan_string = plan_string_;
             is_empty = false;
@@ -68,5 +76,7 @@ class Plan
 
     private:
         std::map<Actions, std::string> action_strings{{Actions::GOTO, "GOTO"}, {Actions::CHOCACHOCA, "CHOCACHOCA"}};
+    bool active = false;
+
 };
 #endif //CONTROLLER_DSR_MISSION_H
