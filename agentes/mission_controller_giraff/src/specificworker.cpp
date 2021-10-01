@@ -70,7 +70,10 @@ void SpecificWorker::initialize(int period)
 		G = std::make_shared<DSR::DSRGraph>(0, agent_name, agent_id, ""); // Init nodes
 		std::cout<< __FUNCTION__ << "Graph loaded" << std::endl;
 
-
+        // create dialog mission point and hide it, when index=1 show this widget
+        point_dialog.setupUi(custom_widget.empty_widget);
+        custom_widget.empty_widget->hide();
+        connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
 
 		//dsr update signals
 		connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::add_or_assign_node_slot);
@@ -104,7 +107,6 @@ void SpecificWorker::initialize(int period)
         connect(custom_widget.pushButton_stop_mission, SIGNAL(clicked()), this, SLOT(slot_stop_mission()));
         connect(custom_widget.pushButton_cancel_mission, SIGNAL(clicked()), this, SLOT(slot_cancel_mission()));
 
-
         //List of missions
         custom_widget.list_plan->addItem("Select a mission");
         custom_widget.list_plan->addItem("Mission point");
@@ -115,7 +117,6 @@ void SpecificWorker::initialize(int period)
         widget_2d = qobject_cast<DSR::QScene2dViewer *>(graph_viewer->get_widget(opts::scene));
         widget_2d->set_draw_laser(true);
         connect(widget_2d, SIGNAL(mouse_right_click(int, int, std::uint64_t)), this, SLOT(new_target_from_mouse(int, int, std::uint64_t)));
-
 
         // get camera_api
         if(auto cam_node = G->get_node(giraff_camera_usb_name); cam_node.has_value())
@@ -156,7 +157,6 @@ void SpecificWorker::initialize(int period)
         OctaveFormat = Eigen::IOFormat(Eigen::StreamPrecision, 0, ", ", ";\n", "", "", "[", "]");
         CommaInitFmt = Eigen::IOFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", " << ", ";");
 
-
         this->Period = 100;
 		timer.start(Period);
 	}
@@ -166,7 +166,8 @@ void SpecificWorker::compute()
 {
     read_camera();
     read_index();
-  // check for existing missions
+
+    // check for existing missions
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
         current_plan = plan_o.value();
@@ -177,19 +178,13 @@ void SpecificWorker::compute()
         // get the path and divide it in N check points separated 1 sec
         // add to the plan the check points
     }
+
     // Compute next step of m_plan and check that it matches the current state
 
-    //Conecto diálogos en función del índice del desplegable
-    /*if (indice()==1)
-    {
-        point_dialog.setupUi(custom_widget.empty_widget);
-        connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
-        custom_widget.empty_widget->show();
-
-    }*/
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
+
 void SpecificWorker::read_camera()
 {
     static QPixmap pix;
@@ -206,16 +201,11 @@ void SpecificWorker::read_index()
 {
     int index = custom_widget.list_plan->currentIndex();
 
-    cout << "El índice es " << index << endl;
-
     switch (index)
     {
-        case 1: //misión punto (quiero abrir ventana nueva con coordX y coordY
+        case 1: //misión punto
 
-            cout << "Misión punto" <<endl;
-            point_dialog.setupUi(custom_widget.empty_widget);
             custom_widget.empty_widget->show();
-            connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
 
         break;
 
@@ -224,22 +214,12 @@ void SpecificWorker::read_index()
 
         case 3: //misión chocachoca (creo plan que en vez de "goto" sea "chocachoca")
 
-            cout << "Misión chocachoca" <<endl;
             mission_chocachoca();
 
         break;
     }
 }
 
-
-int SpecificWorker::indice()
-{/*
-    int index = custom_widget.list_plan->currentIndex();
-
-    cout << "El índice es " << index << endl;
-
-    return index;*/
-}
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -325,6 +305,7 @@ void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float>
 /////////////////////////////////////////////////////////////////////////////////////////////
 /// Asynchronous changes on G nodes from G signals
 ////////////////////////////////////////////////////////////////////////////////////////////
+
 void SpecificWorker::add_or_assign_node_slot(const std::uint64_t id, const std::string &type)
 {
     if(type == rgbd_type_name and id == cam_api->get_id())

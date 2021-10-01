@@ -56,9 +56,6 @@ public slots:
     void slot_cancel_mission();
     void slot_save_coords();
 
-//    bool iniciado = false;
-//    bool completado = false;
-
 private:
 	// DSR graph
 	std::shared_ptr<DSR::DSRGraph> G;
@@ -112,7 +109,6 @@ private:
     void create_mission(const QPointF &pos,  std::uint64_t target_node_id);
     void read_index();
     void mission_chocachoca();
-    int indice();
 
     //Path
     std::vector<Eigen::Vector3d> path;
