@@ -8,7 +8,7 @@
 class Plan
 {
     public:
-        enum class Actions {GOTO};
+        enum class Actions {GOTO, CHOCACHOCA};
         Actions action;
         std::string target_place;
         std::map<std::string, double> params;
@@ -48,8 +48,7 @@ class Plan
             QJsonArray actionArray = planJson.value("plan").toArray();
             QJsonObject action_0 = actionArray.at(0).toObject();
             QString action_s = action_0.value("action").toString();
-            if (action_s == "goto")
-            {
+            if (action_s == "goto") {
                 QJsonObject action_params = action_0.value("params").toObject();
                 QString object = action_params.value("object").toString();
                 QJsonArray location = action_params.value("location").toArray();
@@ -59,12 +58,15 @@ class Plan
                 action = Plan::Actions::GOTO;
                 target_place = object.toStdString();
             }
+            else if (action_s == "chocachoca")
+                action = Plan::Actions::CHOCACHOCA;
+
             plan_string = plan_string_;
             is_empty = false;
         };
         std::string plan_string;
 
     private:
-        std::map<Actions, std::string> action_strings{{Actions::GOTO, "GOTO"}};
+        std::map<Actions, std::string> action_strings{{Actions::GOTO, "GOTO"}, {Actions::CHOCACHOCA, "CHOCACHOCA"}};
 };
 #endif //CONTROLLER_DSR_MISSION_H

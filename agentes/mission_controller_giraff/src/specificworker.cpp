@@ -165,6 +165,7 @@ void SpecificWorker::initialize(int period)
 void SpecificWorker::compute()
 {
     read_camera();
+    read_index();
   // check for existing missions
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
@@ -179,13 +180,13 @@ void SpecificWorker::compute()
     // Compute next step of m_plan and check that it matches the current state
 
     //Conecto diálogos en función del índice del desplegable
-    if (indice()==1)
+    /*if (indice()==1)
     {
         point_dialog.setupUi(custom_widget.empty_widget);
         connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
         custom_widget.empty_widget->show();
 
-    }
+    }*/
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -202,7 +203,7 @@ void SpecificWorker::read_camera()
 }
 
 void SpecificWorker::read_index()
-{/*
+{
     int index = custom_widget.list_plan->currentIndex();
 
     cout << "El índice es " << index << endl;
@@ -211,9 +212,10 @@ void SpecificWorker::read_index()
     {
         case 1: //misión punto (quiero abrir ventana nueva con coordX y coordY
 
-        point_dialog.setupUi(custom_widget.empty_widget);
-        custom_widget.empty_widget->show();
-        connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
+            cout << "Misión punto" <<endl;
+            point_dialog.setupUi(custom_widget.empty_widget);
+            custom_widget.empty_widget->show();
+            connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
 
         break;
 
@@ -222,20 +224,21 @@ void SpecificWorker::read_index()
 
         case 3: //misión chocachoca (creo plan que en vez de "goto" sea "chocachoca")
 
-        mission_chocachoca();
+            cout << "Misión chocachoca" <<endl;
+            mission_chocachoca();
 
         break;
-    }*/
+    }
 }
 
 
 int SpecificWorker::indice()
-{
+{/*
     int index = custom_widget.list_plan->currentIndex();
 
     cout << "El índice es " << index << endl;
 
-    return index;
+    return index;*/
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -245,7 +248,8 @@ void SpecificWorker::mission_chocachoca()
     Plan plan;
     std::string plan_string;
 
-    plan_string = R"({"plan":[{"action":"chocachoca","params":{)" R"(,"object":")" "\"}}]}";
+    plan_string = R"({"plan":[{"action":"chocachoca")""\"}]}";
+
     current_plan = Plan(plan_string);
     current_plan.print();
 }
