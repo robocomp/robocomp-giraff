@@ -278,7 +278,7 @@ class SpecificWorker(GenericWorker):
         isMoving = np.abs(linear_vel[0]) > 0.01 or np.abs(linear_vel[1]) > 0.01 or np.abs(ang_vel[2]) > 0.01
         self.bState = RoboCompGenericBase.TBaseState(x=pose[0] * 1000,
                                                      z=pose[1] * 1000,
-                                                     alpha=rot[2] - np.pi,
+                                                     alpha=rot[2],
                                                      advVx=linear_vel[0] * 1000,
                                                      advVz=linear_vel[1] * 1000,
                                                      rotV=ang_vel[2],
@@ -299,6 +299,7 @@ class SpecificWorker(GenericWorker):
 
         # swap
         self.robot_full_pose_write, self.robot_full_pose_read = self.robot_full_pose_read, self.robot_full_pose_write
+        print(self.robot_full_pose_read)
 
 
     ###########################################
