@@ -299,7 +299,6 @@ class SpecificWorker(GenericWorker):
 
         # swap
         self.robot_full_pose_write, self.robot_full_pose_read = self.robot_full_pose_read, self.robot_full_pose_write
-        print(self.robot_full_pose_read)
 
 
     ###########################################
