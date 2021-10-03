@@ -11,7 +11,7 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Controller</string>
+   <string>Giraff Mission Controller</string>
   </property>
   <layout class="QVBoxLayout" name="verticalLayout_2">
    <item>
@@ -46,9 +46,15 @@
              <widget class="QComboBox" name="list_plan"/>
             </item>
             <item>
-             <widget class="QPlainTextEdit" name="current_plan">
+             <widget class="QPlainTextEdit" name="textedit_current_plan">
               <property name="enabled">
                <bool>true</bool>
+              </property>
+              <property name="sizePolicy">
+               <sizepolicy hsizetype="Expanding" vsizetype="Maximum">
+                <horstretch>0</horstretch>
+                <verstretch>0</verstretch>
+               </sizepolicy>
               </property>
              </widget>
             </item>
@@ -56,8 +62,21 @@
           </item>
           <item>
            <widget class="QGroupBox" name="groupBox">
+            <property name="font">
+             <font>
+              <family>Ubuntu Mono</family>
+              <weight>50</weight>
+              <bold>false</bold>
+             </font>
+            </property>
+            <property name="layoutDirection">
+             <enum>Qt::LeftToRight</enum>
+            </property>
             <property name="title">
-             <string>Plan Control</string>
+             <string>Control</string>
+            </property>
+            <property name="alignment">
+             <set>Qt::AlignCenter</set>
             </property>
             <layout class="QVBoxLayout" name="verticalLayout_4">
              <item>
@@ -65,21 +84,21 @@
                <item>
                 <widget class="QPushButton" name="pushButton_start_mission">
                  <property name="text">
-                  <string>Start mission</string>
+                  <string>Start</string>
                  </property>
                 </widget>
                </item>
                <item>
                 <widget class="QPushButton" name="pushButton_stop_mission">
                  <property name="text">
-                  <string>Stop mission</string>
+                  <string>Stop</string>
                  </property>
                 </widget>
                </item>
                <item>
                 <widget class="QPushButton" name="pushButton_cancel_mission">
                  <property name="text">
-                  <string>Cancel mission</string>
+                  <string>Cancel</string>
                  </property>
                 </widget>
                </item>
@@ -105,6 +124,12 @@
         </item>
         <item>
          <widget class="QWidget" name="empty_widget" native="true">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Minimum">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
           <property name="minimumSize">
            <size>
             <width>0</width>
@@ -132,6 +157,19 @@
         </widget>
        </item>
        <item>
+        <widget class="QPushButton" name="image_onoff_button">
+         <property name="text">
+          <string>Image On/Off</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <property name="checked">
+          <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
         <spacer name="verticalSpacer_2">
          <property name="orientation">
           <enum>Qt::Vertical</enum>
@@ -147,6 +185,23 @@
       </layout>
      </item>
     </layout>
+   </item>
+   <item>
+    <widget class="QScrollArea" name="scrollArea">
+     <property name="widgetResizable">
+      <bool>true</bool>
+     </property>
+     <widget class="QWidget" name="scrollAreaWidgetContents">
+      <property name="geometry">
+       <rect>
+        <x>0</x>
+        <y>0</y>
+        <width>1123</width>
+        <height>325</height>
+       </rect>
+      </property>
+     </widget>
+    </widget>
    </item>
   </layout>
  </widget>

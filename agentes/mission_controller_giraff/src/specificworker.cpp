@@ -70,11 +70,6 @@ void SpecificWorker::initialize(int period)
 		G = std::make_shared<DSR::DSRGraph>(0, agent_name, agent_id, ""); // Init nodes
 		std::cout<< __FUNCTION__ << "Graph loaded" << std::endl;
 
-        // create dialog mission point and hide it, when index=1 show this widget
-        point_dialog.setupUi(custom_widget.empty_widget);
-        custom_widget.empty_widget->hide();
-        connect(point_dialog.pushButton_save_coords, SIGNAL(clicked()), this, SLOT(slot_save_coords()));
-
 		//dsr update signals
 		connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::add_or_assign_node_slot);
 //		connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::add_or_assign_edge_slot);
@@ -98,28 +93,31 @@ void SpecificWorker::initialize(int period)
 		if(osg_3d_view)
 		    current_opts = current_opts | opts::osg;
 
+        main = opts::graph;
 		graph_viewer = std::make_unique<DSR::DSRViewer>(this, G, current_opts, main);
         setWindowTitle(QString::fromStdString(agent_name + "-") + QString::number(agent_id));
-
-        // custom widget
-        graph_viewer->add_custom_widget_to_dock("Giraff Plan Controller", &custom_widget);
-        connect(custom_widget.pushButton_start_mission, SIGNAL(clicked()), this, SLOT(slot_start_mission()));
-        connect(custom_widget.pushButton_stop_mission, SIGNAL(clicked()), this, SLOT(slot_stop_mission()));
-        connect(custom_widget.pushButton_cancel_mission, SIGNAL(clicked()), this, SLOT(slot_cancel_mission()));
-
-        //List of missions
-        custom_widget.list_plan->addItem("Select a mission");
-        custom_widget.list_plan->addItem("Mission point");
-        custom_widget.list_plan->addItem("Mission point sequence"); //cargar un plan con diferentes puntos y más adelante, más planes
-        custom_widget.list_plan->addItem("\"Choca-choca\" mission");
 
         // 2D widget
         widget_2d = qobject_cast<DSR::QScene2dViewer *>(graph_viewer->get_widget(opts::scene));
         widget_2d->set_draw_laser(true);
         connect(widget_2d, SIGNAL(mouse_right_click(int, int, std::uint64_t)), this, SLOT(new_target_from_mouse(int, int, std::uint64_t)));
 
+        // custom widget
+        graph_viewer->add_custom_widget_to_dock("Giraff Plan Controller", &custom_widget);
+        connect(custom_widget.pushButton_start_mission, SIGNAL(clicked()), this, SLOT(slot_start_mission()));
+        connect(custom_widget.pushButton_stop_mission, SIGNAL(clicked()), this, SLOT(slot_stop_mission()));
+        connect(custom_widget.pushButton_cancel_mission, SIGNAL(clicked()), this, SLOT(slot_cancel_mission()));
+        widget_2d->setParent(custom_widget.scrollArea);
+
+        //List of missions
+        custom_widget.list_plan->addItem("Select a mission");
+        custom_widget.list_plan->addItem("Goto x");
+        custom_widget.list_plan->addItem("Path p"); //cargar un plan con diferentes puntos y más adelante, más planes
+        custom_widget.list_plan->addItem("Bouncer");
+        connect(custom_widget.list_plan, SIGNAL(currentIndexChanged(int)), this , SLOT(slot_change_mission_selector(int)));
+
         // get camera_api
-        if(auto cam_node = G->get_node(giraff_camera_usb_name); cam_node.has_value())
+        if(auto cam_node = G->get_node(giraff_camera_realsense_name); cam_node.has_value())
             cam_api = G->get_camera_api(cam_node.value());
         else
         {
@@ -164,9 +162,6 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    read_camera();
-    read_index();
-
     static size_t iterations = 0, K = 0.5;
     static bool primera_vez = false;
     static std::chrono::steady_clock::time_point begin, lastPathStep;
@@ -176,67 +171,28 @@ void SpecificWorker::compute()
     static Plan plan;
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
-        cout<<"///////////////"<<endl;
         plan = plan_o.value();
-        plan.print();
-        custom_widget.current_plan->setPlainText(QString::fromStdString(plan.pprint()));
+        std::cout << __FUNCTION__  << " New plan arrived: " << plan.pprint() << std::endl;
+        custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(plan.pprint()));
         plan.set_active(true);
-
     }
     if(plan.is_active())
     {
-        cout << "PLAN ACTIVO"<<endl;
+        cout << __FUNCTION__ << "PLAN ACTIVO"<<endl;
         if( auto path = path_buffer.try_get(); path.has_value())
-        {
             qInfo() << __FUNCTION__ << " Siguiendo el plan...";
-            if(!primera_vez)
-            {
-                primera_vez = true;
-                begin = lastPathStep = std::chrono::steady_clock::now();
-                last_path_size = path.value().size();
-                auto dist = 0;
-                for (uint i = 0; i < path.value().size() - 1; ++i)
-                    dist = dist + (path.value()[i] - path.value()[i + 1]).norm();
-
-                qInfo() << path.value().size();
-                qInfo() << __FUNCTION__ << "Inicio: " << path.value()[0].x() << "," << path.value()[0].y();
-                qInfo() << __FUNCTION__ << "Final: " << path.value()[path.value().size() - 1].x() << ","
-                        << path.value()[path.value().size() - 1].y();
-                qInfo() << __FUNCTION__ << "Distancia: " << dist;
-            }
-            auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
-            if (last_path_size != path.value().size())
-                lastPathStep = std::chrono::steady_clock::now();
-            float dist = (robot_pose - plan.get_target_trans()).norm();
-            auto now = std::chrono::steady_clock::now();
-            auto time_delta_s = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastPathStep).count();
-            qInfo() << __FUNCTION__ << "Tiempo desde el último paso: " << time_delta_s << "s";
-            auto acceptable_distance = 1 + uint(K * time_delta_s);
-            if (path.value().size() <= acceptable_distance or dist < 200)
-            {
-                plan.set_active(false);
-                send_command_to_robot(std::make_tuple(0.f, 0.f, 0.f));
-                slot_stop_mission();
-                primera_vez = false;
-                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
-                auto d=std::chrono::duration_cast<std::chrono::seconds>(end - begin).count();
-                qInfo() << __FUNCTION__ << " Tiempo: " << d << " s";
-            }
-            else  qInfo() << __FUNCTION__ << "Path size: " << path.value().size();
-        }
     }
     else
     { // there should be a plan after a few seconds
     }
+    read_camera();
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
-
 void SpecificWorker::read_camera()
 {
     static QPixmap pix;
-    auto robot_node = get_robot_node();
-    if (auto vframe_t = virtual_camera_buffer.try_get(); vframe_t.has_value())
+    if (auto vframe_t = virtual_camera_buffer.try_get(); vframe_t.has_value() and custom_widget.image_onoff_button->isChecked())
     {
         auto vframe = cv::Mat(cam_api->get_height(), cam_api->get_width(), CV_8UC3, vframe_t.value().data());
         pix = QPixmap::fromImage(QImage(vframe.data, vframe.cols, vframe.rows, QImage::Format_RGB888));
@@ -244,62 +200,50 @@ void SpecificWorker::read_camera()
     }
 }
 
-void SpecificWorker::read_index()
-{
-    int index = custom_widget.list_plan->currentIndex();
-
-    switch (index)
-    {
-        case 1: //misión punto
-
-            custom_widget.empty_widget->show();
-
-        break;
-
-        case 2: //misión secuencia puntos (se carga un plan de diferentes puntos preestablecidos)
-        break;
-
-        case 3: //misión chocachoca (creo plan que en vez de "goto" sea "chocachoca")
-
-            mission_chocachoca();
-
-        break;
-    }
-}
-
-
 ////////////////////////////////////////////////////////////////////////////////////////////
-
-void SpecificWorker::mission_chocachoca()
+/// Mission creation methods
+////////////////////////////////////////////////////////////////////////////////////////////
+void SpecificWorker::create_bouncer_mission()
 {
-    Plan plan;
-    std::string plan_string;
-
-    plan_string = R"({"plan":[{"action":"chocachoca")""\"}]}";
-
-    current_plan = Plan(plan_string);
-    current_plan.print();
+    current_plan.reset();
+    current_plan.action = Plan::Actions::BOUNCE;
 }
 
-void SpecificWorker::create_mission(const QPointF &pos, std::uint64_t target_node_id)
+void SpecificWorker::create_path_mission()
 {
+    current_plan.reset();  // make temporary
+    current_plan.action = Plan::Actions::FOLLOW_PATH;
+}
 
+void SpecificWorker::create_goto_mission()
+{
+    static QGraphicsEllipseItem *target_scene;
+    point_dialog.setupUi(custom_widget.empty_widget);
+    custom_widget.empty_widget->show();
+    current_plan.reset();
+    current_plan.action = Plan::Actions::GOTO;
+    connect(point_dialog.goto_spinbox_coordX, qOverload<int>(&QSpinBox::valueChanged),
+            [this](int v){ current_plan.params["x"]=v;  custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));});
+    connect(point_dialog.goto_spinbox_coordY, qOverload<int>(&QSpinBox::valueChanged),
+            [this](int v){ current_plan.params["y"]=v;  custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));});
+    connect(point_dialog.goto_spinbox_angle, qOverload<int>(&QSpinBox::valueChanged),
+            [this](int v){ current_plan.params["angle"]=v;  custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));});
+    connect(widget_2d, &DSR::QScene2dViewer::mouse_right_click,[this](int x, int y, std::uint64_t obj)
+            {
+                if(auto node = G->get_node(obj); node.has_value())
+                    current_plan.params["destiny"] = QVariant(QString::fromStdString(node.value().name()));
+                point_dialog.goto_spinbox_coordX->setValue(x);
+                point_dialog.goto_spinbox_coordY->setValue(y);
+                if(target_scene != nullptr)
+                  widget_2d->scene.removeItem(target_scene);
+                target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
+                target_scene->setPos(x,y);
+                target_scene->setZValue(100);
+            });
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-
-DSR::Node SpecificWorker::get_robot_node()
-{
-    if (auto robot_o = G->get_node(robot_name); robot_o.has_value())
-        return robot_o.value();
-    else
-    {
-        std::cout << __FUNCTION__ << " Terminating due to missing robot_node: " << robot_name << std::endl;
-        std::terminate();
-    }
-}
-
-
+/// Auxiliary methods
 /////////////////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d)
 {
@@ -349,7 +293,8 @@ void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float>
     G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(),  (float)side_);
     G->update_node(robot_node.value());
 }
-/////////////////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////////////////
 /// Asynchronous changes on G nodes from G signals
 ////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -411,42 +356,6 @@ void SpecificWorker::add_or_assign_node_slot(const std::uint64_t id, const std::
         }
     }
 }
-
-//////////////////////////////////////////////////////////////////////////////////
-
-int SpecificWorker::startup_check()
-{
-	std::cout << "Startup check" << std::endl;
-	QTimer::singleShot(200, qApp, SLOT(quit()));
-	return 0;
-}
-
-// connect to signal and show virtual image
-///////////////////////////////////////////////////////
-//// Check new target from mouse
-///////////////////////////////////////////////////////
-void SpecificWorker::new_target_from_mouse(int pos_x, int pos_y, std::uint64_t id)
-{
-    qInfo() << __FUNCTION__ << " Creating GOTO mission to " << pos_x << pos_y;
-    qInfo() << __FUNCTION__ << "[" << pos_x << " " << pos_y << "] Id:" << id;
-    create_mission(QPointF(pos_x, pos_y), id);
-    Plan plan;
-    std::string plan_string;
-    // we get the id of the object clicked from the 2D representation
-    if (auto target_node = G->get_node(id); target_node.has_value())
-    {
-        //const std::string location = "[" + std::to_string(pos_x) + "," + std::to_string(pos_y) + "," + std::to_string(0) + "]";
-        std::stringstream location;
-        location <<"[" << std::to_string(pos_x) << "," << std::to_string(pos_y) << "," + std::to_string(0) << "]";
-        plan_string = R"({"plan":[{"action":"goto","params":{"location":)" + location.str() + R"(,"object":")" + target_node.value().name() + "\"}}]}";
-        plan = Plan(plan_string);
-        plan.print();
-        insert_intention_node(plan);
-        plan_buffer.put(std::move(plan));
-    }
-    else
-        qWarning() << __FUNCTION__ << " No target node  " << QString::number(id) << " found";
-}
 void SpecificWorker::insert_intention_node(const Plan &plan)
 {
     // Check if there is not 'intention' node yet in G
@@ -501,7 +410,7 @@ void SpecificWorker::insert_intention_node(const Plan &plan)
 
 void SpecificWorker::slot_start_mission()
 {
-    if(not current_plan.is_empty)
+    if(current_plan.is_complete())
     {
         insert_intention_node(current_plan);
         auto temp_plan = current_plan;
@@ -513,89 +422,49 @@ void SpecificWorker::slot_start_mission()
 
 void SpecificWorker::slot_stop_mission()
 {
-    qInfo() << __FUNCTION__  ;
     send_command_to_robot(std::make_tuple(0.f,0.f,0.f));   //adv, side, rot
-
-    // Check if there is intention node in G
     if(auto intention = G->get_node(current_intention_name); intention.has_value())
-    {
-        if (auto path = G->get_node(current_path_name); path.has_value())
-        {
-            if (G->delete_node(path.value().id()))
-                qInfo() << __FUNCTION__ << "Node " << QString::fromStdString(current_path_name) << " deleted ";
-            else
-                qInfo() << __FUNCTION__ << "Error deleting node " << QString::fromStdString(current_path_name);
-        }
-
-        else if (std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value()); plan.has_value())
-        {
-            Plan plan_o = Plan(plan.value());
-            if (plan_o.action == Plan::Actions::CHOCACHOCA)
-            {
-                G->delete_node(intention.value().id());
-                auto t= G->get_node_edges_by_type(intention.value(), "chocachoca_action");
-                for(const auto &tr_edge : t)
-                G->delete_edge(tr_edge.from(), tr_edge.to(), "goto_action");
-
-                if (auto robot_node = G->get_node(robot_name); robot_node.has_value())
-                {
-                    G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) 0.0);
-                    G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) 0.0);
-                    G->update_node(robot_node.value());
-                }
-
-                else
-                {
-                    qWarning() << __FUNCTION__ << "No robot node found";
-
-                }
-            }
-        }
-
-        /*if( auto target_room_edges = G->get_node_edges_by_type(intention.value(), "goto_action"); not target_room_edges.empty())
-        {
-            cout<<"EDGE"<<endl;
-            for (const auto &tr_edge : target_room_edges)
-                G->delete_edge(tr_edge.from(), tr_edge.to(), "goto_action");
-        }
-        if (G->delete_node(intention.value().id()))
-            qInfo() << __FUNCTION__ << "Node " << QString::fromStdString(current_intention_name) << " deleted ";
-        else
-            qInfo() << __FUNCTION__ << "Error deleting node " << QString::fromStdString(current_intention_name);
-        send_command_to_robot(std::make_tuple(0.f,0.f,0.f));   //adv, side, rot*/
-    }
+        G->delete_node(intention.value().id());
     else
         qWarning() << __FUNCTION__ << "No intention node found";
+    current_plan.set_empty(true);
 }
 
 void SpecificWorker::slot_cancel_mission()
 {
     slot_stop_mission();
-    current_plan.is_empty = true;
+    current_plan.set_empty(true);
 }
 
-void SpecificWorker::slot_save_coords()
+void SpecificWorker::slot_change_mission_selector(int index)
 {
-    //cuadros detexto --> nodo intención
-
-    int coordX = point_dialog.coordX->value();
-    int coordY = point_dialog.coordY->value();
-
-    cout<< "Coordenada X: " << coordX << " | Coordenada Y: " << coordY << endl;
-
-    Plan plan;
-    std::string plan_string;
-    std::stringstream location;
-
-    location <<"[" << std::to_string(coordX) << "," << std::to_string(coordY) << "," + std::to_string(0) << "]";
-    plan_string = R"({"plan":[{"action":"goto","params":{"location":)" + location.str() + R"(,"object":")" + "\"}}]}";
-    current_plan = Plan(plan_string);
-    current_plan.print();
-
-
-    //Actualizar el currentplan
+    // remove current filling_plan and create a new one
+    current_plan.reset();
+    // createa new current filling_plan of the index typw
+    switch(index)
+    {
+        case 1:
+            create_goto_mission(); // Goto_XYA
+            break;
+        case 2:
+            create_path_mission();
+            break;
+        case 3:
+            custom_widget.empty_widget->hide();
+            custom_widget.textedit_current_plan->setPlainText("");
+            slot_stop_mission();
+            create_bouncer_mission();
+            break;
+    }
 }
+//////////////////////////////////////////////////////////////////////////////////
 
+int SpecificWorker::startup_check()
+{
+    std::cout << "Startup check" << std::endl;
+    QTimer::singleShot(200, qApp, SLOT(quit()));
+    return 0;
+}
 
 //    using namespace std::placeholders;
 //    if (auto target_node = G->get_node(id); target_node.has_value())
@@ -609,3 +478,144 @@ void SpecificWorker::slot_save_coords()
 //        plan_buffer.put(plan, std::bind(&SpecificWorker::json_to_plan, this, _1, _2));
 //    } else
 //        qWarning() << __FILE__ << __FUNCTION__ << " No target node  " << QString::number(id) << " found";
+
+///////////////////////////////////
+
+
+
+//            if(not primera_vez)
+//            {
+//                primera_vez = true;
+//                begin = lastPathStep = std::chrono::steady_clock::now();
+//                last_path_size = path.value().size();
+//                auto dist = 0;
+//                for (uint i = 0; i < path.value().size() - 1; ++i)
+//                    dist = dist + (path.value()[i] - path.value()[i + 1]).norm();
+//
+//                qInfo() << path.value().size();
+//                qInfo() << __FUNCTION__ << "Inicio: " << path.value()[0].x() << "," << path.value()[0].y();
+//                qInfo() << __FUNCTION__ << "Final: " << path.value()[path.value().size() - 1].x() << ","
+//                        << path.value()[path.value().size() - 1].y();
+//                qInfo() << __FUNCTION__ << "Distancia: " << dist;
+//            }
+//            auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
+//            if (last_path_size != path.value().size())
+//                lastPathStep = std::chrono::steady_clock::now();
+//            float dist = (robot_pose - plan.get_target_trans()).norm();
+//            auto now = std::chrono::steady_clock::now();
+//            auto time_delta_s = std::chrono::duration_cast<std::chrono::milliseconds>(now - lastPathStep).count();
+//            qInfo() << __FUNCTION__ << "Tiempo desde el último paso: " << time_delta_s << "s";
+//            auto acceptable_distance = 1 + uint(K * time_delta_s);
+//            if (path.value().size() <= acceptable_distance or dist < 200)
+//            {
+//                plan.set_active(false);
+//                send_command_to_robot(std::make_tuple(0.f, 0.f, 0.f));
+//                slot_stop_mission();
+//                primera_vez = false;
+//                std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+//                auto d=std::chrono::duration_cast<std::chrono::seconds>(end - begin).count();
+//                qInfo() << __FUNCTION__ << " Tiempo: " << d << " s";
+//            }
+//            else  qInfo() << __FUNCTION__ << "Path size: " << path.value().size();
+
+
+
+
+//DSR::Node SpecificWorker::get_robot_node()
+//{
+//    if (auto robot_o = G->get_node(robot_name); robot_o.has_value())
+//        return robot_o.value();
+//    else
+//    {
+//        std::cout << __FUNCTION__ << " Terminating due to missing robot_node: " << robot_name << std::endl;
+//        std::terminate();
+//    }
+//}
+
+//void SpecificWorker::read_index()
+//{
+//    int index = custom_widget.list_plan->currentIndex();
+//    switch (index)
+//    {
+//        case 1: //misión punto
+//            custom_widget.empty_widget->show();
+//        break;
+//        case 2: //misión secuencia puntos (se carga un plan de diferentes puntos preestablecidos)
+//        break;
+//        case 3: //misión chocachoca (creo plan que en vez de "goto" sea "chocachoca")
+//            create_bouncer_mission();
+//        break;
+//    }
+//}
+
+
+//void SpecificWorker::new_target_from_mouse(int pos_x, int pos_y, std::uint64_t id)
+//{
+//    qInfo() << __FUNCTION__ << " Creating GOTO mission to " << pos_x << pos_y;
+//    qInfo() << __FUNCTION__ << "[" << pos_x << " " << pos_y << "] Id:" << id;
+//
+//    //create_goto_mission(QPointF(pos_x, pos_y), id);
+//
+//    // we get the id of the object clicked from the 2D representation
+////    if (auto target_node = G->get_node(id); target_node.has_value())
+////    {
+////        std::stringstream location;
+////        location <<"[" << std::to_string(pos_x) << "," << std::to_string(pos_y) << "," + std::to_string(0) << "]";
+////        std::string plan_string = R"({"plan":[{"action":"goto","params":{"location":)" + location.str() + R"(,"object":")" + target_node.value().name() + "\"}}]}";
+////        Plan plan(plan_string);
+////        plan.print();
+////        insert_intention_node(plan);
+////        plan_buffer.put(std::move(plan));
+////    }
+////    else
+////        qWarning() << __FUNCTION__ << " No target node  " << QString::number(id) << " found";
+//}
+
+
+// Check if there is intention node in G
+//    if(auto intention = G->get_node(current_intention_name); intention.has_value())
+//    {
+//        // check if there is a path_node and delete it
+//        if (auto path = G->get_node(current_path_name); path.has_value())
+//        {
+//            if (G->delete_node(path.value().id()))
+//                qInfo() << __FUNCTION__ << "Node " << QString::fromStdString(current_path_name) << " deleted ";
+//            else
+//                qInfo() << __FUNCTION__ << "Error deleting node " << QString::fromStdString(current_path_name);
+//        }
+//        // check if there is a current_intention attribute in intention node
+//        else if (std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value()); plan.has_value())
+//        {
+//            Plan plan_o = Plan(plan.value());
+//            if (plan_o.action == Plan::Actions::BOUNCER)
+//            {
+//                G->delete_node(intention.value().id());
+//                auto t= G->get_node_edges_by_type(intention.value(), "chocachoca_action");
+//                for(const auto &tr_edge : t)
+//                    G->delete_edge(tr_edge.from(), tr_edge.to(), "goto_action");
+//
+//                if (auto robot_node = G->get_node(robot_name); robot_node.has_value())
+//                {
+//                    G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) 0.0);
+//                    G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) 0.0);
+//                    G->update_node(robot_node.value());
+//                }
+//                else
+//                {
+//                    qWarning() << __FUNCTION__ << "No robot node found";
+//                }
+//            }
+//        }
+//
+//        /*if( auto target_room_edges = G->get_node_edges_by_type(intention.value(), "goto_action"); not target_room_edges.empty())
+//        {
+//            cout<<"EDGE"<<endl;
+//            for (const auto &tr_edge : target_room_edges)
+//                G->delete_edge(tr_edge.from(), tr_edge.to(), "goto_action");
+//        }
+//        if (G->delete_node(intention.value().id()))
+//            qInfo() << __FUNCTION__ << "Node " << QString::fromStdString(current_intention_name) << " deleted ";
+//        else
+//            qInfo() << __FUNCTION__ << "Error deleting node " << QString::fromStdString(current_intention_name);
+//        send_command_to_robot(std::make_tuple(0.f,0.f,0.f));   //adv, side, rot*/
+//    }

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <ui version="4.0">
- <class>point_guiDlg</class>
- <widget class="QWidget" name="point_guiDlg">
+ <class>Goto_UI</class>
+ <widget class="QWidget" name="Goto_UI">
   <property name="geometry">
    <rect>
     <x>0</x>
@@ -11,61 +11,79 @@
    </rect>
   </property>
   <property name="windowTitle">
-   <string>Form</string>
+   <string>Goto action</string>
   </property>
-  <widget class="QWidget" name="">
-   <property name="geometry">
-    <rect>
-     <x>170</x>
-     <y>86</y>
-     <width>535</width>
-     <height>28</height>
-    </rect>
-   </property>
-   <layout class="QHBoxLayout" name="horizontalLayout">
-    <item>
-     <widget class="QLabel" name="labelX">
-      <property name="text">
-       <string>Coord X:</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QSpinBox" name="coordY">
-      <property name="minimum">
-       <number>-1750</number>
-      </property>
-      <property name="maximum">
-       <number>1750</number>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QLabel" name="labelY">
-      <property name="text">
-       <string>Coord Y:</string>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QSpinBox" name="coordX">
-      <property name="minimum">
-       <number>-1900</number>
-      </property>
-      <property name="maximum">
-       <number>1900</number>
-      </property>
-     </widget>
-    </item>
-    <item>
-     <widget class="QPushButton" name="pushButton_save_coords">
-      <property name="text">
-       <string>Save coords</string>
-      </property>
-     </widget>
-    </item>
-   </layout>
-  </widget>
+  <layout class="QVBoxLayout" name="verticalLayout_2">
+   <item>
+    <layout class="QVBoxLayout" name="verticalLayout">
+     <item>
+      <layout class="QHBoxLayout" name="horizontalLayout_2">
+       <item>
+        <layout class="QHBoxLayout" name="horizontalLayout">
+         <item>
+          <widget class="QLabel" name="labelX">
+           <property name="text">
+            <string>Coord X:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="goto_spinbox_coordX">
+           <property name="minimum">
+            <number>-1750</number>
+           </property>
+           <property name="maximum">
+            <number>1750</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="labelY">
+           <property name="text">
+            <string>Coord Y:</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="goto_spinbox_coordY">
+           <property name="minimum">
+            <number>-1900</number>
+           </property>
+           <property name="maximum">
+            <number>1900</number>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QLabel" name="label">
+           <property name="text">
+            <string>Angle</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QSpinBox" name="goto_spinbox_angle"/>
+         </item>
+        </layout>
+       </item>
+       <item>
+        <spacer name="horizontalSpacer">
+         <property name="orientation">
+          <enum>Qt::Horizontal</enum>
+         </property>
+         <property name="sizeHint" stdset="0">
+          <size>
+           <width>40</width>
+           <height>20</height>
+          </size>
+         </property>
+        </spacer>
+       </item>
+      </layout>
+     </item>
+    </layout>
+   </item>
+  </layout>
  </widget>
  <resources/>
  <connections/>

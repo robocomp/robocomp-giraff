@@ -31,7 +31,7 @@
 #include "dsr/api/dsr_api.h"
 #include "dsr/gui/dsr_gui.h"
 #include <doublebuffer/DoubleBuffer.h>
-#include  "/home/robo02/robocomp/components/dsr-graph/etc/graph_names.h"
+#include  "../..//etc/graph_names.h"
 #include "plan.h"
 
 class SpecificWorker : public GenericWorker

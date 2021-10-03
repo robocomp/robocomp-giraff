@@ -36,6 +36,7 @@
 #include <opencv2/opencv.hpp>
 #include "plan.h"
 #include <QListWidget>
+#include <QSpinBox>
 #include "ui_mission_pointUI.h"
 
 class SpecificWorker : public GenericWorker
@@ -50,11 +51,10 @@ public slots:
 	void compute();
 	int startup_check();
 	void initialize(int period);
-    void new_target_from_mouse(int pos_x, int pos_y, std::uint64_t id);
     void slot_start_mission();
     void slot_stop_mission();
     void slot_cancel_mission();
-    void slot_save_coords();
+    void slot_change_mission_selector(int);
 
 private:
 	// DSR graph
@@ -86,7 +86,7 @@ private:
     // local widgets
     DSR::QScene2dViewer* widget_2d;
     Custom_widget custom_widget;
-    Ui_point_guiDlg point_dialog;
+    Ui_Goto_UI point_dialog;
 
     // Laser
     using LaserData = std::tuple<std::vector<float>, std::vector<float>>;  //<angles, dists>
@@ -94,7 +94,6 @@ private:
 
     // Robot and shape
     QPolygonF robot_polygon;
-    DSR::Node get_robot_node();
     void send_command_to_robot(const std::tuple<float, float, float> &speeds);   //adv, side, rot
 
     // Camera
@@ -106,9 +105,9 @@ private:
     Plan current_plan;
     Plan list_plan;
     void insert_intention_node(const Plan &plan);
-    void create_mission(const QPointF &pos,  std::uint64_t target_node_id);
-    void read_index();
-    void mission_chocachoca();
+    void create_goto_mission();
+    void create_bouncer_mission();
+    void create_path_mission();
 
     //Path
     std::vector<Eigen::Vector3d> path;
