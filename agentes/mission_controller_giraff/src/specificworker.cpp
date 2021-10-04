@@ -100,14 +100,15 @@ void SpecificWorker::initialize(int period)
         // 2D widget
         widget_2d = qobject_cast<DSR::QScene2dViewer *>(graph_viewer->get_widget(opts::scene));
         widget_2d->set_draw_laser(true);
-        connect(widget_2d, SIGNAL(mouse_right_click(int, int, std::uint64_t)), this, SLOT(new_target_from_mouse(int, int, std::uint64_t)));
+        //connect(widget_2d, SIGNAL(mouse_right_click(int, int, std::uint64_t)), this, SLOT(new_target_from_mouse(int, int, std::uint64_t)));
 
         // custom widget
         graph_viewer->add_custom_widget_to_dock("Giraff Plan Controller", &custom_widget);
         connect(custom_widget.pushButton_start_mission, SIGNAL(clicked()), this, SLOT(slot_start_mission()));
         connect(custom_widget.pushButton_stop_mission, SIGNAL(clicked()), this, SLOT(slot_stop_mission()));
         connect(custom_widget.pushButton_cancel_mission, SIGNAL(clicked()), this, SLOT(slot_cancel_mission()));
-        widget_2d->setParent(custom_widget.scrollArea);
+        custom_widget.layout()->addWidget(widget_2d);
+        custom_widget.raise();
 
         //List of missions
         custom_widget.list_plan->addItem("Select a mission");
@@ -162,23 +163,20 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    static size_t iterations = 0, K = 0.5;
-    static bool primera_vez = false;
     static std::chrono::steady_clock::time_point begin, lastPathStep;
-    static uint last_path_size;
 
     // check for existing missions
     static Plan plan;
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
         plan = plan_o.value();
-        std::cout << __FUNCTION__  << " New plan arrived: " << plan.pprint() << std::endl;
+        std::cout << __FUNCTION__  << " New plan arrived: " << std::endl; std::cout << plan.pprint() << std::endl;
         custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(plan.pprint()));
         plan.set_active(true);
     }
     if(plan.is_active())
     {
-        cout << __FUNCTION__ << "PLAN ACTIVO"<<endl;
+        //cout << __FUNCTION__ << "PLAN ACTIVO"<<endl;
         if( auto path = path_buffer.try_get(); path.has_value())
             qInfo() << __FUNCTION__ << " Siguiendo el plan...";
     }
@@ -222,16 +220,40 @@ void SpecificWorker::create_goto_mission()
     custom_widget.empty_widget->show();
     current_plan.reset();
     current_plan.action = Plan::Actions::GOTO;
-    connect(point_dialog.goto_spinbox_coordX, qOverload<int>(&QSpinBox::valueChanged),
-            [this](int v){ current_plan.params["x"]=v;  custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));});
-    connect(point_dialog.goto_spinbox_coordY, qOverload<int>(&QSpinBox::valueChanged),
-            [this](int v){ current_plan.params["y"]=v;  custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));});
-    connect(point_dialog.goto_spinbox_angle, qOverload<int>(&QSpinBox::valueChanged),
-            [this](int v){ current_plan.params["angle"]=v;  custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));});
+    current_plan.planJ.insert("GOTO", QVariantMap());
+
+    connect(point_dialog.goto_spinbox_coordX, qOverload<int>(&QSpinBox::valueChanged),[this](int v)
+            {
+                auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
+                p.insert("x", v);
+                current_plan.planJ["GOTO"].setValue(p);
+                custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+            });
+
+    connect(point_dialog.goto_spinbox_coordY, qOverload<int>(&QSpinBox::valueChanged), [this](int v)
+            {
+                auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
+                p.insert("y", v);
+                current_plan.planJ["GOTO"].setValue(p);
+                custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+            });
+
+    connect(point_dialog.goto_spinbox_angle, qOverload<int>(&QSpinBox::valueChanged), [this](int v)
+            {
+                auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
+                p.insert("angle", v);
+                current_plan.planJ["GOTO"].setValue(p);
+                custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+            });
+
     connect(widget_2d, &DSR::QScene2dViewer::mouse_right_click,[this](int x, int y, std::uint64_t obj)
             {
                 if(auto node = G->get_node(obj); node.has_value())
-                    current_plan.params["destiny"] = QVariant(QString::fromStdString(node.value().name()));
+                {
+                    auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
+                    p.insert("destiny", QString::fromStdString(node.value().name()));
+                    current_plan.planJ["GOTO"].setValue(p);
+                }
                 point_dialog.goto_spinbox_coordX->setValue(x);
                 point_dialog.goto_spinbox_coordY->setValue(y);
                 if(target_scene != nullptr)
@@ -368,7 +390,7 @@ void SpecificWorker::insert_intention_node(const Plan &plan)
             G->add_or_modify_attrib_local<level_att>(intention_node, G->get_node_level(mind.value()).value() + 1);
             G->add_or_modify_attrib_local<pos_x_att>(intention_node, (float) -290);
             G->add_or_modify_attrib_local<pos_y_att>(intention_node, (float) -344);
-            G->add_or_modify_attrib_local<current_intention_att>(intention_node, plan.to_string());
+            G->add_or_modify_attrib_local<current_intention_att>(intention_node, plan.to_json());
             if (std::optional<int> intention_node_id = G->insert_node(intention_node); intention_node_id.has_value())
             {
                 DSR::Edge edge = DSR::Edge::create<has_edge_type>(mind.value().id(), intention_node.id());
@@ -376,7 +398,7 @@ void SpecificWorker::insert_intention_node(const Plan &plan)
                 {
                     std::cout << __FUNCTION__ << " Edge successfully inserted: " << mind.value().id() << "->" << intention_node.id()
                               << " type: has" << std::endl;
-                    G->add_or_modify_attrib_local<current_intention_att>(intention_node, plan.to_string());
+                    G->add_or_modify_attrib_local<current_intention_att>(intention_node, plan.to_json());
                     G->update_node(intention_node);
                 }
                 else
@@ -394,8 +416,9 @@ void SpecificWorker::insert_intention_node(const Plan &plan)
         else // there is one intention node
         {
             std::cout << __FUNCTION__ << ": Updating existing intention node with Id: " << intention.value().id() << std::endl;
-            G->add_or_modify_attrib_local<current_intention_att>(intention.value(), plan.to_string());
+            G->add_or_modify_attrib_local<current_intention_att>(intention.value(), plan.to_json());
             G->update_node(intention.value());
+            //std::cout << plan.to_json() << std::endl;
         }
     }
     else
@@ -414,6 +437,7 @@ void SpecificWorker::slot_start_mission()
     {
         insert_intention_node(current_plan);
         auto temp_plan = current_plan;
+      //  std::cout<<current_plan.to_json()<<std::endl;
         plan_buffer.put(std::move(temp_plan));
     }
     else
@@ -470,7 +494,7 @@ int SpecificWorker::startup_check()
 //    if (auto target_node = G->get_node(id); target_node.has_value())
 //    {
 //        const std::string location =
-//                "[" + std::to_string(pos_x) + "," + std::to_string(pos_y) + "," + std::to_string(0) + "]";
+//                "[" + std::to_json(pos_x) + "," + std::to_json(pos_y) + "," + std::to_json(0) + "]";
 //        const std::string plan =
 //                "{\"plan\":[{\"action\":\"goto\",\"params\":{\"location\":" + location + ",\"object\":\"" +
 //                target_node.value().name() + "\"}}]}";
@@ -560,7 +584,7 @@ int SpecificWorker::startup_check()
 ////    if (auto target_node = G->get_node(id); target_node.has_value())
 ////    {
 ////        std::stringstream location;
-////        location <<"[" << std::to_string(pos_x) << "," << std::to_string(pos_y) << "," + std::to_string(0) << "]";
+////        location <<"[" << std::to_json(pos_x) << "," << std::to_json(pos_y) << "," + std::to_json(0) << "]";
 ////        std::string plan_string = R"({"plan":[{"action":"goto","params":{"location":)" + location.str() + R"(,"object":")" + target_node.value().name() + "\"}}]}";
 ////        Plan plan(plan_string);
 ////        plan.print();

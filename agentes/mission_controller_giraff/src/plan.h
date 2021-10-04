@@ -8,21 +8,31 @@
 class Plan
 {
     public:
-        Plan() { empty = true; };
+        Plan()
+        {
+            empty = true;
+        };
         void reset()
         {
             empty = true;
             action = Plan::Actions::NONE;
-            plan_string = "";
-            params.clear();
         }
-        std::string to_string() const { return plan_string; }
+        std::string to_json() const
+        {
+            QJsonDocument json = QJsonDocument::fromVariant(planJ);
+            QTextStream ts(stdout);
+            ts << json.toJson();
+            return ts.readAll().toStdString();
+        }
         std::string pprint() const
         {
             std::stringstream ss;
-            ss << "Action: " << action_strings.at(action) << std::endl;
-            for(auto &&[k,v]: params)
-                ss << "\t" << k << " : " << v.toString().toStdString() << std::endl;
+            ss << "Action: " << action_strings.at(action).toStdString() << std::endl;
+            for(const auto p : planJ.keys())
+                for(const auto e : qvariant_cast<QVariantMap>(planJ[p]).keys())
+                {
+                    ss << "\t" << e.toStdString() << " : " << qvariant_cast<QVariantMap>(planJ[p])[e].toString().toStdString() << std::endl;
+                }
            return ss.str();
         };
         //Eigen::Vector3d get_target_trans() const { return Eigen::Vector3d(params.at("x"), params.at("y"), 0.f);};
@@ -31,15 +41,21 @@ class Plan
         bool is_empty() const { return empty; };
         void set_empty(bool e) { empty = e;};
 
+
         enum class Actions {NONE, GOTO, BOUNCE, FOLLOW_PATH};
         Actions action;
-        std::map<std::string, QVariant> params;
-        bool is_complete() { }
+        bool is_complete()
+        {
+            return action_tests.at(action);
+        }
+
+        //qmap
+        QVariantMap planJ;
 
     private:
         bool empty = true;
         bool active = false;
-        std::map<Actions, std::string> action_strings
+        std::map<Actions, QString> action_strings
          {
             {Actions::GOTO, "GOTO"},
             {Actions::BOUNCE, "BOUNCE"},
@@ -50,12 +66,13 @@ class Plan
         typedef bool (Plan::*Test)();
         bool GOTO_test()
         {
+            auto params = qvariant_cast<QVariantMap>(planJ["GOTO"]);
             if(not params.contains("x"))
             { qWarning() << __FUNCTION__ << "Missing x"; return false; }
             if(not params.contains("y"))
             { qWarning() << __FUNCTION__ << "Missing y"; return false; }
-            if(not params.contains("angle"))
-            { qWarning() << __FUNCTION__ << "Missing angle"; return false; }
+//            if(not params.contains("angle"))
+//            { qWarning() << __FUNCTION__ << "Missing angle"; return false; }
             return true;
         };
         bool BOUNCE_test() { return true; };
