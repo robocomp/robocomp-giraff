@@ -389,7 +389,7 @@ void SpecificWorker::insert_intention_node(const Plan &plan)
             G->add_or_modify_attrib_local<parent_att>(intention_node, mind.value().id());
             G->add_or_modify_attrib_local<level_att>(intention_node, G->get_node_level(mind.value()).value() + 1);
             G->add_or_modify_attrib_local<pos_x_att>(intention_node, (float) -290);
-            G->add_or_modify_attrib_local<pos_y_att>(intention_node, (float) -344);
+            G->add_or_modify_attrib_local<pos_y_att>(intention_node, (float) -474);
             G->add_or_modify_attrib_local<current_intention_att>(intention_node, plan.to_json());
             if (std::optional<int> intention_node_id = G->insert_node(intention_node); intention_node_id.has_value())
             {

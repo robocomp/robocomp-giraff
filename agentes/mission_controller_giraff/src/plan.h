@@ -20,9 +20,9 @@ class Plan
         std::string to_json() const
         {
             QJsonDocument json = QJsonDocument::fromVariant(planJ);
-            QTextStream ts(stdout);
-            ts << json.toJson();
-            return ts.readAll().toStdString();
+            //QTextStream ts(stdout);
+            //ts << json.toJson();
+            return QString(json.toJson()).toStdString();
         }
         std::string pprint() const
         {
