@@ -30,10 +30,6 @@ future
 threadpool/threadpool.h
 /home/robo02/robocomp/classes/doublebuffer/threadpool/threadpool.h
 
-/home/robo02/robocomp/classes/qlog/qlog.cpp
-qlog.h
-/home/robo02/robocomp/classes/qlog/qlog.h
-
 /home/robo02/robocomp/classes/qlog/qlog.h
 config.h
 /home/robo02/robocomp/classes/qlog/config.h
@@ -48,10 +44,6 @@ boost/format.hpp
 boost/format.hpp
 -
 
-/home/robo02/robocomp/classes/rapplication/rapplication.cpp
-rapplication.h
-/home/robo02/robocomp/classes/rapplication/rapplication.h
-
 /home/robo02/robocomp/classes/rapplication/rapplication.h
 Ice/Ice.h
 -
@@ -61,24 +53,6 @@ IceUtil/IceUtil.h
 -
 QtCore
 -
-
-/home/robo02/robocomp/classes/sigwatch/sigwatch.cpp
-sys/socket.h
--
-unistd.h
--
-errno.h
--
-QMap
--
-QSocketNotifier
--
-QDebug
--
-sigwatch.h
-/home/robo02/robocomp/classes/sigwatch/sigwatch.h
-moc_sigwatch.cpp
-/home/robo02/robocomp/classes/sigwatch/moc_sigwatch.cpp
 
 /home/robo02/robocomp/classes/sigwatch/sigwatch.h
 QObject
@@ -104,24 +78,6 @@ thread
 type_traits
 -
 vector
--
-
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/CommonBehavior.cpp
-CommonBehavior.h
--
-IceUtil/PushDisableWarnings.h
--
-Ice/LocalException.h
--
-Ice/ValueFactory.h
--
-Ice/OutgoingAsync.h
--
-Ice/InputStream.h
--
-Ice/OutputStream.h
--
-IceUtil/PopDisableWarnings.h
 -
 
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/chocachoca_agent_autogen/EWIEGA46WW/moc_genericmonitor.cpp
@@ -166,10 +122,6 @@ EWIEGA46WW/moc_specificmonitor.cpp
 EWIEGA46WW/moc_specificworker.cpp
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/chocachoca_agent_autogen/EWIEGA46WW/moc_specificworker.cpp
 
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/commonbehaviorI.cpp
-commonbehaviorI.h
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/commonbehaviorI.h
-
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/commonbehaviorI.h
 Ice/Ice.h
 -
@@ -183,10 +135,6 @@ genericmonitor.h
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/genericmonitor.h
 
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/config.h
-
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/genericmonitor.cpp
-genericmonitor.h
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/genericmonitor.h
 
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/genericmonitor.h
 Ice/Ice.h
@@ -201,10 +149,6 @@ qlog/qlog.h
 -
 CommonBehavior.h
 -
-
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/genericworker.cpp
-genericworker.h
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/genericworker.h
 
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/genericworker.h
 config.h
@@ -254,10 +198,6 @@ specificmonitor.h
 commonbehaviorI.h
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/commonbehaviorI.h
 
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/specificmonitor.cpp
-specificmonitor.h
-/home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/specificmonitor.h
-
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/specificmonitor.h
 genericmonitor.h
 /home/robo02/robocomp/components/robocomp-giraff/agentes/chocachoca_agent/src/genericmonitor.h
@@ -284,10 +224,6 @@ doublebuffer/DoubleBuffer.h
 
 /home/robocomp/robocomp/components/robocomp-giraff/etc/plan.h
 
-/usr/include/x86_64-linux-gnu/qt5/QtCore/QDebug
-qdebug.h
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qdebug.h
-
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QEvent
 qcoreevent.h
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qcoreevent.h
@@ -295,10 +231,6 @@ qcoreevent.h
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QList
 qlist.h
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qlist.h
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/QMap
-qmap.h
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qmap.h
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QMargins
 qmargins.h
@@ -335,10 +267,6 @@ qsize.h
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QSizeF
 qsize.h
 /usr/include/x86_64-linux-gnu/qt5/QtCore/qsize.h
-
-/usr/include/x86_64-linux-gnu/qt5/QtCore/QSocketNotifier
-qsocketnotifier.h
-/usr/include/x86_64-linux-gnu/qt5/QtCore/qsocketnotifier.h
 
 /usr/include/x86_64-linux-gnu/qt5/QtCore/QStringList
 qstringlist.h
@@ -5182,14 +5110,6 @@ Ice/Optional.h
 IceUtil/UndefSysMacros.h
 -
 IceUtil/PopDisableWarnings.h
--
-
-src/chocachoca_agent_autogen/include/moc_sigwatch.cpp
-sigwatch/sigwatch.h
-src/chocachoca_agent_autogen/include/sigwatch/sigwatch.h
-QtCore/qbytearray.h
--
-QtCore/qmetatype.h
 -
 
 src/config.h

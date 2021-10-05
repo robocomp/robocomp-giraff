@@ -193,10 +193,8 @@ std::tuple<float, float> SpecificWorker::send_command_to_robot(const std::tuple<
 
 void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string &type)
 {
-    qInfo() << "hola";
     if (type == intention_type_name)
     {
-        qInfo() << "hola2";
         if (auto intention = G->get_node(id); intention.has_value())
         {
             std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value());
@@ -206,7 +204,6 @@ void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string 
                 Plan my_plan(plan.value());
                 //if(my_plan.action==Plan::Actions::BOUNCE)
                 if (my_plan.is_action(my_plan.action)=="BOUNCE")
-                    qInfo () << "hola3";
                     plan_buffer.put(std::move(my_plan));
             }
         }
