@@ -43,10 +43,10 @@ RM = /usr/bin/cmake -E remove -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff
+CMAKE_SOURCE_DIR = /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff
+CMAKE_BINARY_DIR = /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff
 
 # Utility rule file for mission_controller_giraff_autogen.
 
@@ -54,8 +54,8 @@ CMAKE_BINARY_DIR = /home/robo02/robocomp/components/robocomp-giraff/agentes/miss
 include src/CMakeFiles/mission_controller_giraff_autogen.dir/progress.make
 
 src/CMakeFiles/mission_controller_giraff_autogen:
-	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Automatic MOC and UIC for target mission_controller_giraff"
-	cd /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src && /usr/bin/cmake -E cmake_autogen /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src/CMakeFiles/mission_controller_giraff_autogen.dir/AutogenInfo.json ""
+	@$(CMAKE_COMMAND) -E cmake_echo_color --switch=$(COLOR) --blue --bold --progress-dir=/home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Automatic MOC and UIC for target mission_controller_giraff"
+	cd /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src && /usr/bin/cmake -E cmake_autogen /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src/CMakeFiles/mission_controller_giraff_autogen.dir/AutogenInfo.json ""
 
 mission_controller_giraff_autogen: src/CMakeFiles/mission_controller_giraff_autogen
 mission_controller_giraff_autogen: src/CMakeFiles/mission_controller_giraff_autogen.dir/build.make
@@ -68,10 +68,10 @@ src/CMakeFiles/mission_controller_giraff_autogen.dir/build: mission_controller_g
 .PHONY : src/CMakeFiles/mission_controller_giraff_autogen.dir/build
 
 src/CMakeFiles/mission_controller_giraff_autogen.dir/clean:
-	cd /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src && $(CMAKE_COMMAND) -P CMakeFiles/mission_controller_giraff_autogen.dir/cmake_clean.cmake
+	cd /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src && $(CMAKE_COMMAND) -P CMakeFiles/mission_controller_giraff_autogen.dir/cmake_clean.cmake
 .PHONY : src/CMakeFiles/mission_controller_giraff_autogen.dir/clean
 
 src/CMakeFiles/mission_controller_giraff_autogen.dir/depend:
-	cd /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src /home/robo02/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src/CMakeFiles/mission_controller_giraff_autogen.dir/DependInfo.cmake --color=$(COLOR)
+	cd /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src /home/pbustos/robocomp/components/robocomp-giraff/agentes/mission_controller_giraff/src/CMakeFiles/mission_controller_giraff_autogen.dir/DependInfo.cmake --color=$(COLOR)
 .PHONY : src/CMakeFiles/mission_controller_giraff_autogen.dir/depend
 

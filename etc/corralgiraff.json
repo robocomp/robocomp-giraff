@@ -127,7 +127,7 @@
                                 "type": 3,
                                 "value": [
                                     -1868,
-                                    -51.96,
+                                    -51.959999084472656,
                                     100
                                 ]
                             }
@@ -204,11 +204,11 @@
                     },
                     "pos_x": {
                         "type": 2,
-                        "value": -278.689453
+                        "value": -225.689453
                     },
                     "pos_y": {
                         "type": 2,
-                        "value": -3.151021
+                        "value": -445.151031
                     }
                 },
                 "id": "1000",
@@ -303,6 +303,14 @@
                         "type": 2,
                         "value": -662.005188
                     },
+                    "robot_local_linear_velocity": {
+                        "type": 3,
+                        "value": [
+                            0.05445510149002075,
+                            3.0953281778470884e-41,
+                            0
+                        ]
+                    },
                     "robot_ref_adv_speed": {
                         "type": 2,
                         "value": 0
@@ -314,14 +322,6 @@
                     "robot_ref_side_speed": {
                         "type": 2,
                         "value": 0
-                    },
-                    "robot_local_linear_velocity": {
-                        "type": 3,
-                        "value": [
-                            0.05445510149002075,
-                            3.0953281778470884e-41,
-                            0
-                        ]
                     }
                 },
                 "id": "200",
@@ -445,22 +445,6 @@
                         "dst": "1000",
                         "label": "has",
                         "linkAttribute": {
-                            "rt_rotation_euler_xyz": {
-                                "type": 3,
-                                "value": [
-                                    0,
-                                    0,
-                                    0
-                                ]
-                            },
-                            "rt_translation": {
-                                "type": 3,
-                                "value": [
-                                    0,
-                                    0,
-                                    0
-                                ]
-                            }
                         },
                         "src": "200"
                     },
@@ -1086,27 +1070,35 @@
                     },
                     "cpu_usage": {
                         "type": 2,
-                        "value": 40
+                        "value": 0
                     },
                     "memory_usage": {
                         "type": 6,
-                        "value": 112760
+                        "value": 127464
                     },
                     "num_procs": {
                         "type": 6,
-                        "value": 28
+                        "value": 30
                     },
                     "parent": {
                         "type": 7,
                         "value": "1000"
                     },
+                    "pos_x": {
+                        "type": 2,
+                        "value": -310
+                    },
+                    "pos_y": {
+                        "type": 2,
+                        "value": -300
+                    },
                     "timestamp_agent": {
                         "type": 7,
-                        "value": "1631189357880966369"
+                        "value": "1633418914900812586"
                     },
                     "timestamp_alivetime": {
                         "type": 7,
-                        "value": "3459"
+                        "value": "1633418914"
                     },
                     "timestamp_creation": {
                         "type": 7,
@@ -1143,11 +1135,11 @@
                     },
                     "pos_x": {
                         "type": 2,
-                        "value": -92
+                        "value": 201.327744
                     },
                     "pos_y": {
                         "type": 2,
-                        "value": -195
+                        "value": -111.933739
                     },
                     "texture": {
                         "type": 0,
@@ -1188,11 +1180,11 @@
                     },
                     "pos_x": {
                         "type": 2,
-                        "value": -92
+                        "value": 279.202362
                     },
                     "pos_y": {
                         "type": 2,
-                        "value": -195
+                        "value": -44.442398
                     },
                     "texture": {
                         "type": 0,
@@ -1233,11 +1225,11 @@
                     },
                     "pos_x": {
                         "type": 2,
-                        "value": -92
+                        "value": -130.937317
                     },
                     "pos_y": {
                         "type": 2,
-                        "value": -195
+                        "value": -36.654938
                     },
                     "texture": {
                         "type": 0,
@@ -1278,11 +1270,11 @@
                     },
                     "pos_x": {
                         "type": 2,
-                        "value": -92
+                        "value": -60.850151
                     },
                     "pos_y": {
                         "type": 2,
-                        "value": -195
+                        "value": 95.731918
                     },
                     "texture": {
                         "type": 0,

@@ -418,7 +418,7 @@ void SpecificWorker::insert_intention_node(const Plan &plan)
             std::cout << __FUNCTION__ << ": Updating existing intention node with Id: " << intention.value().id() << std::endl;
             G->add_or_modify_attrib_local<current_intention_att>(intention.value(), plan.to_json());
             G->update_node(intention.value());
-            //std::cout << plan.to_json() << std::endl;
+            std::cout << "INSERT: " << plan.to_json() << std::endl;
         }
     }
     else
