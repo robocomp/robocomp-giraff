@@ -34,7 +34,7 @@
 #include <custom_widget.h>
 #include  "../../../etc/graph_names.h"
 #include <opencv2/opencv.hpp>
-#include "plan.h"
+#include "/home/robocomp/robocomp/components/robocomp-giraff/etc/plan.h"
 #include <QListWidget>
 #include <QSpinBox>
 #include "ui_mission_pointUI.h"

@@ -176,7 +176,6 @@ void SpecificWorker::compute()
     }
     if(plan.is_active())
     {
-        //cout << __FUNCTION__ << "PLAN ACTIVO"<<endl;
         if( auto path = path_buffer.try_get(); path.has_value())
             qInfo() << __FUNCTION__ << " Siguiendo el plan...";
     }
@@ -196,6 +195,9 @@ void SpecificWorker::read_camera()
         pix = QPixmap::fromImage(QImage(vframe.data, vframe.cols, vframe.rows, QImage::Format_RGB888));
         custom_widget.label_rgb->setPixmap(pix);
     }
+    else if (!custom_widget.image_onoff_button->isChecked())
+        custom_widget.label_rgb->clear();
+
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -205,6 +207,7 @@ void SpecificWorker::create_bouncer_mission()
 {
     current_plan.reset();
     current_plan.action = Plan::Actions::BOUNCE;
+    current_plan.planJ.insert("BOUNCE", QVariantMap());
 }
 
 void SpecificWorker::create_path_mission()
@@ -223,45 +226,58 @@ void SpecificWorker::create_goto_mission()
     current_plan.planJ.insert("GOTO", QVariantMap());
 
     connect(point_dialog.goto_spinbox_coordX, qOverload<int>(&QSpinBox::valueChanged),[this](int v)
-            {
-                auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
-                p.insert("x", v);
-                current_plan.planJ["GOTO"].setValue(p);
-                custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
-            });
+    {
+        auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
+        p.insert("x", v);
+        current_plan.planJ["GOTO"].setValue(p);
+        custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+
+        if(target_scene != nullptr)
+            widget_2d->scene.removeItem(target_scene);
+        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
+        target_scene->setX(v);
+        target_scene->setZValue(100);
+    });
 
     connect(point_dialog.goto_spinbox_coordY, qOverload<int>(&QSpinBox::valueChanged), [this](int v)
-            {
-                auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
-                p.insert("y", v);
-                current_plan.planJ["GOTO"].setValue(p);
-                custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
-            });
+    {
+        auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
+        p.insert("y", v);
+        current_plan.planJ["GOTO"].setValue(p);
+        custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+
+        if(target_scene != nullptr)
+            widget_2d->scene.removeItem(target_scene);
+        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
+        target_scene->setY(v);
+        target_scene->setZValue(100);
+    });
 
     connect(point_dialog.goto_spinbox_angle, qOverload<int>(&QSpinBox::valueChanged), [this](int v)
-            {
-                auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
-                p.insert("angle", v);
-                current_plan.planJ["GOTO"].setValue(p);
-                custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
-            });
+    {
+        auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
+        p.insert("angle", v);
+        current_plan.planJ["GOTO"].setValue(p);
+        custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+    });
 
     connect(widget_2d, &DSR::QScene2dViewer::mouse_right_click,[this](int x, int y, std::uint64_t obj)
-            {
-                if(auto node = G->get_node(obj); node.has_value())
-                {
-                    auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
-                    p.insert("destiny", QString::fromStdString(node.value().name()));
-                    current_plan.planJ["GOTO"].setValue(p);
-                }
-                point_dialog.goto_spinbox_coordX->setValue(x);
-                point_dialog.goto_spinbox_coordY->setValue(y);
-                if(target_scene != nullptr)
-                  widget_2d->scene.removeItem(target_scene);
-                target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
-                target_scene->setPos(x,y);
-                target_scene->setZValue(100);
-            });
+    {
+        if(auto node = G->get_node(obj); node.has_value())
+        {
+            auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
+            p.insert("destiny", QString::fromStdString(node.value().name()));
+            current_plan.planJ["GOTO"].setValue(p);
+        }
+        point_dialog.goto_spinbox_coordX->setValue(x);
+        point_dialog.goto_spinbox_coordY->setValue(y);
+
+        if(target_scene != nullptr)
+            widget_2d->scene.removeItem(target_scene);
+        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
+        target_scene->setPos(x,y);
+        target_scene->setZValue(100);
+    });
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
@@ -435,9 +451,11 @@ void SpecificWorker::slot_start_mission()
 {
     if(current_plan.is_complete())
     {
+
         insert_intention_node(current_plan);
         auto temp_plan = current_plan;
-      //  std::cout<<current_plan.to_json()<<std::endl;
+        //std::cout<<"ORIGINAL: "<<current_plan.to_json()<<std::endl;
+        //std::cout<<"RECUPERADO: "<<Plan(current_plan.to_json()).to_json()<<std::endl;
         plan_buffer.put(std::move(temp_plan));
     }
     else
@@ -463,6 +481,7 @@ void SpecificWorker::slot_cancel_mission()
 void SpecificWorker::slot_change_mission_selector(int index)
 {
     // remove current filling_plan and create a new one
+    slot_stop_mission();
     current_plan.reset();
     // createa new current filling_plan of the index typw
     switch(index)
@@ -476,7 +495,6 @@ void SpecificWorker::slot_change_mission_selector(int index)
         case 3:
             custom_widget.empty_widget->hide();
             custom_widget.textedit_current_plan->setPlainText("");
-            slot_stop_mission();
             create_bouncer_mission();
             break;
     }
