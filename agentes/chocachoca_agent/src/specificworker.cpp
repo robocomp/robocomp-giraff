@@ -24,6 +24,7 @@
 SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorker(tprx)
 {
 	this->startup_check_flag = startup_check;
+    QLoggingCategory::setFilterRules("*.debug=false\n");
 }
 
 /**
@@ -38,20 +39,6 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
-//	THE FOLLOWING IS JUST AN EXAMPLE
-//	To use innerModelPath parameter you should uncomment specificmonitor.cpp readConfig method content
-//	try
-//	{
-//		RoboCompCommonBehavior::Parameter par = params.at("InnerModelPath");
-//		std::string innermodel_path = par.value;
-//		innerModel = std::make_shared(innermodel_path);
-//	}
-//	catch(const std::exception &e) { qFatal("Error reading config params"); }
-
-
-
-
-
 	agent_name = params["agent_name"].value;
 	agent_id = stoi(params["agent_id"].value);
 
@@ -81,9 +68,9 @@ void SpecificWorker::initialize(int period)
 
 		//dsr update signals
 		connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::modify_node_slot);
-		connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::modify_edge_slot);
-		connect(G.get(), &DSR::DSRGraph::update_node_attr_signal, this, &SpecificWorker::modify_attrs_slot);
-		connect(G.get(), &DSR::DSRGraph::del_edge_signal, this, &SpecificWorker::del_edge_slot);
+//		connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::modify_edge_slot);
+//		connect(G.get(), &DSR::DSRGraph::update_node_attr_signal, this, &SpecificWorker::modify_attrs_slot);
+//		connect(G.get(), &DSR::DSRGraph::del_edge_signal, this, &SpecificWorker::del_edge_slot);
 		connect(G.get(), &DSR::DSRGraph::del_node_signal, this, &SpecificWorker::del_node_slot);
 
 		// Graph viewer
@@ -118,16 +105,20 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    if(auto intention = G->get_node(current_intention_name); intention.has_value()){
-        if (std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value()); plan.has_value()) {
-            Plan plan_o = Plan(plan.value());
-            if(plan_o.action==Plan::Actions::CHOCACHOCA)
-                cout << "////////"<<endl;
-                chocachoca();
-        }
+    if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
+    {
+        current_plan = plan_o.value();
+        qInfo() << __FUNCTION__ << "New plan arrived: ";
+        current_plan.pprint();
+        current_plan.set_active(true);
+    }
+    if(current_plan.is_active())
+    {
+        chocachoca();
     }
 }
 
+////////////////////////////////////////////////////////////////////////////
 int SpecificWorker::startup_check()
 {
 	std::cout << "Startup check" << std::endl;
@@ -136,7 +127,7 @@ int SpecificWorker::startup_check()
 }
 void SpecificWorker::chocachoca()
 {
-    static int stop_threshold = 650, slow_threshold = 800, residue = 100, min_speed = 0 + residue, max_speed = 600,  trim = 3; //COPPELIA VALUES
+    static int stop_threshold = 700, slow_threshold = 1000, residue = 50, min_speed = 0 + residue, max_speed = 600,  trim = 3; //COPPELIA VALUES
 //    float stop_threshold = 650.0, slow_threshold = 1250.0;
 //    float min_speed = 0.0, max_speed = 0.6;
 //    float residue = 0.1;
@@ -196,5 +187,38 @@ std::tuple<float, float> SpecificWorker::send_command_to_robot(const std::tuple<
     return std::make_tuple(adv_, rot_);
 }
 
+///////////////////////////////////////////////////////////////////////////
+///
+/// ///////////////////////////////////////////////////////////////////////
 
+void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string &type)
+{
+    qInfo() << "hola";
+    if (type == intention_type_name)
+    {
+        qInfo() << "hola2";
+        if (auto intention = G->get_node(id); intention.has_value())
+        {
+            std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value());
+            if (plan.has_value())
+            {
+                qInfo() << __FUNCTION__ << QString::fromStdString(plan.value()) << " " << intention.value().id();
+                Plan my_plan(plan.value());
+                //if(my_plan.action==Plan::Actions::BOUNCE)
+                if (my_plan.is_action(my_plan.action)=="BOUNCE")
+                    qInfo () << "hola3";
+                    plan_buffer.put(std::move(my_plan));
+            }
+        }
+    }
+}
 
+void SpecificWorker::del_node_slot(const std::uint64_t id)
+{
+    if( auto node = G->get_node(current_intention_name); not node.has_value())
+    {
+        qInfo() << __FUNCTION__ << "Path node deleter. Aborting control";
+        current_plan.set_active(false);
+        // PROTEGER
+    }
+}

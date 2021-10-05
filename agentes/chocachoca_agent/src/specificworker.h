@@ -32,7 +32,7 @@
 #include "dsr/gui/dsr_gui.h"
 #include <doublebuffer/DoubleBuffer.h>
 #include  "../..//etc/graph_names.h"
-#include "plan.h"
+#include "/home/robocomp/robocomp/components/robocomp-giraff/etc/plan.h"
 
 class SpecificWorker : public GenericWorker
 {
@@ -41,8 +41,6 @@ public:
 	SpecificWorker(TuplePrx tprx, bool startup_check);
 	~SpecificWorker();
 	bool setParams(RoboCompCommonBehavior::ParameterList params);
-
-
 
 public slots:
 	void compute();
@@ -65,12 +63,15 @@ private:
 	// DSR graph viewer
 	std::unique_ptr<DSR::DSRViewer> graph_viewer;
 	QHBoxLayout mainLayout;
-	void modify_node_slot(std::uint64_t, const std::string &type){};
-	void modify_attrs_slot(std::uint64_t id, const std::vector<std::string>& att_names){};
-	void modify_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type){};
 
-	void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag){};
-	void del_node_slot(std::uint64_t from){};     
+    //Plan
+    Plan current_plan;
+    DoubleBuffer<Plan, Plan> plan_buffer;
+    void modify_node_slot(std::uint64_t, const std::string &type);
+	//void modify_attrs_slot(std::uint64_t id, const std::vector<std::string>& att_names){};
+	//void modify_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type){};
+	//void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag);
+	void del_node_slot(std::uint64_t from);
 	bool startup_check_flag;
     void chocachoca();
     std::tuple<float, float> send_command_to_robot(const std::tuple<float, float> &speeds);
