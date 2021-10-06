@@ -127,11 +127,11 @@ int SpecificWorker::startup_check()
 }
 void SpecificWorker::chocachoca()
 {
-    static int stop_threshold = 700, slow_threshold = 1000, residue = 50, min_speed = 0 + residue, max_speed = 600,  trim = 3; //COPPELIA VALUES
-//    float stop_threshold = 650.0, slow_threshold = 1250.0;
-//    float min_speed = 0.0, max_speed = 0.6;
-//    float residue = 0.1;
-//    float trim = 3.0;   // GIRAFF  VALUES
+//    static int stop_threshold = 700, slow_threshold = 1000, residue = 50, min_speed = 0 + residue, max_speed = 600,  trim = 3; //COPPELIA VALUES
+  float stop_threshold = 800.0, slow_threshold = 1400.0;
+  float min_speed = 0.0, max_speed = 0.6;
+  float residue = 0.1;
+  float trim = 3.0;   // GIRAFF  VALUES
     float adv = 0.8, rot = 0.0, m = (max_speed - min_speed) * 1. / (slow_threshold - stop_threshold),n = min_speed - m * stop_threshold + residue;
 //    if( auto ldata = laser_proxy->getLaserData(); !ldata.empty())
     if (auto laser_node= G->get_node(laser_name);laser_node.has_value())
@@ -167,7 +167,7 @@ void SpecificWorker::chocachoca()
         try
         {
             cout << "adv: " << adv << "     rot: " << rot << endl;
-            send_command_to_robot(std::make_tuple(adv, rot));
+            send_command_to_robot(std::make_tuple(adv*1000, rot));
         }
         catch(const Ice::Exception &e)
             { std::cout << e.what() << std::endl;}

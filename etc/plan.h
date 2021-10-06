@@ -8,18 +8,31 @@
 class Plan
 {
     public:
+        enum class Actions {NONE, GOTO, BOUNCE, FOLLOW_PATH};
         Plan()
         {
             empty = true;
             active = false;
         };
-
+        Plan(Actions action_)
+        {
+            this->action = action_;
+            planJ.insert(QString::fromStdString(actions_to_strings.at(action_)), QVariantMap());
+        }
         Plan(const std::string &plan_string)
         {
-            QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(plan_string).toUtf8());
-            planJ = qvariant_cast<QVariantMap>(doc.toVariant());
-            QString act = planJ.keys().front();  // OJO ES SOLO LA PRIMERA KEY DEL MAPA
-            this->action = strings_to_actions.at(act.toStdString());
+            try
+            {
+                QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(plan_string).toUtf8());
+                planJ = qvariant_cast<QVariantMap>(doc.toVariant());
+                QString act = planJ.keys().front();  // OJO ES SOLO LA PRIMERA KEY DEL MAPA
+                this->action = strings_to_actions.at(act.toStdString());
+            }
+            catch (const std::exception &e)
+            {
+                std::cout << e.what() << std::endl;
+                std::terminate();
+            };
         };
 
         void reset()
@@ -59,7 +72,6 @@ class Plan
             return QPointF(x, y);
         }
 
-        enum class Actions {NONE, GOTO, BOUNCE, FOLLOW_PATH};
         Actions action;
         bool is_action(Actions test) const
         {
