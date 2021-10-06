@@ -202,8 +202,7 @@ void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string 
             {
                 qInfo() << __FUNCTION__ << QString::fromStdString(plan.value()) << " " << intention.value().id();
                 Plan my_plan(plan.value());
-                //if(my_plan.action==Plan::Actions::BOUNCE)
-                if (my_plan.is_action(my_plan.action)=="BOUNCE")
+                if (my_plan.is_action(Plan::Actions::BOUNCE))
                     plan_buffer.put(std::move(my_plan));
             }
         }

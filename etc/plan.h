@@ -18,8 +18,8 @@ class Plan
         {
             QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(plan_string).toUtf8());
             planJ = qvariant_cast<QVariantMap>(doc.toVariant());
-            QString act = planJ.keys().front();
-            cout<< "////////"<< act.toStdString() <<endl;
+            QString act = planJ.keys().front();  // OJO ES SOLO LA PRIMERA KEY DEL MAPA
+            this->action = strings_to_actions.at(act.toStdString());
         };
 
         void reset()
@@ -39,7 +39,7 @@ class Plan
         std::string pprint() const
         {
             std::stringstream ss;
-            ss << "Action: " << action_strings.at(action).toStdString() << std::endl;
+            ss << "Action: " << actions_to_strings.at(action) << std::endl;
             for(const auto p : planJ.keys())
                 for(const auto e : qvariant_cast<QVariantMap>(planJ[p]).keys())
                 {
@@ -52,7 +52,8 @@ class Plan
         bool is_active() const {return active;};
         bool is_empty() const { return empty; };
         void set_empty(bool e) { empty = e;};
-        QPointF get_target() const {
+        QPointF get_target() const
+        {
             float x = qvariant_cast<QVariantMap>(planJ["GOTO"]).value("x").toFloat();
             float y = qvariant_cast<QVariantMap>(planJ["GOTO"]).value("y").toFloat();
             return QPointF(x, y);
@@ -60,22 +61,14 @@ class Plan
 
         enum class Actions {NONE, GOTO, BOUNCE, FOLLOW_PATH};
         Actions action;
-        std::string is_action(Actions acti) {
-            QString a;
-            switch (acti) {
-            case Actions::GOTO:
-                a = "GOTO";
-                break;
-            case Actions::BOUNCE:
-                a = "BOUNCE";
-                break;
-            }
-            return a.toStdString();
+        bool is_action(Actions test) const
+        {
+            return test == this->action;
         };
 
         bool is_complete()
         {
-            return action_tests.at(action);
+            return action_to_tests.at(action);
         }
 
         //qmap
@@ -84,13 +77,20 @@ class Plan
     private:
         bool empty = true;
         bool active = false;
-        std::map<Actions, QString> action_strings
+        std::map<Actions, std::string> actions_to_strings
          {
             {Actions::GOTO, "GOTO"},
             {Actions::BOUNCE, "BOUNCE"},
             {Actions::FOLLOW_PATH, "FOLLOW_PATH"},
             {Actions::NONE, "NONE"}
          };
+        std::map<std::string, Actions> strings_to_actions
+        {
+            {"GOTO", Actions::GOTO},
+            {"BOUNCE", Actions::BOUNCE},
+            {"FOLLOW_PATH", Actions::FOLLOW_PATH},
+            {"NONE", Actions::NONE}
+        };
         // Tests for specific plans
         typedef bool (Plan::*Test)();
         bool GOTO_test()
@@ -106,14 +106,12 @@ class Plan
         };
         bool BOUNCE_test() { return true; };
         bool FOLLOW_PATH_test() { return true; };
-        std::map <Actions, Test> action_tests
+        std::map <Actions, Test> action_to_tests
         {
             {Actions::GOTO, &Plan::GOTO_test},
             {Actions::BOUNCE, &Plan::BOUNCE_test},
             {Actions::FOLLOW_PATH, &Plan::FOLLOW_PATH_test}
         };
-        std::string plan_string;
-
 };
 
 #endif //CONTROLLER_DSR_MISSION_H

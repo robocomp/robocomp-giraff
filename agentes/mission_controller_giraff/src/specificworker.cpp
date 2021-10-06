@@ -171,7 +171,7 @@ void SpecificWorker::compute()
     {
         plan = plan_o.value();
         std::cout << __FUNCTION__  << " New plan arrived: " << std::endl; std::cout << plan.pprint() << std::endl;
-        custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(plan.pprint()));
+        custom_widget.textedit_current_plan->appendPlainText("-> compute: initiating plan");
         plan.set_active(true);
     }
     if(plan.is_active())
@@ -208,12 +208,15 @@ void SpecificWorker::create_bouncer_mission()
     current_plan.reset();
     current_plan.action = Plan::Actions::BOUNCE;
     current_plan.planJ.insert("BOUNCE", QVariantMap());
+    custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
 }
 
 void SpecificWorker::create_path_mission()
 {
-    current_plan.reset();  // make temporary
+    current_plan.reset();
     current_plan.action = Plan::Actions::FOLLOW_PATH;
+    current_plan.planJ.insert("FOLLOW_PATH", QVariantMap());
+    custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
 }
 
 void SpecificWorker::create_goto_mission()
@@ -230,7 +233,7 @@ void SpecificWorker::create_goto_mission()
         auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
         p.insert("x", v);
         current_plan.planJ["GOTO"].setValue(p);
-        custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
 
         if(target_scene != nullptr)
             widget_2d->scene.removeItem(target_scene);
@@ -244,7 +247,7 @@ void SpecificWorker::create_goto_mission()
         auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
         p.insert("y", v);
         current_plan.planJ["GOTO"].setValue(p);
-        custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
 
         if(target_scene != nullptr)
             widget_2d->scene.removeItem(target_scene);
@@ -258,7 +261,7 @@ void SpecificWorker::create_goto_mission()
         auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
         p.insert("angle", v);
         current_plan.planJ["GOTO"].setValue(p);
-        custom_widget.textedit_current_plan->setPlainText(QString::fromStdString(current_plan.pprint()));
+        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
     });
 
     connect(widget_2d, &DSR::QScene2dViewer::mouse_right_click,[this](int x, int y, std::uint64_t obj)
@@ -454,8 +457,6 @@ void SpecificWorker::slot_start_mission()
 
         insert_intention_node(current_plan);
         auto temp_plan = current_plan;
-        //std::cout<<"ORIGINAL: "<<current_plan.to_json()<<std::endl;
-        //std::cout<<"RECUPERADO: "<<Plan(current_plan.to_json()).to_json()<<std::endl;
         plan_buffer.put(std::move(temp_plan));
     }
     else
@@ -466,35 +467,40 @@ void SpecificWorker::slot_stop_mission()
 {
     send_command_to_robot(std::make_tuple(0.f,0.f,0.f));   //adv, side, rot
     if(auto intention = G->get_node(current_intention_name); intention.has_value())
+    {
+        if(auto path = G->get_node(current_path_name); path.has_value())
+            G->delete_node(path.value().id());
         G->delete_node(intention.value().id());
+    }
     else
         qWarning() << __FUNCTION__ << "No intention node found";
+    current_plan.reset();
     current_plan.set_empty(true);
+    custom_widget.textedit_current_plan->appendPlainText("-> mission cancelled");
+    custom_widget.empty_widget->hide();
 }
 
 void SpecificWorker::slot_cancel_mission()
 {
     slot_stop_mission();
-    current_plan.set_empty(true);
 }
 
 void SpecificWorker::slot_change_mission_selector(int index)
 {
     // remove current filling_plan and create a new one
     slot_stop_mission();
-    current_plan.reset();
     // createa new current filling_plan of the index typw
     switch(index)
     {
         case 1:
+            custom_widget.textedit_current_plan->appendPlainText("-> New GOTO mission");
             create_goto_mission(); // Goto_XYA
             break;
         case 2:
             create_path_mission();
             break;
         case 3:
-            custom_widget.empty_widget->hide();
-            custom_widget.textedit_current_plan->setPlainText("");
+            custom_widget.textedit_current_plan->appendPlainText("-> New BOUNCER mission");
             create_bouncer_mission();
             break;
     }
