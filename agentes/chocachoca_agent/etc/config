@@ -8,6 +8,12 @@ graph_view = true
 3d_view = false
 #Ice.MessageSizeMax=20004800
 
+stop_threshold = 800,0
+slow_threshold = 1400,0
+residue = 0,1
+min_speed = 0,0
+max_speed = 0,6
+trim = 3,0
 
 Ice.Warn.Connections=0
 Ice.Trace.Network=0

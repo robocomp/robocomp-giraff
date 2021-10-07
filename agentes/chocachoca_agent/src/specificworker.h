@@ -76,6 +76,18 @@ private:
     void chocachoca();
     std::tuple<float, float> send_command_to_robot(const std::tuple<float, float> &speeds);
 
+    struct CONSTANTS
+    {
+        float stop_threshold = 800.0;
+        float slow_threshold = 1400.0;
+        float residue = 0.1;
+        float min_speed = 0.0;
+        float max_speed = 0.6;
+        float trim = 3.0;
+
+    };
+    CONSTANTS consts;
+
 };
 
 #endif

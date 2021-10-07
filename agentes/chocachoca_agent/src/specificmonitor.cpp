@@ -104,6 +104,20 @@ void SpecificMonitor::readConfig(RoboCompCommonBehavior::ParameterList &params )
 	params["2d_view"] = aux;
 	configGetString( "","3d_view", aux.value, "none");
 	params["3d_view"] = aux;
+
+    configGetString( "","stop_threshold", aux.value, "800.0");
+    params["stop_threshold"] = aux;
+    configGetString( "","slow_threshold", aux.value, "1400.0");
+    params["slow_threshold"] = aux;
+    configGetString( "","residue", aux.value, "0.1");
+    params["residue"] = aux;
+    configGetString( "","min_speed", aux.value, "0.0");
+    params["min_speed"] = aux;
+    configGetString( "","max_speed", aux.value, "0.6");
+    params["max_speed"] = aux;
+    configGetString( "","trim", aux.value, "3.0");
+    params["trim"] = aux;
+
 }
 
 //Check parameters and transform them to worker structure

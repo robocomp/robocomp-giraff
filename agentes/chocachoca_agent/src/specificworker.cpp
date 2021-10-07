@@ -47,7 +47,14 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	qscene_2d_view = params["2d_view"].value == "true";
 	osg_3d_view = params["3d_view"].value == "true";
 
-	return true;
+    consts.stop_threshold = stof(params.at("stop_threshold").value);
+    consts.slow_threshold = stof(params.at("slow_threshold").value);
+    consts.residue = stof(params.at("residue").value);
+    consts.min_speed = stof(params.at("min_speed").value);
+    consts.max_speed = stof(params.at("max_speed").value);
+    consts.trim = stof(params.at("trim").value);
+
+    return true;
 }
 
 void SpecificWorker::initialize(int period)
@@ -101,6 +108,9 @@ void SpecificWorker::initialize(int period)
 		timer.start(Period);
 	}
 
+    qInfo() << __FUNCTION__ << "CONTROLLER: Params from config:" << consts.stop_threshold << consts.slow_threshold << consts.residue << consts.min_speed
+            << consts.max_speed << consts.trim;
+
 }
 
 void SpecificWorker::compute()
@@ -127,13 +137,12 @@ int SpecificWorker::startup_check()
 }
 void SpecificWorker::chocachoca()
 {
-//    static int stop_threshold = 700, slow_threshold = 1000, residue = 50, min_speed = 0 + residue, max_speed = 600,  trim = 3; //COPPELIA VALUES
-  float stop_threshold = 800.0, slow_threshold = 1400.0;
-  float min_speed = 0.0, max_speed = 0.6;
-  float residue = 0.1;
-  float trim = 3.0;   // GIRAFF  VALUES
-    float adv = 0.8, rot = 0.0, m = (max_speed - min_speed) * 1. / (slow_threshold - stop_threshold),n = min_speed - m * stop_threshold + residue;
-//    if( auto ldata = laser_proxy->getLaserData(); !ldata.empty())
+ float adv;
+ float rot = 0.0;
+
+    float m = (consts.max_speed - consts.min_speed) * 1. / (consts.slow_threshold - consts.stop_threshold);
+ float n = consts.min_speed - m * consts.stop_threshold + consts.residue;
+
     if (auto laser_node= G->get_node(laser_name);laser_node.has_value())
     {
         auto laser=laser_node.value();
@@ -149,20 +158,20 @@ void SpecificWorker::chocachoca()
         }
 
         //Sort and take the lower distance value
-        int limit = distances.size()/trim;
+        int limit = distances.size()/consts.trim;
         std::sort(distances.begin() + limit, distances.end() - limit, [](float a, float b){return a < b;});
         float minValue = distances[limit];
 
         //Set the speeds depending on minValue, x1, x2, y1, y2
-        if(minValue < stop_threshold) {
+        if(minValue < consts.stop_threshold) {
             rot = 0.8;
-            adv = min_speed;
+            adv = consts.min_speed;
             sleep(std::rand() % 3 + 1);
         }
-        else if(minValue < slow_threshold)
+        else if(minValue < consts.slow_threshold)
             adv = m * minValue + n;
         else
-            adv = max_speed;
+            adv = consts.max_speed;
 
         try
         {
