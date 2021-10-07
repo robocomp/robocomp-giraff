@@ -20,7 +20,7 @@
 #include "specificworker.h"
 #include <cppitertools/enumerate.hpp>
 #include <cppitertools/zip.hpp>
-#include <cppitertools/filter.hpp>
+#include <cppitertools/range.hpp>
 #include <cppitertools/sliding_window.hpp>
 
 /**
@@ -217,6 +217,18 @@ void SpecificWorker::create_path_mission()
     current_plan.action = Plan::Actions::FOLLOW_PATH;
     current_plan.planJ.insert("FOLLOW_PATH", QVariantMap());
     custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
+
+    const float radio = 700;
+    const float arco = 400;
+    current_plan.x_path.clear();
+    current_plan.y_path.clear();
+    auto robot = inner_eigen->transform(world_name, robot_name);
+
+    for(auto &&alfa : iter::range(0.0, 2*M_PI, (double)(arco/radio)))
+    {
+       current_plan.x_path.push_back(radio * cos(alfa) + robot.value().x() - radio);
+       current_plan.y_path.push_back(radio * sin(alfa) + robot.value().y());
+    }
 }
 
 void SpecificWorker::create_goto_mission()
@@ -281,58 +293,6 @@ void SpecificWorker::create_goto_mission()
         target_scene->setPos(x,y);
         target_scene->setZValue(100);
     });
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////
-/// Auxiliary methods
-/////////////////////////////////////////////////////////////////////////////////////////////
-void SpecificWorker::draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d)
-{
-    static std::vector<QGraphicsLineItem *> scene_road_points;
-
-    //clear previous points
-    for (QGraphicsLineItem* item : scene_road_points)
-        viewer_2d->removeItem((QGraphicsItem*)item);
-    scene_road_points.clear();
-
-    /// Draw all points
-    QGraphicsLineItem *line1, *line2;
-    std::string color;
-    for (unsigned int i = 1; i < path.size(); i++)
-        for(auto &&p_pair : iter::sliding_window(path, 2))
-        {
-            if(p_pair.size() < 2)
-                continue;
-            Mat::Vector2d a_point(p_pair[0].x(), p_pair[0].y());
-            Mat::Vector2d b_point(p_pair[1].x(), p_pair[1].y());
-            Mat::Vector2d dir = a_point - b_point;
-            Mat::Vector2d dir_perp = dir.unitOrthogonal();
-            Eigen::ParametrizedLine segment = Eigen::ParametrizedLine<double, 2>::Through(a_point, b_point);
-            Eigen::ParametrizedLine<double, 2> segment_perp((a_point+b_point)/2, dir_perp);
-            auto left = segment_perp.pointAt(50);
-            auto right = segment_perp.pointAt(-50);
-            QLineF qsegment(QPointF(a_point.x(), a_point.y()), QPointF(b_point.x(), b_point.y()));
-            QLineF qsegment_perp(QPointF(left.x(), left.y()), QPointF(right.x(), right.y()));
-
-            if(i == 1 or i == path.size()-1)
-                color = "#00FF00"; //Green
-
-            line1 = viewer_2d->addLine(qsegment, QPen(QBrush(QColor(QString::fromStdString(color))), 20));
-            line2 = viewer_2d->addLine(qsegment_perp, QPen(QBrush(QColor(QString::fromStdString("#F0FF00"))), 20));
-            line1->setZValue(2000);
-            line2->setZValue(2000);
-            scene_road_points.push_back(line1);
-            scene_road_points.push_back(line2);
-        }
-}
-void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds)   //adv, side, rot
-{
-    auto &[adv_, side_, rot_] = speeds;
-    auto robot_node = G->get_node(robot_name);
-    G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(),  (float)adv_);
-    G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float)rot_);
-    G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(),  (float)side_);
-    G->update_node(robot_node.value());
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -446,6 +406,33 @@ void SpecificWorker::insert_intention_node(const Plan &plan)
         std::terminate();
     }
 }
+void SpecificWorker::follow_path_copy_path_to_graph(const std::vector<float> &x_values, const std::vector<float> &y_values)
+{
+    if (auto path = G->get_node(current_path_name); path.has_value())
+    {
+        auto path_to_target_node = path.value();
+        G->add_or_modify_attrib_local<path_x_values_att>(path_to_target_node, x_values);
+        G->add_or_modify_attrib_local<path_y_values_att>(path_to_target_node, y_values);
+        G->update_node(path_to_target_node);
+    }
+    else // create path_to_target_node with the solution path
+    {
+        if(auto intention = G->get_node(current_intention_name); intention.has_value())
+        {
+            auto path_to_target_node = DSR::Node::create<path_to_target_node_type>(current_path_name);
+            G->add_or_modify_attrib_local<path_x_values_att>(path_to_target_node, x_values);
+            G->add_or_modify_attrib_local<path_y_values_att>(path_to_target_node, y_values);
+            G->add_or_modify_attrib_local<pos_x_att>(path_to_target_node, (float) -542);
+            G->add_or_modify_attrib_local<pos_y_att>(path_to_target_node, (float) 106);
+            G->add_or_modify_attrib_local<parent_att>(path_to_target_node, intention.value().id());
+            G->add_or_modify_attrib_local<level_att>(path_to_target_node, 3);
+            auto id = G->insert_node(path_to_target_node);
+            DSR::Edge edge_to_intention = DSR::Edge::create<thinks_edge_type>(id.value(), intention.value().id());
+            G->insert_or_assign_edge(edge_to_intention);
+        }
+        else qWarning() << __FUNCTION__ << "No intention node found. Can't create path node";
+    }
+}
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// UI
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -454,13 +441,16 @@ void SpecificWorker::slot_start_mission()
 {
     if(current_plan.is_complete())
     {
-
         insert_intention_node(current_plan);
+        if(current_plan.is_action(Plan::Actions::FOLLOW_PATH))
+        {
+            follow_path_copy_path_to_graph(current_plan.x_path, current_plan.y_path);
+        }
         auto temp_plan = current_plan;
         plan_buffer.put(std::move(temp_plan));
     }
     else
-        qWarning() << __FUNCTION__ << "No valid plan available";
+        qWarning() << __FUNCTION__ << "Plan is not complete. Mission cannot be created";
 }
 
 void SpecificWorker::slot_stop_mission()
@@ -497,6 +487,7 @@ void SpecificWorker::slot_change_mission_selector(int index)
             create_goto_mission(); // Goto_XYA
             break;
         case 2:
+            custom_widget.textedit_current_plan->appendPlainText("-> New PATH FOLLOWER mission");
             create_path_mission();
             break;
         case 3:
@@ -505,6 +496,58 @@ void SpecificWorker::slot_change_mission_selector(int index)
             break;
     }
 }
+/////////////////////////////////////////////////////////////////////////////////////////////
+/// Auxiliary methods
+/////////////////////////////////////////////////////////////////////////////////////////////
+void SpecificWorker::draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d)
+{
+    static std::vector<QGraphicsLineItem *> scene_road_points;
+
+    //clear previous points
+    for (QGraphicsLineItem* item : scene_road_points)
+        viewer_2d->removeItem((QGraphicsItem*)item);
+    scene_road_points.clear();
+
+    /// Draw all points
+    QGraphicsLineItem *line1, *line2;
+    std::string color;
+    for (unsigned int i = 1; i < path.size(); i++)
+        for(auto &&p_pair : iter::sliding_window(path, 2))
+        {
+            if(p_pair.size() < 2)
+                continue;
+            Mat::Vector2d a_point(p_pair[0].x(), p_pair[0].y());
+            Mat::Vector2d b_point(p_pair[1].x(), p_pair[1].y());
+            Mat::Vector2d dir = a_point - b_point;
+            Mat::Vector2d dir_perp = dir.unitOrthogonal();
+            Eigen::ParametrizedLine segment = Eigen::ParametrizedLine<double, 2>::Through(a_point, b_point);
+            Eigen::ParametrizedLine<double, 2> segment_perp((a_point+b_point)/2, dir_perp);
+            auto left = segment_perp.pointAt(50);
+            auto right = segment_perp.pointAt(-50);
+            QLineF qsegment(QPointF(a_point.x(), a_point.y()), QPointF(b_point.x(), b_point.y()));
+            QLineF qsegment_perp(QPointF(left.x(), left.y()), QPointF(right.x(), right.y()));
+
+            if(i == 1 or i == path.size()-1)
+                color = "#00FF00"; //Green
+
+            line1 = viewer_2d->addLine(qsegment, QPen(QBrush(QColor(QString::fromStdString(color))), 20));
+            line2 = viewer_2d->addLine(qsegment_perp, QPen(QBrush(QColor(QString::fromStdString("#F0FF00"))), 20));
+            line1->setZValue(2000);
+            line2->setZValue(2000);
+            scene_road_points.push_back(line1);
+            scene_road_points.push_back(line2);
+        }
+}
+void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds)   //adv, side, rot
+{
+    auto &[adv_, side_, rot_] = speeds;
+    auto robot_node = G->get_node(robot_name);
+    G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(),  (float)adv_);
+    G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float)rot_);
+    G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(),  (float)side_);
+    G->update_node(robot_node.value());
+}
+
 //////////////////////////////////////////////////////////////////////////////////
 
 int SpecificWorker::startup_check()

@@ -86,6 +86,9 @@ class Plan
         //qmap
         QVariantMap planJ;
 
+        // Variables for specific plans
+        std::vector<float> x_path, y_path;
+
     private:
         bool empty = true;
         bool active = false;
@@ -117,13 +120,21 @@ class Plan
             return true;
         };
         bool BOUNCE_test() { return true; };
-        bool FOLLOW_PATH_test() { return true; };
+        bool FOLLOW_PATH_test()
+        {
+            if( action != Plan::Actions::NONE)
+                return true;
+            else
+                return false;
+        };
         std::map <Actions, Test> action_to_tests
         {
             {Actions::GOTO, &Plan::GOTO_test},
             {Actions::BOUNCE, &Plan::BOUNCE_test},
             {Actions::FOLLOW_PATH, &Plan::FOLLOW_PATH_test}
         };
+
+
 };
 
 #endif //CONTROLLER_DSR_MISSION_H

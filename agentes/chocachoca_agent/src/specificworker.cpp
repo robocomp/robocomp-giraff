@@ -137,24 +137,27 @@ int SpecificWorker::startup_check()
 }
 void SpecificWorker::chocachoca()
 {
- float adv;
+ float adv = 0.0;
  float rot = 0.0;
 
-    float m = (consts.max_speed - consts.min_speed) * 1. / (consts.slow_threshold - consts.stop_threshold);
+ float m = (consts.max_speed - consts.min_speed) * 1. / (consts.slow_threshold - consts.stop_threshold);
  float n = consts.min_speed - m * consts.stop_threshold + consts.residue;
 
     if (auto laser_node= G->get_node(laser_name);laser_node.has_value())
     {
         auto laser=laser_node.value();
+
         //Using only distance values
         auto distances = G->get_attrib_by_name<laser_dists_att>(laser).value().get();
+
         //Filter, try to fix laser measure errors
         if(distances[0] < 200)
             distances[0] = 200;
+
         for(auto &&window : iter::sliding_window(distances, 2))
         {
             if(window[1] < 200)
-            window[1] = window[0];
+                window[1] = window[0];
         }
 
         //Sort and take the lower distance value
