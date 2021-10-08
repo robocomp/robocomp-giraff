@@ -35,6 +35,7 @@
 #include <QGraphicsPolygonItem>
 #include <doublebuffer/DoubleBuffer.h>
 #include  "../../../etc/graph_names.h"
+#include <fstream>
 
 class Plan
 {
@@ -138,6 +139,8 @@ class SpecificWorker : public GenericWorker
         };
         CONSTANTS consts;
 
+        ofstream fichero;
+        int iter;
         // controller
         void path_follower_initialize();
         std::tuple<float, float, float>

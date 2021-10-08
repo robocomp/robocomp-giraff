@@ -40,6 +40,7 @@ SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorke
 */
 SpecificWorker::~SpecificWorker()
 {
+    fichero.close();
     std::cout << "Destroying SpecificWorker" << std::endl;
     G.reset();
 }
@@ -149,6 +150,8 @@ void SpecificWorker::initialize(int period)
         if(auto paths = G->get_nodes_by_type(path_to_target_type_name); not paths.empty())
             this->add_or_assign_node_slot(paths.front().id(), path_to_target_type_name);
 
+        fichero.open("datos.csv");
+        iter = 0;
         this->Period = 200;
         std::cout<< __FUNCTION__ << "Initialization finished" << std::endl;
         timer.start(Period);
@@ -212,6 +215,11 @@ std::tuple<float, float, float> SpecificWorker::socialize_speeds(std::tuple<floa
     if(auto personal_space = G->get_nodes_by_type("personal_space"); not personal_space.empty()) {
         float dMin = smallest_distance_to_person(personal_space);
         adv_ *= sigmoid(dMin);
+        if (++iter % 2 == 0){
+
+            cout    << iter << "    " << adv_ << "   " << dMin << endl;
+            fichero << iter << ";" << adv_ << ";" << dMin << endl;
+        }
     }else {
         cout << "NO PERSONAL SPACE" << endl;
     }
