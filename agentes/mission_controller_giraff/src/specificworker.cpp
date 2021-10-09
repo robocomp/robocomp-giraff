@@ -215,7 +215,7 @@ void SpecificWorker::create_path_mission()
     custom_widget.textedit_current_plan->appendPlainText("-> New temporary plan: FOLLOW_PATH");
     custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
 
-    const float radio = 700;
+    const float radio = 800;
     const float arco = 400;
     temporary_plan.x_path.clear();
     temporary_plan.y_path.clear();
@@ -426,6 +426,8 @@ void SpecificWorker::follow_path_copy_path_to_graph(const std::vector<float> &x_
 
 void SpecificWorker::slot_start_mission()
 {
+    if(not temporary_plan.is_valid())
+        slot_change_mission_selector(custom_widget.list_plan->currentIndex());
     if(temporary_plan.is_complete())
     {
         insert_intention_node(temporary_plan);
