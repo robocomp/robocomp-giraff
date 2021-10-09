@@ -166,18 +166,17 @@ void SpecificWorker::compute()
     static std::chrono::steady_clock::time_point begin, lastPathStep;
 
     // check for existing missions
-    static Plan plan;
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
-        plan = plan_o.value();
-        std::cout << __FUNCTION__  << " New plan arrived: " << std::endl; std::cout << plan.pprint() << std::endl;
-        custom_widget.textedit_current_plan->appendPlainText("-> compute: initiating plan");
-        plan.set_active(true);
+        current_plan = plan_o.value();
+        std::cout << __FUNCTION__  << " New plan arrived: " << std::endl; std::cout << current_plan.pprint() << std::endl;
+        custom_widget.textedit_current_plan->appendPlainText("-> compute: initiating plan " + current_plan.get_action());
+        current_plan.set_running();
     }
-    if(plan.is_active())
+    if(current_plan.is_running())
     {
-        if( auto path = path_buffer.try_get(); path.has_value())
-            qInfo() << __FUNCTION__ << " Siguiendo el plan...";
+        //if( auto path = path_buffer.try_get(); path.has_value())
+        qInfo() << __FUNCTION__ << " Plan is running...";
     }
     else
     { // there should be a plan after a few seconds
@@ -205,29 +204,27 @@ void SpecificWorker::read_camera()
 ////////////////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::create_bouncer_mission()
 {
-    current_plan.reset();
-    current_plan.action = Plan::Actions::BOUNCE;
-    current_plan.planJ.insert("BOUNCE", QVariantMap());
-    custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
+    temporary_plan.new_plan(Plan::Actions::BOUNCE);
+    custom_widget.textedit_current_plan->appendPlainText("-> New temporary plan: BOUNCE");
+    custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
 }
 
 void SpecificWorker::create_path_mission()
 {
-    current_plan.reset();
-    current_plan.action = Plan::Actions::FOLLOW_PATH;
-    current_plan.planJ.insert("FOLLOW_PATH", QVariantMap());
-    custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
+    temporary_plan.new_plan(Plan::Actions::FOLLOW_PATH);
+    custom_widget.textedit_current_plan->appendPlainText("-> New temporary plan: FOLLOW_PATH");
+    custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
 
     const float radio = 700;
     const float arco = 400;
-    current_plan.x_path.clear();
-    current_plan.y_path.clear();
+    temporary_plan.x_path.clear();
+    temporary_plan.y_path.clear();
     auto robot = inner_eigen->transform(world_name, robot_name);
 
     for(auto &&alfa : iter::range(0.0, 2*M_PI, (double)(arco/radio)))
     {
-       current_plan.x_path.push_back(radio * cos(alfa) + robot.value().x() - radio);
-       current_plan.y_path.push_back(radio * sin(alfa) + robot.value().y());
+       temporary_plan.x_path.push_back(radio * cos(alfa) + robot.value().x() - radio);
+       temporary_plan.y_path.push_back(radio * sin(alfa) + robot.value().y());
     }
 }
 
@@ -236,62 +233,52 @@ void SpecificWorker::create_goto_mission()
     static QGraphicsEllipseItem *target_scene;
     point_dialog.setupUi(custom_widget.empty_widget);
     custom_widget.empty_widget->show();
-    current_plan.reset();
-    current_plan.action = Plan::Actions::GOTO;
-    current_plan.planJ.insert("GOTO", QVariantMap());
+    temporary_plan.new_plan(Plan::Actions::GOTO);
+    custom_widget.textedit_current_plan->appendPlainText("-> New temporary plan: GOTO");
+    custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
 
     connect(point_dialog.goto_spinbox_coordX, qOverload<int>(&QSpinBox::valueChanged),[this](int v)
     {
-        auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
-        p.insert("x", v);
-        current_plan.planJ["GOTO"].setValue(p);
-        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
-
+        temporary_plan.insert_attribute("x", v);
+        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'x' in GOTO plan");
+        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
+        // redraw target
         if(target_scene != nullptr)
             widget_2d->scene.removeItem(target_scene);
         target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
-        target_scene->setX(v);
-        target_scene->setZValue(100);
+        target_scene->setX(v); target_scene->setZValue(100);
     });
 
     connect(point_dialog.goto_spinbox_coordY, qOverload<int>(&QSpinBox::valueChanged), [this](int v)
     {
-        auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
-        p.insert("y", v);
-        current_plan.planJ["GOTO"].setValue(p);
-        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
-
+        temporary_plan.insert_attribute("y", v);
+        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'y' in GOTO plan");
+        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
+        //redraw target
         if(target_scene != nullptr)
             widget_2d->scene.removeItem(target_scene);
         target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
-        target_scene->setY(v);
-        target_scene->setZValue(100);
+        target_scene->setY(v); target_scene->setZValue(100);
     });
 
     connect(point_dialog.goto_spinbox_angle, qOverload<int>(&QSpinBox::valueChanged), [this](int v)
     {
-        auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
-        p.insert("angle", v);
-        current_plan.planJ["GOTO"].setValue(p);
-        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(current_plan.pprint()));
+        temporary_plan.insert_attribute("destiny", v);
+        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'destiny' in GOTO plan");
+        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
     });
 
     connect(widget_2d, &DSR::QScene2dViewer::mouse_right_click,[this](int x, int y, std::uint64_t obj)
     {
         if(auto node = G->get_node(obj); node.has_value())
-        {
-            auto p = qvariant_cast<QVariantMap>(current_plan.planJ["GOTO"]);
-            p.insert("destiny", QString::fromStdString(node.value().name()));
-            current_plan.planJ["GOTO"].setValue(p);
-        }
+            temporary_plan.insert_attribute("destiny", QString::fromStdString(node.value().name()));
         point_dialog.goto_spinbox_coordX->setValue(x);
         point_dialog.goto_spinbox_coordY->setValue(y);
-
+        // redraw target
         if(target_scene != nullptr)
             widget_2d->scene.removeItem(target_scene);
         target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
-        target_scene->setPos(x,y);
-        target_scene->setZValue(100);
+        target_scene->setPos(x,y); target_scene->setZValue(100);
     });
 }
 
@@ -439,15 +426,15 @@ void SpecificWorker::follow_path_copy_path_to_graph(const std::vector<float> &x_
 
 void SpecificWorker::slot_start_mission()
 {
-    if(current_plan.is_complete())
+    if(temporary_plan.is_complete())
     {
-        insert_intention_node(current_plan);
-        if(current_plan.is_action(Plan::Actions::FOLLOW_PATH))
-        {
-            follow_path_copy_path_to_graph(current_plan.x_path, current_plan.y_path);
-        }
-        auto temp_plan = current_plan;
+        insert_intention_node(temporary_plan);
+        if(temporary_plan.is_action(Plan::Actions::FOLLOW_PATH))
+            follow_path_copy_path_to_graph(temporary_plan.x_path, temporary_plan.y_path);
+
+        auto temp_plan = temporary_plan;
         plan_buffer.put(std::move(temp_plan));
+        custom_widget.textedit_current_plan->verticalScrollBar()->setValue(custom_widget.textedit_current_plan->verticalScrollBar()->maximum());
     }
     else
         qWarning() << __FUNCTION__ << "Plan is not complete. Mission cannot be created";
@@ -464,10 +451,14 @@ void SpecificWorker::slot_stop_mission()
     }
     else
         qWarning() << __FUNCTION__ << "No intention node found";
+    if(temporary_plan.is_valid())
+        custom_widget.textedit_current_plan->appendPlainText("-> mission " + temporary_plan.get_action() + " cancelled");
+    temporary_plan.reset();
     current_plan.reset();
-    current_plan.set_empty(true);
-    custom_widget.textedit_current_plan->appendPlainText("-> mission cancelled");
     custom_widget.empty_widget->hide();
+    // remove path form drawing
+    std::vector<Eigen::Vector3d> fake_path;
+    draw_path(fake_path, &widget_2d->scene, true); // just remove
 }
 
 void SpecificWorker::slot_cancel_mission()
@@ -483,15 +474,12 @@ void SpecificWorker::slot_change_mission_selector(int index)
     switch(index)
     {
         case 1:
-            custom_widget.textedit_current_plan->appendPlainText("-> New GOTO mission");
             create_goto_mission(); // Goto_XYA
             break;
         case 2:
-            custom_widget.textedit_current_plan->appendPlainText("-> New PATH FOLLOWER mission");
             create_path_mission();
             break;
         case 3:
-            custom_widget.textedit_current_plan->appendPlainText("-> New BOUNCER mission");
             create_bouncer_mission();
             break;
     }
@@ -499,7 +487,7 @@ void SpecificWorker::slot_change_mission_selector(int index)
 /////////////////////////////////////////////////////////////////////////////////////////////
 /// Auxiliary methods
 /////////////////////////////////////////////////////////////////////////////////////////////
-void SpecificWorker::draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d)
+void SpecificWorker::draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d, bool remove)
 {
     static std::vector<QGraphicsLineItem *> scene_road_points;
 
@@ -507,6 +495,8 @@ void SpecificWorker::draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScen
     for (QGraphicsLineItem* item : scene_road_points)
         viewer_2d->removeItem((QGraphicsItem*)item);
     scene_road_points.clear();
+
+    if(remove) return;      // Just clear the path
 
     /// Draw all points
     QGraphicsLineItem *line1, *line2;

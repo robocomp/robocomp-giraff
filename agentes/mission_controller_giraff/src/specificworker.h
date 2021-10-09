@@ -22,8 +22,6 @@
 	@author authorname
 */
 
-
-
 #ifndef SPECIFICWORKER_H
 #define SPECIFICWORKER_H
 
@@ -102,8 +100,8 @@ private:
 
     // Missions
     DoubleBuffer<Plan, Plan> plan_buffer;
+    Plan temporary_plan;
     Plan current_plan;
-    Plan list_plan;
     void insert_intention_node(const Plan &plan);
     void create_goto_mission();
     void create_bouncer_mission();
@@ -112,7 +110,7 @@ private:
     //Path
     std::vector<Eigen::Vector3d> path;
     DoubleBuffer<std::vector<Eigen::Vector3d>,std::vector<Eigen::Vector3d>> path_buffer;
-    void draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d);
+    void draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d, bool remove = false);
     void follow_path_copy_path_to_graph(const std::vector<float> &x_values, const std::vector<float> &y_values);
 };
 

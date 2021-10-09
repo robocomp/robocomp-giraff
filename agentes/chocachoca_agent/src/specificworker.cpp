@@ -120,9 +120,9 @@ void SpecificWorker::compute()
         current_plan = plan_o.value();
         qInfo() << __FUNCTION__ << "New plan arrived: ";
         current_plan.pprint();
-        current_plan.set_active(true);
+        current_plan.set_running();
     }
-    if(current_plan.is_active())
+    if(current_plan.is_running())
     {
         chocachoca();
     }
@@ -137,11 +137,11 @@ int SpecificWorker::startup_check()
 }
 void SpecificWorker::chocachoca()
 {
- float adv = 0.0;
- float rot = 0.0;
+     float adv = 0.0;
+     float rot = 0.0;
 
- float m = (consts.max_speed - consts.min_speed) * 1. / (consts.slow_threshold - consts.stop_threshold);
- float n = consts.min_speed - m * consts.stop_threshold + consts.residue;
+     float m = (consts.max_speed - consts.min_speed) * 1. / (consts.slow_threshold - consts.stop_threshold);
+     float n = consts.min_speed - m * consts.stop_threshold + consts.residue;
 
     if (auto laser_node= G->get_node(laser_name);laser_node.has_value())
     {
@@ -165,8 +165,9 @@ void SpecificWorker::chocachoca()
         std::sort(distances.begin() + limit, distances.end() - limit, [](float a, float b){return a < b;});
         float minValue = distances[limit];
 
-        //Set the speeds depending on minValue, x1, x2, y1, y2
-        if(minValue < consts.stop_threshold) {
+        // Set the speeds depending on minValue, x1, x2, y1, y2
+        if(minValue < consts.stop_threshold)
+        {
             rot = 0.8;
             adv = consts.min_speed;
             sleep(std::rand() % 3 + 1);
@@ -226,7 +227,7 @@ void SpecificWorker::del_node_slot(const std::uint64_t id)
     if( auto node = G->get_node(current_intention_name); not node.has_value())
     {
         qInfo() << __FUNCTION__ << "Path node deleter. Aborting control";
-        current_plan.set_active(false);
+        current_plan.reset();
         // PROTEGER
     }
 }

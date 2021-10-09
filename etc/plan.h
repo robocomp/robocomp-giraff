@@ -9,15 +9,18 @@ class Plan
 {
     public:
         enum class Actions {NONE, GOTO, BOUNCE, FOLLOW_PATH};
+        enum class PlanState {INACTIVE, RUNNING, CREATING, FINISHED, READY};
         Plan()
         {
             empty = true;
             active = false;
+            state = PlanState::INACTIVE;
         };
         Plan(Actions action_)
         {
             this->action = action_;
-            planJ.insert(QString::fromStdString(actions_to_strings.at(action_)), QVariantMap());
+            planJ.insert(QString::fromStdString(convert_action_to_string(action_)), QVariantMap());
+            state = PlanState::CREATING;
         }
         Plan(const std::string &plan_string)
         {
@@ -26,7 +29,8 @@ class Plan
                 QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(plan_string).toUtf8());
                 planJ = qvariant_cast<QVariantMap>(doc.toVariant());
                 QString act = planJ.keys().front();  // OJO ES SOLO LA PRIMERA KEY DEL MAPA
-                this->action = strings_to_actions.at(act.toStdString());
+                this->action = convert_string_to_action(act.toStdString());
+                state = PlanState::CREATING;
             }
             catch (const std::exception &e)
             {
@@ -34,14 +38,26 @@ class Plan
                 std::terminate();
             };
         };
-
+        void new_plan(Actions action_)
+        {
+            planJ.clear();
+            planJ.insert(convert_action_to_qstring(action_), QVariantMap());
+            this->action = action_;
+            state = PlanState::CREATING;
+        }
+        void insert_attribute(const std::string &key, QVariant value)
+        {
+            auto p = qvariant_cast<QVariantMap>(planJ[convert_action_to_qstring(this->action)]);
+            p.insert(QString::fromStdString(key), value);
+            planJ[convert_action_to_qstring(this->action)].setValue(p);
+        }
         void reset()
         {
             planJ.clear();
-            empty = true;
+            state = PlanState::INACTIVE;
             action = Plan::Actions::NONE;
-            std::cout << __FUNCTION__ << pprint() << std::endl;
         }
+        QString get_action() const { return convert_action_to_qstring(this->action); };
         std::string to_json() const
         {
             QJsonDocument json = QJsonDocument::fromVariant(planJ);
@@ -52,44 +68,42 @@ class Plan
         std::string pprint() const
         {
             std::stringstream ss;
-            ss << "Action: " << actions_to_strings.at(action) << std::endl;
+            ss << "Plan:" << std::endl;
+            ss << "\t" << "Action: " << convert_action_to_string(action) << std::endl;
             for(const auto p : planJ.keys())
                 for(const auto e : qvariant_cast<QVariantMap>(planJ[p]).keys())
                 {
-                    ss << "\t" << e.toStdString() << " : " << qvariant_cast<QVariantMap>(planJ[p])[e].toString().toStdString() << std::endl;
+                    ss << "\t\t" << e.toStdString() << " : " << qvariant_cast<QVariantMap>(planJ[p])[e].toString().toStdString() << std::endl;
                 }
            return ss.str();
         };
-        //Eigen::Vector3d get_target_trans() const { return Eigen::Vector3d(params.at("x"), params.at("y"), 0.f);};
-        void set_active(bool s) {active = s;};
-        bool is_active() const {return active;};
-        bool is_empty() const { return empty; };
-        void set_empty(bool e) { empty = e;};
-        QPointF get_target() const
-        {
-            float x = qvariant_cast<QVariantMap>(planJ["GOTO"]).value("x").toFloat();
-            float y = qvariant_cast<QVariantMap>(planJ["GOTO"]).value("y").toFloat();
-            return QPointF(x, y);
-        }
-
-        Actions action;
-        bool is_action(Actions test) const
-        {
-            return test == this->action;
-        };
-
+        bool is_running() const {return state == PlanState::RUNNING;};
+        void set_running() { state = PlanState::RUNNING;}
+        bool is_valid() const { return state != PlanState::INACTIVE;};
+        bool is_action(Actions test) const { return test == this->action;};
         bool is_complete()
         {
-            return action_to_tests.at(action);
+            if( state == PlanState::CREATING)
+                try
+                {
+                    if( bool r = action_to_tests.at(action); r == true)
+                    {
+                      state = PlanState::READY;
+                      return true;
+                    }
+                }
+                catch(const std::exception &e){std::cout << e.what() << std::endl;};
+            return false;
         }
 
-        //qmap
-        QVariantMap planJ;
-
-        // Variables for specific plans
+        // Variables for specific plans ÑAPA
         std::vector<float> x_path, y_path;
 
     private:
+        QVariantMap planJ;
+        Actions action;
+        PlanState state = PlanState::INACTIVE;
+
         bool empty = true;
         bool active = false;
         std::map<Actions, std::string> actions_to_strings
@@ -106,6 +120,31 @@ class Plan
             {"FOLLOW_PATH", Actions::FOLLOW_PATH},
             {"NONE", Actions::NONE}
         };
+        std::string convert_action_to_string(Actions action) const
+        {
+            try
+            { return actions_to_strings.at(action);}
+            catch(const std::exception &e){std::cout << e.what() << std::endl; return std::string();};
+        }
+        QString convert_action_to_qstring(Actions action) const
+        {
+            try
+            { return QString::fromStdString(actions_to_strings.at(action));}
+            catch(const std::exception &e){std::cout << e.what() << std::endl; return QString();};
+        }
+        Actions convert_string_to_action(const std::string &action) const
+        {
+            try
+            { return strings_to_actions.at(action);}
+            catch(const std::exception &e){std::cout << e.what() << std::endl; std::terminate(); };
+        }
+        Actions convert_string_to_action(const QString &action) const
+        {
+            try
+            { return strings_to_actions.at(action.toStdString());}
+            catch(const std::exception &e){std::cout << e.what() << std::endl; std::terminate();};
+        }
+
         // Tests for specific plans
         typedef bool (Plan::*Test)();
         bool GOTO_test()
