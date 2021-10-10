@@ -100,7 +100,6 @@ void SpecificWorker::initialize(int period)
         // 2D widget
         widget_2d = qobject_cast<DSR::QScene2dViewer *>(graph_viewer->get_widget(opts::scene));
         widget_2d->set_draw_laser(true);
-        //connect(widget_2d, SIGNAL(mouse_right_click(int, int, std::uint64_t)), this, SLOT(new_target_from_mouse(int, int, std::uint64_t)));
 
         // custom widget
         graph_viewer->add_custom_widget_to_dock("Giraff Plan Controller", &custom_widget);
@@ -152,6 +151,11 @@ void SpecificWorker::initialize(int period)
             std::terminate();
         }
 
+        // trail
+        auto robot_pos = inner_eigen->transform(world_name, robot_name).value();
+        last_point = QPointF(robot_pos.x(), robot_pos.y());
+        connect( custom_widget.path_trail_button, SIGNAL(toggled(bool)), this, SLOT(trace_button_slot(bool)));
+
         // Eigen format
         OctaveFormat = Eigen::IOFormat(Eigen::StreamPrecision, 0, ", ", ";\n", "", "", "[", "]");
         CommaInitFmt = Eigen::IOFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", ", ", "", "", " << ", ";");
@@ -182,6 +186,14 @@ void SpecificWorker::compute()
     { // there should be a plan after a few seconds
     }
     read_camera();
+    // path trail
+    if(custom_widget.path_trail_button->isChecked())
+    {
+        auto robot_pos = inner_eigen->transform(world_name, robot_name).value();
+        QLineF line(last_point.x(), last_point.y(), robot_pos.x(), robot_pos.y());
+        lines.push_back(widget_2d->scene.addLine(line, QPen(QColor("Blue"),40)));
+        last_point = QPointF(robot_pos.x(), robot_pos.y());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -211,26 +223,49 @@ void SpecificWorker::create_bouncer_mission()
 
 void SpecificWorker::create_path_mission()
 {
+    //qDeleteAll(custom_widget.empty_widget->findChildren<QWidget*>("", Qt::FindDirectChildrenOnly));
+    pathfollow_dialog.setupUi(custom_widget.empty_widget);
+    custom_widget.empty_widget->show();
     temporary_plan.new_plan(Plan::Actions::FOLLOW_PATH);
     custom_widget.textedit_current_plan->appendPlainText("-> New temporary plan: FOLLOW_PATH");
     custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
 
+    connect(pathfollow_dialog.circle_radio_button, &QPushButton::toggled,[this](bool toggle)
+    {
+
+    });
+    connect(pathfollow_dialog.oval_radio_button, &QPushButton::toggled,[this](bool toggle)
+    {
+
+    });
+    connect(pathfollow_dialog.cicle_radius_slider, qOverload<int>(&QSlider::valueChanged),[this](int v)
+    {
+
+    });
+    connect(pathfollow_dialog.oval_short_radius_slider, qOverload<int>(&QSlider::valueChanged),[this](int v)
+    {
+
+    });
+    connect(pathfollow_dialog.oval_long_radius_slider, qOverload<int>(&QSlider::valueChanged),[this](int v)
+    {
+
+    });
     const float radio = 800;
-    const float arco = 400;
+    const float arco = 200;
     temporary_plan.x_path.clear();
     temporary_plan.y_path.clear();
-    auto robot = inner_eigen->transform(world_name, robot_name);
 
     for(auto &&alfa : iter::range(0.0, 2*M_PI, (double)(arco/radio)))
     {
-       temporary_plan.x_path.push_back(radio * cos(alfa) + robot.value().x() - radio);
-       temporary_plan.y_path.push_back(radio * sin(alfa) + robot.value().y());
+       temporary_plan.x_path.push_back(radio * cos(alfa) );
+       temporary_plan.y_path.push_back(radio * sin(alfa) );
     }
 }
 
 void SpecificWorker::create_goto_mission()
 {
     static QGraphicsEllipseItem *target_scene;
+    //qDeleteAll(custom_widget.empty_widget->findChildren<QWidget*>("", Qt::FindDirectChildrenOnly));
     point_dialog.setupUi(custom_widget.empty_widget);
     custom_widget.empty_widget->show();
     temporary_plan.new_plan(Plan::Actions::GOTO);
@@ -539,7 +574,23 @@ void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float>
     G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(),  (float)side_);
     G->update_node(robot_node.value());
 }
-
+void SpecificWorker::trace_button_slot(bool checked)
+{
+    if(not checked)
+    {
+        qInfo() << "Should delete lines";
+        for(auto &l : lines)
+            widget_2d->scene.removeItem(l);
+        lines.clear();
+    }
+    else
+        try
+        {
+            auto robot_pos = inner_eigen->transform(world_name, robot_name).value();
+            last_point = QPointF(robot_pos.x(), robot_pos.y());
+        }
+        catch(const Ice::Exception &e) { std::cout << e.what() << std::endl;}
+}
 //////////////////////////////////////////////////////////////////////////////////
 
 int SpecificWorker::startup_check()

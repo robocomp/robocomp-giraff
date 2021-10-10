@@ -36,6 +36,8 @@
 #include <QListWidget>
 #include <QSpinBox>
 #include "ui_mission_pointUI.h"
+#include "ui_mission_pathfollowUI.h"
+
 
 class SpecificWorker : public GenericWorker
 {
@@ -53,6 +55,7 @@ public slots:
     void slot_stop_mission();
     void slot_cancel_mission();
     void slot_change_mission_selector(int);
+    void trace_button_slot(bool);
 
 private:
 	// DSR graph
@@ -85,6 +88,7 @@ private:
     DSR::QScene2dViewer* widget_2d;
     Custom_widget custom_widget;
     Ui_Goto_UI point_dialog;
+    Ui_PathFollow_UI pathfollow_dialog;
 
     // Laser
     using LaserData = std::tuple<std::vector<float>, std::vector<float>>;  //<angles, dists>
@@ -109,6 +113,8 @@ private:
 
     //Path
     std::vector<Eigen::Vector3d> path;
+    QPointF last_point;
+    std::vector<QGraphicsLineItem *> lines;
     DoubleBuffer<std::vector<Eigen::Vector3d>,std::vector<Eigen::Vector3d>> path_buffer;
     void draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d, bool remove = false);
     void follow_path_copy_path_to_graph(const std::vector<float> &x_values, const std::vector<float> &y_values);

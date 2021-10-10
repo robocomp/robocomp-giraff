@@ -1,5 +1,7 @@
 find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 
+QT_WRAP_UI( UI_HEADERS mission_pointUI.ui mission_pathfollowUI.ui)
+
 # Sources set
 SET ( SOURCES
   specificworker.cpp

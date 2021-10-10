@@ -159,13 +159,26 @@
        <item>
         <widget class="QPushButton" name="image_onoff_button">
          <property name="text">
-          <string>Image On/Off</string>
+          <string>image on/off</string>
          </property>
          <property name="checkable">
           <bool>true</bool>
          </property>
          <property name="checked">
           <bool>false</bool>
+         </property>
+        </widget>
+       </item>
+       <item>
+        <widget class="QPushButton" name="path_trail_button">
+         <property name="text">
+          <string>path trail</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
+         </property>
+         <property name="checked">
+          <bool>true</bool>
          </property>
         </widget>
        </item>

@@ -78,7 +78,14 @@ class Plan
            return ss.str();
         };
         bool is_running() const {return state == PlanState::RUNNING;};
-        void set_running() { state = PlanState::RUNNING;}
+        void set_running()
+        {
+            if(state == PlanState::READY)
+                state = PlanState::RUNNING;
+            else
+                qWarning() << __FUNCTION__ << " Plan is not READY to start RUNNING";
+        }
+
         bool is_valid() const { return state != PlanState::INACTIVE;};
         bool is_action(Actions test) const { return test == this->action;};
         bool is_complete()
