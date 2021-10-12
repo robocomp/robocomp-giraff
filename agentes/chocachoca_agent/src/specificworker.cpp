@@ -68,7 +68,6 @@ void SpecificWorker::initialize(int period)
 	}
 	else
 	{
-		timer.start(Period);
 		// create graph
 		G = std::make_shared<DSR::DSRGraph>(0, agent_name, agent_id, ""); // Init nodes
 		std::cout<< __FUNCTION__ << "Graph loaded" << std::endl;  
@@ -85,22 +84,16 @@ void SpecificWorker::initialize(int period)
 		int current_opts = 0;
 		opts main = opts::none;
 		if(tree_view)
-		{
 		    current_opts = current_opts | opts::tree;
-		}
 		if(graph_view)
 		{
 		    current_opts = current_opts | opts::graph;
 		    main = opts::graph;
 		}
 		if(qscene_2d_view)
-		{
 		    current_opts = current_opts | opts::scene;
-		}
 		if(osg_3d_view)
-		{
 		    current_opts = current_opts | opts::osg;
-		}
 		graph_viewer = std::make_unique<DSR::DSRViewer>(this, G, current_opts, main);
 		setWindowTitle(QString::fromStdString(agent_name + "-") + QString::number(agent_id));
 
@@ -118,8 +111,8 @@ void SpecificWorker::compute()
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
         current_plan = plan_o.value();
-        qInfo() << __FUNCTION__ << "New plan arrived: ";
-        current_plan.pprint();
+        qInfo() << __FUNCTION__ << " New plan arrived: ";
+        std::cout << current_plan.pprint() << std::endl;
         current_plan.set_running();
     }
     if(current_plan.is_running())

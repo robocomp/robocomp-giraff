@@ -37,6 +37,8 @@
 #include <QSpinBox>
 #include "ui_mission_pointUI.h"
 #include "ui_mission_pathfollowUI.h"
+#include "/home/robocomp/robocomp/classes/abstract_graphic_viewer/abstract_graphic_viewer.h"
+#include <Eigen/Geometry>
 
 
 class SpecificWorker : public GenericWorker
@@ -110,13 +112,14 @@ private:
     void create_goto_mission();
     void create_bouncer_mission();
     void create_path_mission();
+    AbstractGraphicViewer *pathfollow_draw_widget;
 
     //Path
-    std::vector<Eigen::Vector3d> path;
+    std::vector<Eigen::Vector2f> path;  // check if can be made local
     QPointF last_point;
     std::vector<QGraphicsLineItem *> lines;
     DoubleBuffer<std::vector<Eigen::Vector3d>,std::vector<Eigen::Vector3d>> path_buffer;
-    void draw_path(std::vector<Eigen::Vector3d> &path, QGraphicsScene* viewer_2d, bool remove = false);
+    void draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScene* viewer_2d, bool remove = false);
     void follow_path_copy_path_to_graph(const std::vector<float> &x_values, const std::vector<float> &y_values);
 };
 
