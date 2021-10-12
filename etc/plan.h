@@ -51,6 +51,11 @@ class Plan
             p.insert(QString::fromStdString(key), value);
             planJ[convert_action_to_qstring(this->action)].setValue(p);
         }
+        QVariant get_attribute(const std::string &key)
+        {
+            auto p = qvariant_cast<QVariantMap>(planJ[convert_action_to_qstring(this->action)]);
+            return p.value(QString::fromStdString(key));
+        }
         void reset()
         {
             planJ.clear();

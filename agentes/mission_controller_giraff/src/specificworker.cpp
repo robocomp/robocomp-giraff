@@ -519,6 +519,7 @@ void SpecificWorker::follow_path_copy_path_to_graph(const std::vector<float> &x_
         auto path_to_target_node = path.value();
         G->add_or_modify_attrib_local<path_x_values_att>(path_to_target_node, x_values);
         G->add_or_modify_attrib_local<path_y_values_att>(path_to_target_node, y_values);
+        G->add_or_modify_attrib_local<path_is_cyclic_att>(path_to_target_node, true);
         G->update_node(path_to_target_node);
     }
     else // create path_to_target_node with the solution path
@@ -528,6 +529,7 @@ void SpecificWorker::follow_path_copy_path_to_graph(const std::vector<float> &x_
             auto path_to_target_node = DSR::Node::create<path_to_target_node_type>(current_path_name);
             G->add_or_modify_attrib_local<path_x_values_att>(path_to_target_node, x_values);
             G->add_or_modify_attrib_local<path_y_values_att>(path_to_target_node, y_values);
+            G->add_or_modify_attrib_local<path_is_cyclic_att>(path_to_target_node, true);
             G->add_or_modify_attrib_local<pos_x_att>(path_to_target_node, (float) -542);
             G->add_or_modify_attrib_local<pos_y_att>(path_to_target_node, (float) 106);
             G->add_or_modify_attrib_local<parent_att>(path_to_target_node, intention.value().id());
