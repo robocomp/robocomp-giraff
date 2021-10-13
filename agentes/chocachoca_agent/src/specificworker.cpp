@@ -113,7 +113,8 @@ void SpecificWorker::compute()
         current_plan = plan_o.value();
         qInfo() << __FUNCTION__ << " New plan arrived: ";
         std::cout << current_plan.pprint() << std::endl;
-        current_plan.set_running();
+        if (current_plan.is_complete())
+            current_plan.set_running();
     }
     if(current_plan.is_running())
     {
