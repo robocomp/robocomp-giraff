@@ -250,6 +250,7 @@ void SpecificWorker::create_path_mission()
                 // remove curent drawing
                 std::vector<Eigen::Vector2f> fake_path;
                 draw_path(fake_path, &pathfollow_draw_widget->scene, true);
+                draw_path(fake_path, &widget_2d->scene, true);
 
                 const float radio = pathfollow_dialog.cicle_radius_slider->value();
                 const float arco = 200;  // get from robot size
@@ -272,6 +273,7 @@ void SpecificWorker::create_path_mission()
         // remove curent drawing
         std::vector<Eigen::Vector2f> fake_path;
         draw_path(fake_path, &pathfollow_draw_widget->scene, true);
+        draw_path(fake_path, &widget_2d->scene, true);
 
         const float long_radio = pathfollow_dialog.oval_long_radius_slider->value();
         const float short_radio = pathfollow_dialog.oval_short_radius_slider->value();
