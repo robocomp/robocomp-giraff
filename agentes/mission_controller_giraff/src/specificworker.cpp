@@ -252,7 +252,7 @@ void SpecificWorker::create_path_mission()
                 draw_path(fake_path, &pathfollow_draw_widget->scene, true);
                 draw_path(fake_path, &widget_2d->scene, true);
 
-                const float radio = pathfollow_dialog.cicle_radius_slider->value();
+                const float radio = pathfollow_dialog.circle_radius_slider->value();
                 const float arco = 200;  // get from robot size
                 temporary_plan.x_path.clear();
                 temporary_plan.y_path.clear();
@@ -324,6 +324,8 @@ void SpecificWorker::create_path_mission()
         }
         draw_path(local_path, &pathfollow_draw_widget->scene);
     };
+    draw_oval();
+
     connect(pathfollow_dialog.button_group, QOverload<QAbstractButton *>::of(&QButtonGroup::buttonClicked),
             [this, draw_circle, draw_oval](QAbstractButton *button)
             {
@@ -334,20 +336,24 @@ void SpecificWorker::create_path_mission()
                 }
                 else if(button == pathfollow_dialog.oval_radio_button)
                 {
-                    qInfo() << __FUNCTION__ << " circle selected";
+                    qInfo() << __FUNCTION__ << " oval selected";
                     draw_oval();
                 }
             });
-    connect(pathfollow_dialog.cicle_radius_slider, qOverload<int>(&QSlider::valueChanged),[draw_circle](int v)
+
+    connect(pathfollow_dialog.circle_radius_slider, qOverload<int>(&QSlider::valueChanged),[draw_circle](int v)
     {
         draw_circle();
     });
-//    connect(pathfollow_dialog.oval_short_radius_slider, qOverload<int>(&QSlider::valueChanged),[this](int v)
-//    {
-//    });
-//    connect(pathfollow_dialog.oval_long_radius_slider, qOverload<int>(&QSlider::valueChanged),[this](int v)
-//    {
-//    });
+
+    connect(pathfollow_dialog.oval_short_radius_slider, qOverload<int>(&QSlider::valueChanged),[draw_oval](int v)
+    {
+        draw_oval();
+    });
+    connect(pathfollow_dialog.oval_long_radius_slider, qOverload<int>(&QSlider::valueChanged),[draw_oval](int v)
+    {
+        draw_oval();
+    });
 }
 
 void SpecificWorker::create_goto_mission()
@@ -367,7 +373,8 @@ void SpecificWorker::create_goto_mission()
         if(target_scene != nullptr)
             widget_2d->scene.removeItem(target_scene);
         target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
-        target_scene->setX(v); target_scene->setZValue(100);
+        target_scene->setPos(v, point_dialog.goto_spinbox_coordY->value());
+        target_scene->setZValue(100);
     });
 
     connect(point_dialog.goto_spinbox_coordY, qOverload<int>(&QSpinBox::valueChanged), [this](int v)
@@ -379,7 +386,8 @@ void SpecificWorker::create_goto_mission()
         if(target_scene != nullptr)
             widget_2d->scene.removeItem(target_scene);
         target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")), QBrush(QColor("Orange")));
-        target_scene->setY(v); target_scene->setZValue(100);
+        target_scene->setPos(point_dialog.goto_spinbox_coordX->value(),v);
+        target_scene->setZValue(100);
     });
 
     connect(point_dialog.goto_spinbox_angle, qOverload<int>(&QSpinBox::valueChanged), [this](int v)
