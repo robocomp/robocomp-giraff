@@ -6,7 +6,7 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>982</width>
+    <width>692</width>
     <height>331</height>
    </rect>
   </property>
@@ -47,10 +47,10 @@
              <item>
               <widget class="QSlider" name="circle_radius_slider">
                <property name="maximum">
-                <number>5000</number>
+                <number>1450</number>
                </property>
                <property name="value">
-                <number>800</number>
+                <number>0</number>
                </property>
                <property name="orientation">
                 <enum>Qt::Horizontal</enum>
@@ -58,7 +58,11 @@
               </widget>
              </item>
              <item>
-              <widget class="QLCDNumber" name="circle_radius_lcdNumber"/>
+              <widget class="QLCDNumber" name="circle_radius_lcdNumber">
+               <property name="intValue" stdset="0">
+                <number>0</number>
+               </property>
+              </widget>
              </item>
             </layout>
            </item>
@@ -90,10 +94,10 @@
            <item>
             <widget class="QSlider" name="oval_short_radius_slider">
              <property name="maximum">
-              <number>5000</number>
+              <number>1100</number>
              </property>
              <property name="value">
-              <number>800</number>
+              <number>0</number>
              </property>
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
@@ -101,7 +105,11 @@
             </widget>
            </item>
            <item>
-            <widget class="QLCDNumber" name="oval_short_radius_lcdNumber"/>
+            <widget class="QLCDNumber" name="oval_short_radius_lcdNumber">
+             <property name="intValue" stdset="0">
+              <number>0</number>
+             </property>
+            </widget>
            </item>
           </layout>
          </item>
@@ -117,10 +125,10 @@
            <item>
             <widget class="QSlider" name="oval_long_radius_slider">
              <property name="maximum">
-              <number>10000</number>
+              <number>800</number>
              </property>
              <property name="value">
-              <number>4000</number>
+              <number>0</number>
              </property>
              <property name="orientation">
               <enum>Qt::Horizontal</enum>
@@ -128,7 +136,11 @@
             </widget>
            </item>
            <item>
-            <widget class="QLCDNumber" name="oval_long_radius_lcdNumber"/>
+            <widget class="QLCDNumber" name="oval_long_radius_lcdNumber">
+             <property name="intValue" stdset="0">
+              <number>0</number>
+             </property>
+            </widget>
            </item>
           </layout>
          </item>
