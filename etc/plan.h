@@ -60,7 +60,7 @@ class Plan
         {
             planJ.clear();
             state = PlanState::INACTIVE;
-            action = Plan::Actions::NONE;
+            //action = Plan::Actions::NONE;
         }
         QString get_action() const { return convert_action_to_qstring(this->action); };
         std::string to_json() const
@@ -108,7 +108,9 @@ class Plan
             return false;
         }
 
-        // Variables for specific plans ÑAPA
+        bool is_finished() const {return state == PlanState::FINISHED;};
+
+    // Variables for specific plans ÑAPA
         std::vector<float> x_path, y_path;
 
     private:
@@ -150,7 +152,7 @@ class Plan
             { return strings_to_actions.at(action);}
             catch(const std::exception &e){std::cout << e.what() << std::endl; std::terminate(); };
         }
-        Actions convert_string_to_action(const QString &action) const
+        Actions convert_qstring_to_action(const QString &action) const
         {
             try
             { return strings_to_actions.at(action.toStdString());}
