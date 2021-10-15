@@ -51,6 +51,7 @@ private:
     cv::VideoCapture cap;
     FaceDetector face_detector;
 
+    std::optional<QRect>  read_image();
 };
 
 #endif

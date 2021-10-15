@@ -133,6 +133,7 @@ int ::attention_control::run(int argc, char* argv[])
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompDifferentialRobot::DifferentialRobotPrxPtr differentialrobot_proxy;
 	RoboCompEmotionalMotor::EmotionalMotorPrxPtr emotionalmotor_proxy;
+	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
 
 	string proxy, tmp;
 	initialize();
@@ -185,7 +186,23 @@ int ::attention_control::run(int argc, char* argv[])
 	rInfo("EmotionalMotorProxy initialized Ok!");
 
 
-	tprx = std::make_tuple(camerargbdsimple_proxy,differentialrobot_proxy,emotionalmotor_proxy);
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "JointMotorSimpleProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy JointMotorSimpleProxy\n";
+		}
+		jointmotorsimple_proxy = Ice::uncheckedCast<RoboCompJointMotorSimple::JointMotorSimplePrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy JointMotorSimple: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("JointMotorSimpleProxy initialized Ok!");
+
+
+	tprx = std::make_tuple(camerargbdsimple_proxy,differentialrobot_proxy,emotionalmotor_proxy,jointmotorsimple_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx, startup_check_flag);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());

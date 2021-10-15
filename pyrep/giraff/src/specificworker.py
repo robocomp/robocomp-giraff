@@ -598,6 +598,7 @@ class SpecificWorker(GenericWorker):
     #
     def JointMotorSimple_setPosition(self, name, goal):
         print("JointMotorSimple_setPosition: ", name, goal)
+        # check position limits -10 to 80
         self.tablet_new_pos = goal.position
 
     #

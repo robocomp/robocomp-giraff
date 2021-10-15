@@ -55,32 +55,59 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    // camera-tablet
+    if(auto  face_o = read_image(); face_o.has_value())
+    {
+        // get center and deltas
+        auto face = face_o.value();
+        QPoint center = face.center();
+        float x_error = 150-center.x();
+        float y_error = 150-center.y();
+        qInfo() << center.x() << center.y() << 150-center.x() << 150-center.y();
+
+        // move eyes
+        // move tablet
+        // move base
+        try
+        {
+            float rot = -(2.f / 100) * x_error;
+            float adv = (500.f / 100.f) * y_error;
+            differentialrobot_proxy->setSpeedBase(0, rot);
+        }
+        catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
+    }
+}
+
+std::optional<QRect> SpecificWorker::read_image()
+{
     try
     {
         RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
-        //cv::Mat img;
-        //cap.read(img);
-        if (top_img.width !=0 and top_img.height !=0)
+        if (top_img.width != 0 and top_img.height != 0)
         {
-            cv::Mat img(top_img.height, top_img.width, CV_8UC3, top_img.image.data());   
-            //            cap.read(img);
+            cv::Mat img(top_img.height, top_img.width, CV_8UC3, top_img.image.data());
             cv::Mat n_img;
-            cv::resize(img, n_img, cv::Size(300,300));
+            cv::resize(img, n_img, cv::Size(300, 300));
             auto rectangles = face_detector.detect_face_rectangles(n_img);
             cv::Scalar color(0, 105, 205);
             int frame_thickness = 4;
-            qInfo() << rectangles.size();
-            for(const auto & r : rectangles)
+            //qInfo() << __FUNCTION__ << rectangles.size();
+            for (const auto &r: rectangles)
                 cv::rectangle(n_img, r, color, frame_thickness);
 
             cv::imshow("Camera tablet", n_img);
             cv::waitKey(5);
+            if(not rectangles.empty())
+            {
+                auto r = rectangles.front();
+                return QRect(r.x, r.y, r.width, r.height);
+            }
+            else
+                return {};
         }
     }
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
+    return {};
 }
-
 ////////////////////////////////////////////////////////////////////////////////////
 int SpecificWorker::startup_check()
 {
