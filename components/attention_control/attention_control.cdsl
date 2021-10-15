@@ -1,0 +1,14 @@
+import "DifferentialRobot.idsl";
+import "CameraRGBDSimple.idsl";
+import "EmotionalMotor.idsl";
+
+Component attention_control
+{
+    Communications
+    {
+
+        requires DifferentialRobot, CameraRGBDSimple, EmotionalMotor;
+ 
+    };
+    language Cpp11;
+};

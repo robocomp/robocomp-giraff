@@ -1,0 +1,15 @@
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/CMakeFiles/install/strip.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/CMakeFiles/install/local.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/CMakeFiles/edit_cache.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/CMakeFiles/rebuild_cache.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/CMakeFiles/list_install_components.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/CMakeFiles/install.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/install/strip.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/install/local.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/install.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/list_install_components.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/ICES__home_robo02_robocomp_components_robocomp-giraff_components_attention_control_src.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/attention_control.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/edit_cache.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/rebuild_cache.dir
+/home/robo02/robocomp/components/robocomp-giraff/components/attention_control/src/CMakeFiles/attention_control_autogen.dir
