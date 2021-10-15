@@ -23,7 +23,7 @@
 GenericWorker::GenericWorker(TuplePrx tprx) : QObject()
 {
 
-	camerasimple_proxy = std::get<0>(tprx);
+	camerargbdsimple_proxy = std::get<0>(tprx);
 	differentialrobot_proxy = std::get<1>(tprx);
 	emotionalmotor_proxy = std::get<2>(tprx);
 

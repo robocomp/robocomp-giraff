@@ -71,25 +71,17 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
+    // camera-tablet
     try
     {
+        cv::Mat matResize;
+        auto top_img = camerargbdsimple_proxy->getImage("camera_tablet");
 
-        auto image = this->camerasimple_proxy->getImage();
-        qInfo()<<image.width<<"x"<< image.height<<" Size: "<<image.image.size();
-        if (image.compressed){
-            cv::Mat frameCompr=cv::imdecode(image.image, -1);
-            cv::imshow("RGB image", frameCompr);
-        }
-        else{
-            cv::Mat frame(cv::Size(image.width, image.height), CV_8UC3, &image.image[0], cv::Mat::AUTO_STEP);
-            cv::imshow("RGB image", frame);
-        }
-        cv::waitKey(1);
+        cv::Mat auxMat(top_img.height, top_img.width, CV_8UC3);
+        cv::resize(auxMat,matResize,cv::Size(352,640));
+        cv::imshow("Camera tablet", matResize);
     }
-    catch(const std::exception& e)
-    {
-        std::cerr << e.what() << '\n';
-    }
+    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 }
 
 
@@ -106,12 +98,16 @@ int SpecificWorker::startup_check()
 
 
 /**************************************/
-// From the RoboCompCameraSimple you can call this methods:
-// this->camerasimple_proxy->getImage(...)
+// From the RoboCompCameraRGBDSimple you can call this methods:
+// this->camerargbdsimple_proxy->getAll(...)
+// this->camerargbdsimple_proxy->getDepth(...)
+// this->camerargbdsimple_proxy->getImage(...)
 
 /**************************************/
-// From the RoboCompCameraSimple you can use this types:
-// RoboCompCameraSimple::TImage
+// From the RoboCompCameraRGBDSimple you can use this types:
+// RoboCompCameraRGBDSimple::TImage
+// RoboCompCameraRGBDSimple::TDepth
+// RoboCompCameraRGBDSimple::TRGBD
 
 /**************************************/
 // From the RoboCompDifferentialRobot you can call this methods:
