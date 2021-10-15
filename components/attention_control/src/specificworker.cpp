@@ -36,37 +36,21 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
-//	THE FOLLOWING IS JUST AN EXAMPLE
-//	To use innerModelPath parameter you should uncomment specificmonitor.cpp readConfig method content
-//	try
-//	{
-//		RoboCompCommonBehavior::Parameter par = params.at("InnerModelPath");
-//		std::string innermodel_path = par.value;
-//		innerModel = std::make_shared(innermodel_path);
-//	}
-//	catch(const std::exception &e) { qFatal("Error reading config params"); }
-
-
-
-
-
-
 	return true;
 }
 
 void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
+
+    cap.open(0, cv::CAP_ANY);
 	this->Period = period;
 	if(this->startup_check_flag)
 	{
 		this->startup_check();
 	}
 	else
-	{
 		timer.start(Period);
-	}
-
 }
 
 void SpecificWorker::compute()
@@ -74,20 +58,30 @@ void SpecificWorker::compute()
     // camera-tablet
     try
     {
-        cv::Mat matResize;
-        auto top_img = camerargbdsimple_proxy->getImage("camera_tablet");
+        RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
+        //cv::Mat img;
+        //cap.read(img);
+        if (top_img.width !=0 and top_img.height !=0)
+        {
+            cv::Mat img(top_img.height, top_img.width, CV_8UC3, top_img.image.data());   
+            //            cap.read(img);
+            cv::Mat n_img;
+            cv::resize(img, n_img, cv::Size(300,300));
+            auto rectangles = face_detector.detect_face_rectangles(n_img);
+            cv::Scalar color(0, 105, 205);
+            int frame_thickness = 4;
+            qInfo() << rectangles.size();
+            for(const auto & r : rectangles)
+                cv::rectangle(n_img, r, color, frame_thickness);
 
-        cv::Mat auxMat(top_img.height, top_img.width, CV_8UC3);
-        cv::resize(auxMat,matResize,cv::Size(352,640));
-        cv::imshow("Camera tablet", matResize);
+            cv::imshow("Camera tablet", n_img);
+            cv::waitKey(5);
+        }
     }
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 }
 
-
-
-
-
+////////////////////////////////////////////////////////////////////////////////////
 int SpecificWorker::startup_check()
 {
 	std::cout << "Startup check" << std::endl;

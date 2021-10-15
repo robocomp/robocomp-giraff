@@ -8,22 +8,23 @@
 #include <FaceDetector.h>
 #include <opencv4/opencv2/opencv.hpp>
 
-FaceDetector::FaceDetector() : confidence_threshold_(0.5), input_image_height_(300), input_image_width_(300),
-                               scale_factor_(1.0), mean_values_({104., 177.0, 123.0}) {
+FaceDetector::FaceDetector()
+{
+    // Note: The varibles MODEL_CONFIGURATION_FILE and MODEL_WEIGHTS_FILE are passed in via cmake
+    network_ = cv::dnn::readNetFromCaffe("assets/deploy.prototxt", "assets/res10_300x300_ssd_iter_140000_fp16.caffemodel");
 
-// Note: The varibles MODEL_CONFIGURATION_FILE and MODEL_WEIGHTS_FILE are passed in via cmake
-    network_ = cv::dnn::readNetFromCaffe(FACE_DETECTION_CONFIGURATION, FACE_DETECTION_WEIGHTS);
-
-    if (network_.empty()) {
+    if (network_.empty())
+    {
         std::ostringstream ss;
         ss << "Failed to load network with the following settings:\n"
-           << "Configuration: " + std::string(FACE_DETECTION_CONFIGURATION) + "\n"
-           << "Binary: " + std::string(FACE_DETECTION_WEIGHTS) + "\n";
+           << "Configuration: " + std::string("assets/deploy.prototxt") + "\n"
+           << "Binary: " + std::string("assets/res10_300x300_ssd_iter_140000_fp16.caffemodel") + "\n";
         throw std::invalid_argument(ss.str());
     }
 }
 
-std::vector<cv::Rect> FaceDetector::detect_face_rectangles(const cv::Mat &frame) {
+std::vector<cv::Rect> FaceDetector::detect_face_rectangles(const cv::Mat &frame)
+{
     cv::Mat input_blob = cv::dnn::blobFromImage(frame, scale_factor_, cv::Size(input_image_width_, input_image_height_),
                                                 mean_values_, false, false);
     network_.setInput(input_blob, "data");

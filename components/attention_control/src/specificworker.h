@@ -28,11 +28,10 @@
 #define SPECIFICWORKER_H
 
 #include <genericworker.h>
-#include <innermodel/innermodel.h>
-
 #include <opencv2/core.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
+#include "FaceDetector.h"
 
 class SpecificWorker : public GenericWorker
 {
@@ -42,15 +41,15 @@ public:
 	~SpecificWorker();
 	bool setParams(RoboCompCommonBehavior::ParameterList params);
 
-
-
 public slots:
 	void compute();
 	int startup_check();
 	void initialize(int period);
+
 private:
-	std::shared_ptr < InnerModel > innerModel;
 	bool startup_check_flag;
+    cv::VideoCapture cap;
+    FaceDetector face_detector;
 
 };
 
