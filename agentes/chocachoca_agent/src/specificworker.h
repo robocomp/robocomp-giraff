@@ -74,7 +74,7 @@ private:
 	void del_node_slot(std::uint64_t from);
 	bool startup_check_flag;
     void chocachoca();
-    std::tuple<float, float> send_command_to_robot(const std::tuple<float, float> &speeds);
+    std::tuple<float, float> send_command_to_robot(const std::tuple<float, float, float> &speeds);
 
     struct CONSTANTS
     {

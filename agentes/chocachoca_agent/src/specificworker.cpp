@@ -174,20 +174,22 @@ void SpecificWorker::chocachoca()
         try
         {
             cout << "adv: " << adv << "     rot: " << rot << endl;
-            send_command_to_robot(std::make_tuple(adv*1000, rot));
+            send_command_to_robot(std::make_tuple(adv*1000, rot, 0.0));
         }
         catch(const Ice::Exception &e)
             { std::cout << e.what() << std::endl;}
     }
 }
 
-std::tuple<float, float> SpecificWorker::send_command_to_robot(const std::tuple<float, float> &speeds) //adv, side, rot
+std::tuple<float, float> SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds) //adv, rot
 {
-    auto &[adv_, rot_] = speeds;
+    auto &[adv_, rot_, side_] = speeds;
     if(auto robot_node = G->get_node(robot_name); robot_node.has_value())
     {
         G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) adv_);
         G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) rot_);
+        G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(), (float) side_);
+
         G->update_node(robot_node.value());
     }
     else qWarning() << __FUNCTION__ << "No robot node found";

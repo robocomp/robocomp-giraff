@@ -30,6 +30,10 @@
 #include <genericworker.h>
 #include <innermodel/innermodel.h>
 
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/imgproc.hpp>
+
 class SpecificWorker : public GenericWorker
 {
 Q_OBJECT

@@ -12,5 +12,6 @@ SET ( HEADERS
 
 
 SET (LIBS ${LIBS}  )
-
+INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv4.cmake )
+add_definitions(-g -march=native -fmax-errors=5 )
 

@@ -606,7 +606,7 @@ void SpecificWorker::slot_start_mission()
 
 void SpecificWorker::slot_stop_mission()
 {
-    send_command_to_robot(std::make_tuple(0.f,0.f,0.f));   //adv, side, rot
+    send_command_to_robot(std::make_tuple(0.f,0.f,0.f));   //adv, rot, side
     if(auto intention = G->get_node(current_intention_name); intention.has_value())
     {
         if(auto path = G->get_node(current_path_name); path.has_value())
@@ -694,13 +694,13 @@ void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScen
             scene_road_points.push_back(line2);
         }
 }
-void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds)   //adv, side, rot
+void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds)   //adv, rot, side
 {
-    auto &[adv_, side_, rot_] = speeds;
+    auto &[adv_, rot_, side_] = speeds;
     auto robot_node = G->get_node(robot_name);
     G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(),  (float)adv_);
     G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float)rot_);
-    G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(),  (float)side_);
+    G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(), (float)side_);
     G->update_node(robot_node.value());
 }
 void SpecificWorker::trace_button_slot(bool checked)

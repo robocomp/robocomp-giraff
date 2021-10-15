@@ -24,7 +24,7 @@
 #include <qlog/qlog.h>
 #include <CommonBehavior.h>
 
-#include <CameraRGBDSimple.h>
+#include <CameraSimple.h>
 #include <DifferentialRobot.h>
 #include <EmotionalMotor.h>
 #include <GenericBase.h>
@@ -34,7 +34,7 @@
 #define BASIC_PERIOD 100
 
 
-using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompEmotionalMotor::EmotionalMotorPrxPtr>;
+using TuplePrx = std::tuple<RoboCompCameraSimple::CameraSimplePrxPtr,RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompEmotionalMotor::EmotionalMotorPrxPtr>;
 
 
 class GenericWorker : public QObject
@@ -50,7 +50,7 @@ public:
 	QMutex *mutex;
 
 
-	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
+	RoboCompCameraSimple::CameraSimplePrxPtr camerasimple_proxy;
 	RoboCompDifferentialRobot::DifferentialRobotPrxPtr differentialrobot_proxy;
 	RoboCompEmotionalMotor::EmotionalMotorPrxPtr emotionalmotor_proxy;
 

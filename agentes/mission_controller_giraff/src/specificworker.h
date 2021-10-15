@@ -98,7 +98,7 @@ private:
 
     // Robot and shape
     QPolygonF robot_polygon;
-    void send_command_to_robot(const std::tuple<float, float, float> &speeds);   //adv, side, rot
+    void send_command_to_robot(const std::tuple<float, float, float> &speeds);   //adv, rot, side
 
     // Camera
     DoubleBuffer<std::vector<std::uint8_t>, std::vector<std::uint8_t>> virtual_camera_buffer;

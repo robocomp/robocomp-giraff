@@ -2,7 +2,7 @@
 # Proxies for required interfaces
 CommonBehavior.Endpoints=tcp -p 10000
 
-CameraRGBDSimpleProxy = camerargbdsimple:tcp -h 158.49.247.193 -p 10095
+CameraSimpleProxy = camerasimple:tcp -h 158.49.247.193 -p 10195
 DifferentialRobotProxy = differentialrobot:tcp -h 158.49.247.193 -p 10004
 EmotionalMotorProxy = emotionalmotor:tcp -h 158.49.247.193  -p 10945
 

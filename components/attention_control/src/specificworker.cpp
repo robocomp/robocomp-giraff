@@ -71,21 +71,30 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-	//computeCODE
-	//QMutexLocker locker(mutex);
-	//try
-	//{
-	//  camera_proxy->getYImage(0,img, cState, bState);
-	//  memcpy(image_gray.data, &img[0], m_width*m_height*sizeof(uchar));
-	//  searchTags(image_gray);
-	//}
-	//catch(const Ice::Exception &e)
-	//{
-	//  std::cout << "Error reading from Camera" << e << std::endl;
-	//}
-	
-	
+    try
+    {
+
+        auto image = this->camerasimple_proxy->getImage();
+        qInfo()<<image.width<<"x"<< image.height<<" Size: "<<image.image.size();
+        if (image.compressed){
+            cv::Mat frameCompr=cv::imdecode(image.image, -1);
+            cv::imshow("RGB image", frameCompr);
+        }
+        else{
+            cv::Mat frame(cv::Size(image.width, image.height), CV_8UC3, &image.image[0], cv::Mat::AUTO_STEP);
+            cv::imshow("RGB image", frame);
+        }
+        cv::waitKey(1);
+    }
+    catch(const std::exception& e)
+    {
+        std::cerr << e.what() << '\n';
+    }
 }
+
+
+
+
 
 int SpecificWorker::startup_check()
 {
@@ -96,18 +105,13 @@ int SpecificWorker::startup_check()
 
 
 
+/**************************************/
+// From the RoboCompCameraSimple you can call this methods:
+// this->camerasimple_proxy->getImage(...)
 
 /**************************************/
-// From the RoboCompCameraRGBDSimple you can call this methods:
-// this->camerargbdsimple_proxy->getAll(...)
-// this->camerargbdsimple_proxy->getDepth(...)
-// this->camerargbdsimple_proxy->getImage(...)
-
-/**************************************/
-// From the RoboCompCameraRGBDSimple you can use this types:
-// RoboCompCameraRGBDSimple::TImage
-// RoboCompCameraRGBDSimple::TDepth
-// RoboCompCameraRGBDSimple::TRGBD
+// From the RoboCompCameraSimple you can use this types:
+// RoboCompCameraSimple::TImage
 
 /**************************************/
 // From the RoboCompDifferentialRobot you can call this methods:
