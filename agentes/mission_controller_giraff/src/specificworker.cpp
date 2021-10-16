@@ -22,6 +22,7 @@
 #include <cppitertools/zip.hpp>
 #include <cppitertools/range.hpp>
 #include <cppitertools/sliding_window.hpp>
+#include <unordered_map>
 
 /**
 * \brief Default constructor
@@ -655,12 +656,20 @@ void SpecificWorker::slot_change_mission_selector(int index)
 /////////////////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScene* viewer_2d, bool remove)
 {
-    static std::vector<QGraphicsLineItem *> scene_road_points;
+    static std::unordered_map<QGraphicsScene *, std::vector<QGraphicsLineItem *> *> scene_road_points_map;
+    std::vector<QGraphicsLineItem *> *scene_road_points;
+
+    if (scene_road_points_map.contains(viewer_2d))
+        scene_road_points = scene_road_points_map[viewer_2d];
+    else
+        scene_road_points = new std::vector<QGraphicsLineItem *>();
+
+    scene_road_points_map[viewer_2d] = scene_road_points;
 
     //clear previous points
-    for (QGraphicsLineItem* item : scene_road_points)
+    for (QGraphicsLineItem* item : *scene_road_points)
         viewer_2d->removeItem((QGraphicsItem *) item);
-    scene_road_points.clear();
+    scene_road_points->clear();
 
     if(remove) return;      // Just clear the path
 
@@ -690,8 +699,8 @@ void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScen
             line2 = viewer_2d->addLine(qsegment_perp, QPen(QBrush(QColor(QString::fromStdString("#F0FF00"))), 20));
             line1->setZValue(2000);
             line2->setZValue(2000);
-            scene_road_points.push_back(line1);
-            scene_road_points.push_back(line2);
+            scene_road_points->push_back(line1);
+            scene_road_points->push_back(line2);
         }
 }
 void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds)   //adv, rot, side
