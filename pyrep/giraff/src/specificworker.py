@@ -239,14 +239,33 @@ class SpecificWorker(GenericWorker):
             datos = self.joystick_newdata[0]
             adv = 0.0
             rot = 0.0
+            bill_advance = 0.0
+            bill_rotate = 0.0
             for x in datos.axes:
                 if x.name == "advance":
                     adv = x.value if np.abs(x.value) > 10 else 0
                 if x.name == "rotate" or x.name == "turn":
                     rot = x.value if np.abs(x.value) > 0.01 else 0
+                if x.name == "bill_advance":
+                    bill_advance = x.value if np.abs(x.value) > 1 else 0
+                    print("bill_advance ", bill_advance)
+                if x.name == "bill_rotate":
+                    bill_rotate = x.value if np.abs(x.value) > 0.05 else 0
 
             converted = self.convert_base_speed_to_motors_speed(adv, rot)
-            print("Joystick ", [adv, rot], converted)
+            # move Bill
+            if bill_advance > 0:
+                self.pr.script_call("walk_straight@Bill", 1)
+            elif bill_advance < 0:
+                self.pr.script_call("walk_straight_backwards@Bill", 1)
+            else:
+                self.pr.script_call("stop@Bill", 1)
+            if bill_rotate > 0:
+                self.pr.script_call("walk_left@Bill", 1)
+            elif bill_rotate < 0:
+                self.pr.script_call("walk_right@Bill", 1)
+
+            #print("Joystick ", [adv, rot], converted)
             self.joystick_newdata = None
             self.last_received_data_time = time.time()
         else:
@@ -316,7 +335,7 @@ class SpecificWorker(GenericWorker):
     ###########################################
     def move_tablet(self):
         if self.tablet_new_pos:
-            self.tablet_motor.set_joint_position(self.tablet_new_pos)
+            self.tablet_motor.set_joint_position(self.tablet_new_pos)  # radians
             self.tablet_new_pos = None
 
     ##################################################################################
@@ -590,7 +609,7 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of getMotorState method from JointMotorSimple interface
     #
     def JointMotorSimple_getMotorState(self, motor):
-        ret = RoboCompJointMotorSimple.MotorState()
+        ret = RoboCompJointMotorSimple.MotorState(self.tablet_motor.get_joint_position())  # radians
         return ret
 
     #
@@ -605,10 +624,6 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of setVelocity method from JointMotorSimple interface
     #
     def JointMotorSimple_setVelocity(self, name, goal):
-
-        #
-        # write your CODE here
-        #
         pass
 
     #

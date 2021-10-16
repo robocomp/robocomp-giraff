@@ -32,6 +32,9 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include "FaceDetector.h"
+#include <opencv2/objdetect.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+
 
 class SpecificWorker : public GenericWorker
 {
@@ -50,8 +53,12 @@ private:
 	bool startup_check_flag;
     cv::VideoCapture cap;
     FaceDetector face_detector;
+    cv::HOGDescriptor hog;
+    using DetectRes = std::tuple<std::optional<std::tuple<QRect, int>>, std::optional<std::tuple<QRect, int>>>;
+    DetectRes read_image();
 
-    std::optional<QRect>  read_image();
+    void move_tablet(float body_y_error, float face_y_error);
+    void move_base(float body_x_error, float face_x_error, float body_dist, float face_dist);
 };
 
 #endif

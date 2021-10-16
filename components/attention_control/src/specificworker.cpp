@@ -17,6 +17,7 @@
  *    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "specificworker.h"
+#include <cppitertools/enumerate.hpp>
 
 /**
 * \brief Default constructor
@@ -43,7 +44,10 @@ void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
 
-    cap.open(0, cv::CAP_ANY);
+    hog.setSVMDetector(cv::HOGDescriptor::getDefaultPeopleDetector());
+    try{ jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{0.0001, 1 });}  // radians. 0 vertical
+    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
+
 	this->Period = period;
 	if(this->startup_check_flag)
 	{
@@ -55,58 +59,132 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    if(auto  face_o = read_image(); face_o.has_value())
+    // get image, body and face
+    float face_x_error = 0, face_y_error = 0, body_x_error = 0, body_y_error = 0, face_dist = 0, body_dist = 0;
+    const auto &[body_o, face_o] = read_image();
+    if (face_o.has_value())         // MOVE THIS INSIDE read_image
     {
-        // get center and deltas
-        auto face = face_o.value();
-        QPoint center = face.center();
-        float x_error = 150-center.x();
-        float y_error = 150-center.y();
-        qInfo() << center.x() << center.y() << 150-center.x() << 150-center.y();
-
-        // move eyes
-        // move tablet
-        // move base
-        try
-        {
-            float rot = -(2.f / 100) * x_error;
-            float adv = (500.f / 100.f) * y_error;
-            differentialrobot_proxy->setSpeedBase(0, rot);
-        }
-        catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
+        auto [face, f_dist] = face_o.value();
+        face_x_error = 150 - face.center().x();
+        face_y_error = 150 - face.center().y();
+        face_dist = f_dist;
     }
+    if (body_o.has_value())
+    {
+        auto [body, b_dist] = body_o.value();
+        body_x_error = 150 - body.center().x();
+        body_y_error = 150 - body.center().y();
+        body_dist = b_dist;
+    }
+
+    // state machin
+//    switch(state)
+//    {
+//        case State::WAITING:
+//        case State::BODY_DETECTED:
+//        case State::FACE_DETECTED:
+//        case State::READY_TO_INTERACT:
+//        case State::INTERACTING:
+//    }
+
+    //move_eyes();
+    move_tablet(body_y_error, face_y_error);
+    move_base(body_x_error, face_x_error, body_dist, face_dist);
 }
 
-std::optional<QRect> SpecificWorker::read_image()
+SpecificWorker::DetectRes SpecificWorker::read_image()
 {
     try
     {
-        RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
+        //RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
+        RoboCompCameraRGBDSimple::TRGBD rgbd = camerargbdsimple_proxy->getAll("camera_tablet");
+        const auto &top_img = rgbd.image;
+        const auto &top_depth = rgbd.depth;
         if (top_img.width != 0 and top_img.height != 0)
         {
-            cv::Mat img(top_img.height, top_img.width, CV_8UC3, top_img.image.data());
+            cv::Mat img(top_img.height, top_img.width, CV_8UC3, rgbd.image.image.data());
+            cv::Mat depth(top_depth.height, top_depth.width, CV_32FC1, rgbd.depth.depth.data());
             cv::Mat n_img;
             cv::resize(img, n_img, cv::Size(300, 300));
-            auto rectangles = face_detector.detect_face_rectangles(n_img);
-            cv::Scalar color(0, 105, 205);
-            int frame_thickness = 4;
-            //qInfo() << __FUNCTION__ << rectangles.size();
-            for (const auto &r: rectangles)
-                cv::rectangle(n_img, r, color, frame_thickness);
+            DetectRes ret{{},{}};
 
-            cv::imshow("Camera tablet", n_img);
-            cv::waitKey(5);
-            if(not rectangles.empty())
+            // body
+            vector<cv::Rect> found;
+            vector<double> weights;
+            cv::Mat n_img_bw;
+            cv::cvtColor(n_img, n_img_bw, cv::COLOR_BGR2GRAY);
+            hog.detectMultiScale(n_img_bw, found, weights);
+            if (not found.empty())
             {
-                auto r = rectangles.front();
-                return QRect(r.x, r.y, r.width, r.height);
+                auto r = found.front();
+                cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
+                QRect rect = QRect(r.x, r.y, r.width, r.height);
+                float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
+                std::get<0>(ret) = {rect, k};
             }
             else
-                return {};
+            {
+                // face
+                auto rectangles = face_detector.detect_face_rectangles(n_img);
+                if (not rectangles.empty())
+                {
+                    auto r = rectangles.front();
+                    cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
+                    QRect rect = QRect(r.x, r.y, r.width, r.height);
+                    float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
+                    std::get<1>(ret) = {rect, k};
+                }
+            }
+
+            // ehow image
+            cv::cvtColor(n_img, n_img, cv::COLOR_BGR2RGB);
+            cv::imshow("Camera tablet", n_img);
+            cv::waitKey(1);
+
+            return ret;
         }
     }
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
+    qWarning() << "Empty image or comms problem";
     return {};
+}
+void SpecificWorker::move_tablet(float body_y_error, float face_y_error)
+{
+    if(body_y_error != 0)
+    {
+        const float delta = 0.1;
+        float tilt = (delta / 100) * body_y_error;  // map from -100,100 to -0.1,0.1 rads
+        auto pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
+        //qInfo() << __FUNCTION__ << "BODY: pos" << pos << "error" << body_y_error << "tilt" << tilt << pos - tilt;
+        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
+    else if( face_y_error != 0)
+    {
+        const float delta = 0.1;
+        const float tilt = (delta / 100) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
+        const float pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
+        //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
+        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
+}
+void SpecificWorker::move_base(float body_x_error, float face_x_error, float body_dist, float face_dist)
+{
+    // rotate base
+    const float gain = 0.5;
+    float rot = 0.0;
+    if(body_x_error != 0)
+        rot = -(2.f / 100) * body_x_error;
+    else if(face_x_error != 0)
+        rot = -(2.f / 100) * face_x_error;
+    float advance = 0;
+    if(body_dist > 0 and body_dist < 800)
+        advance = -(400.0 / 800.0) * body_dist;
+    if(face_dist > 0 and face_dist < 800)
+        advance = -(400.0 / 800.0) * face_dist;
+    try { differentialrobot_proxy->setSpeedBase(advance, gain * rot); }
+    catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
 }
 ////////////////////////////////////////////////////////////////////////////////////
 int SpecificWorker::startup_check()
@@ -115,8 +193,6 @@ int SpecificWorker::startup_check()
 	QTimer::singleShot(200, qApp, SLOT(quit()));
 	return 0;
 }
-
-
 
 /**************************************/
 // From the RoboCompCameraRGBDSimple you can call this methods:
