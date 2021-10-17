@@ -32,9 +32,14 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include "FaceDetector.h"
+#include "BodyDetector.h"
 #include <opencv2/objdetect.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-
+#include <opencv2/dnn.hpp>
+#include <sstream>
+#include <iostream>
+#include <istream>
+#include <fstream>
 
 class SpecificWorker : public GenericWorker
 {
@@ -50,15 +55,32 @@ public slots:
 	void initialize(int period);
 
 private:
+    enum class State { WAITING, BODY_DETECTED, FACE_DETECTED, READY_TO_INTERACT, INTERACTING, START_FOLLOWING, FOLLOWING, STOP };
+    State state = State::WAITING;
+
 	bool startup_check_flag;
     cv::VideoCapture cap;
     FaceDetector face_detector;
+    BodyDetector body_detector;
     cv::HOGDescriptor hog;
-    using DetectRes = std::tuple<std::optional<std::tuple<QRect, int>>, std::optional<std::tuple<QRect, int>>>;
+    cv::dnn::Net net;
+
+    //using DetectRes = std::tuple<std::optional<std::tuple<QRect, int>>, std::optional<std::tuple<QRect, int>>>;
+    using DetectRes = std::tuple<std::optional<std::tuple<int,int,int>>, std::optional<std::tuple<int,int,int>>>;
     DetectRes read_image();
 
-    void move_tablet(float body_y_error, float face_y_error);
-    void move_base(float body_x_error, float face_x_error, float body_dist, float face_dist);
+    void move_tablet(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
+    void move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
+
+    // YOLO
+    // Initialize the parameters
+    float confThreshold = 0.5; // Confidence threshold
+    float nmsThreshold = 0.5;  // Non-maximum suppression threshold
+    int inpWidth = 320;  // Width of network's input image
+    int inpHeight = 320; // Height of network's input image
+    std::vector<std::string> classes;
+    vector<cv::String> get_outputs_names(const cv::dnn::Net &net);
+    vector<cv::Rect> yolo_detector(cv::Mat &frame);
 };
 
 #endif

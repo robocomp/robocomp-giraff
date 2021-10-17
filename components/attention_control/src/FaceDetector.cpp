@@ -33,12 +33,13 @@ std::vector<cv::Rect> FaceDetector::detect_face_rectangles(const cv::Mat &frame)
 
     std::vector<cv::Rect> faces;
 
-    for (int i = 0; i < detection_matrix.rows; i++) {
+    for (int i = 0; i < detection_matrix.rows; i++)
+    {
         float confidence = detection_matrix.at<float>(i, 2);
 
-        if (confidence < confidence_threshold_) {
+        if (confidence < confidence_threshold_)
             continue;
-        }
+
         int x_left_bottom = static_cast<int>(detection_matrix.at<float>(i, 3) * frame.cols);
         int y_left_bottom = static_cast<int>(detection_matrix.at<float>(i, 4) * frame.rows);
         int x_right_top = static_cast<int>(detection_matrix.at<float>(i, 5) * frame.cols);
@@ -46,6 +47,5 @@ std::vector<cv::Rect> FaceDetector::detect_face_rectangles(const cv::Mat &frame)
 
         faces.emplace_back(x_left_bottom, y_left_bottom, (x_right_top - x_left_bottom), (y_right_top - y_left_bottom));
     }
-
     return faces;
 }
