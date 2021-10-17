@@ -50,7 +50,7 @@ void SpecificWorker::initialize(int period)
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 
     // Load YOLO network
-    std::string modelConfiguration = "yolov3/yolov3.cfg";
+    std::string modelConfiguration = "yolov3/yolov3.cfg";  //yolov4 is not supported in this version of OPenCV
     std::string modelWeights = "yolov3/yolov3.weights";
     std::string classesFile = "yolov3/coco.names";
     std::ifstream ifs(classesFile.c_str());
@@ -60,24 +60,70 @@ void SpecificWorker::initialize(int period)
     net.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
     net.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
 
-	this->Period = period;
+    connect(&timer, SIGNAL(timeout()), this, SLOT(compute_L1()));
+    this->Period = period;
 	if(this->startup_check_flag)
 		this->startup_check();
 	else
 		timer.start(Period);
 }
 
-void SpecificWorker::compute()
+////////////////////////////////////////////////////
+// THREE LEVELS ARCH. EACH LEVEL IS A STATE MACHINE
+///////////////////////////////////////////////////
+
+void SpecificWorker::compute_L1()
 {
-    // get image, body and face
+    // FIST LEVEL. read sensors and use classifiers to create dynamic control loops
+    // that keep perceived objects (person parts) centered (in focus)
     const auto &[body_o, face_o] = read_image();
-    //move_eyes();
-    move_tablet(body_o, face_o);
-    move_base(body_o, face_o);
-
-    // belief function to create and maintain a represented person
-
-//  Control program to decide what best to do next based on the represented person
+    //move_eyes(); cuando Gerardo monte el interfaz
+    // move_tablet(body_o, face_o);
+    // move_base(body_o, face_o);
+    switch(l1_state)
+    {
+        case L1_State::SEARCHING:
+            if(body_o.has_value())
+                l1_state = L1_State::BODY_DETECTED;
+            if(face_o.has_value())
+                l1_state = L1_State::FACE_DETECTED;
+            break;
+        case L1_State::BODY_DETECTED:
+            if(not body_o.has_value())
+            {
+                l1_state = L1_State::SEARCHING;
+                return;
+            }
+            move_tablet(body_o, face_o);
+            move_base(body_o, face_o);
+            break;
+        case L1_State::FACE_DETECTED:
+            if(not face_o.has_value())
+            {
+                l1_state = L1_State::SEARCHING;
+                return;
+            }
+            move_tablet(body_o, face_o);
+            move_base(body_o, face_o);
+            break;
+    }
+}
+void SpecificWorker::compute_L2()
+{
+    // SECOND LEVEL: belief function to create and maintain a represented person
+    // we need here to create, maintain and destroy (when needed) a "represented person" that exists because
+    // enough evidence supports it. We want evidence coming from the control loops, not just the classifiers
+    // The logic here is, when new evidence gets in
+    // if there is no person, create it.
+    // from here, synthesize the evidence that should be coming
+    // if evidence comes, check if it matches. If it does update representation (and dynamic model of it)
+    // if it does not match, note as counter evidence
+    // it no evidence comes, note as counter evidence
+    // if enough counter evidence has accumulated, destroy the representation
+}
+void SpecificWorker::compute_L3()
+{
+    // THIRD LEVEL.  Control program to decide what to do next based on the represented person
 //    switch(state)
 //    {
 //        case State::WAITING:
@@ -103,7 +149,8 @@ void SpecificWorker::compute()
 //            break;
 //    };
 }
-
+void SpecificWorker::compute(){};
+////////////////////////////////////////////////////////////////////
 SpecificWorker::DetectRes SpecificWorker::read_image()
 {
     try
