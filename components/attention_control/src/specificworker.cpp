@@ -48,7 +48,6 @@ void SpecificWorker::initialize(int period)
     hog.setSVMDetector(cv::HOGDescriptor::getDefaultPeopleDetector());
     try{ jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{0.0001, 1 });}  // radians. 0 vertical
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
-
     // Load YOLO network
     std::string modelConfiguration = "yolov3/yolov3.cfg";  //yolov4 is not supported in this version of OPenCV
     std::string modelWeights = "yolov3/yolov3.weights";
@@ -59,7 +58,6 @@ void SpecificWorker::initialize(int period)
     net = cv::dnn::readNetFromDarknet(modelConfiguration, modelWeights);
     net.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
     net.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
-
     connect(&timer, SIGNAL(timeout()), this, SLOT(compute_L1()));
     this->Period = period;
 	if(this->startup_check_flag)
@@ -74,9 +72,11 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute_L1()
 {
+	std::cout << "compute_L1" << std::endl;
     // FIST LEVEL. read sensors and use classifiers to create dynamic control loops
     // that keep perceived objects (person parts) centered (in focus). Output presence state and pose
     const auto &[body_o, face_o] = read_image();
+	std::cout << "Image" << std::endl;
     //move_eyes(); cuando Gerardo monte el interfaz
     // move_tablet(body_o, face_o);
     // move_base(body_o, face_o);
@@ -106,6 +106,7 @@ void SpecificWorker::compute_L1()
             }
             move_tablet(body_o, face_o);
             move_base(body_o, face_o);
+			move_eyes(face_o);
             break;
         case L1_State::EYES_DETECTED:
             break;
@@ -154,18 +155,19 @@ void SpecificWorker::compute(){};
 ////////////////////////////////////////////////////////////////////
 SpecificWorker::DetectRes SpecificWorker::read_image()
 {
+
     try
     {
         //RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
-        RoboCompCameraRGBDSimple::TRGBD rgbd = camerargbdsimple_proxy->getAll("camera_tablet");
-        const auto &top_img = rgbd.image;
-        const auto &top_depth = rgbd.depth;
+        RoboCompCameraSimple::TImage rgbd = camerasimple_proxy->getImage();
+        // const auto &top_img = rgbd.image;
+        // const auto &top_depth = rgbd.depth;
         const int width = 300;
         const int height = 300;
-        if (top_img.width != 0 and top_img.height != 0)
+        if (rgbd.width != 0 and rgbd.height != 0)
         {
-            cv::Mat img(top_img.height, top_img.width, CV_8UC3, rgbd.image.image.data());
-            cv::Mat depth(top_depth.height, top_depth.width, CV_32FC1, rgbd.depth.depth.data());
+            cv::Mat img(cv::Size(rgbd.width, rgbd.height), CV_8UC3, &rgbd.image[0], cv::Mat::AUTO_STEP);
+            // cv::Mat depth(top_depth.height, top_depth.width, CV_32FC1, rgbd.depth.depth.data());
             cv::Mat n_img;
             cv::resize(img, n_img, cv::Size(width, height));
             DetectRes ret{{},{}};
@@ -174,14 +176,16 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
             auto rectangles = face_detector.detect_face_rectangles(n_img);
             if (not rectangles.empty())
             {
+				std::cout << "if" << std::endl;
                 auto r = rectangles.front();
                 cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
                 QRect rect = QRect(r.x, r.y, r.width, r.height);
-                float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                std::get<0>(ret) = {(width/2)-rect.center().x(), (height/2)-rect.center().y(), k};
+                // float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
+                // std::get<0>(ret) = {(width/2)-rect.center().x(), (height/2)-rect.center().y(), k};
             }
             else //body
             {
+				std::cout << "else" << std::endl;
 //                auto boxes = body_detector.detector(n_img);
 //                qInfo() << __FUNCTION__ << boxes.size();
                 // YOLO
@@ -191,8 +195,8 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                     auto r = people.front();
                     cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
                     QRect rect = QRect(r.x, r.y, r.width, r.height);
-                    float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                    std::get<0>(ret) = {(inpWidth / 2) - rect.center().x(), (inpHeight / 2) - rect.center().y(), k};
+                    // float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
+                    // std::get<0>(ret) = {(inpWidth / 2) - rect.center().x(), (inpHeight / 2) - rect.center().y(), k};
                 }
             }
             // ehow image
@@ -251,6 +255,22 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, st
     }
     try { differentialrobot_proxy->setSpeedBase(advance, gain * rot); }
     catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+}
+void SpecificWorker::move_eyes(std::optional<std::tuple<int,int,int>> face_o)
+{
+    if( face_o.has_value())
+    {
+		emotionalmotor_proxy->isanybodythere(true);
+        auto [face_x_error, face_y_error, __] = face_o.value();
+        const float delta = 0.1;
+        const float tilt_x = (delta / 10) * face_x_error;  // map from -100,100 to -0.1,0.1 rads
+		const float tilt_y = (delta / 10) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
+		cout << tilt_x << std::endl;
+		cout << tilt_y << std::endl;
+        //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
+        try { emotionalmotor_proxy->pupposition(tilt_x,tilt_y); }  // radians. 0 vertical
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
 }
 std::vector<cv::Rect> SpecificWorker::yolo_detector(cv::Mat &frame)
 {
@@ -377,3 +397,52 @@ int SpecificWorker::startup_check()
 // cv::Mat n_img_bw;
 // cv::cvtColor(n_img, n_img_bw, cv::COLOR_BGR2GRAY);
 // hog.detectMultiScale(n_img_bw, found, weights);
+
+
+/**************************************/
+// From the RoboCompCameraSimple you can call this methods:
+// this->camerasimple_proxy->getImage(...)
+
+/**************************************/
+// From the RoboCompCameraSimple you can use this types:
+// RoboCompCameraSimple::TImage
+
+/**************************************/
+// From the RoboCompDifferentialRobot you can call this methods:
+// this->differentialrobot_proxy->correctOdometer(...)
+// this->differentialrobot_proxy->getBasePose(...)
+// this->differentialrobot_proxy->getBaseState(...)
+// this->differentialrobot_proxy->resetOdometer(...)
+// this->differentialrobot_proxy->setOdometer(...)
+// this->differentialrobot_proxy->setOdometerPose(...)
+// this->differentialrobot_proxy->setSpeedBase(...)
+// this->differentialrobot_proxy->stopBase(...)
+
+/**************************************/
+// From the RoboCompDifferentialRobot you can use this types:
+// RoboCompDifferentialRobot::TMechParams
+
+/**************************************/
+// From the RoboCompEmotionalMotor you can call this methods:
+// this->emotionalmotor_proxy->expressAnger(...)
+// this->emotionalmotor_proxy->expressDisgust(...)
+// this->emotionalmotor_proxy->expressFear(...)
+// this->emotionalmotor_proxy->expressJoy(...)
+// this->emotionalmotor_proxy->expressSadness(...)
+// this->emotionalmotor_proxy->expressSurprise(...)
+
+/**************************************/
+// From the RoboCompJointMotorSimple you can call this methods:
+// this->jointmotorsimple_proxy->getMotorParams(...)
+// this->jointmotorsimple_proxy->getMotorState(...)
+// this->jointmotorsimple_proxy->setPosition(...)
+// this->jointmotorsimple_proxy->setVelocity(...)
+// this->jointmotorsimple_proxy->setZeroPos(...)
+
+/**************************************/
+// From the RoboCompJointMotorSimple you can use this types:
+// RoboCompJointMotorSimple::MotorState
+// RoboCompJointMotorSimple::MotorParams
+// RoboCompJointMotorSimple::MotorGoalPosition
+// RoboCompJointMotorSimple::MotorGoalVelocity
+

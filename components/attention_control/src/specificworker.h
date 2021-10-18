@@ -77,6 +77,7 @@ private:
 
     void move_tablet(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
     void move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
+	void move_eyes(std::optional<std::tuple<int,int,int>> face_o);
 
     // YOLO
     // Initialize the parameters
