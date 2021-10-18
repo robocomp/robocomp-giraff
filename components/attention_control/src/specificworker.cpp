@@ -79,8 +79,8 @@ void SpecificWorker::initialize(int period)
 // that keep perceived objects (person parts) centered (in focus). Output presence state and pose
 void SpecificWorker::compute_L1()
 {
-    const float XMARK = 10;
-    const float YMARK = 0.7;
+    const float XMARK = 10;  // number or hits before getting 0.7
+    const float YMARK = 0.7; // threshold value for next level
     static int cont = 0;
     const double s = -XMARK/(log(1.0/YMARK - 1.0));
     auto integrator = [s](double x){return 1.0/(1.0 + exp(-x/s));};
@@ -140,8 +140,17 @@ void SpecificWorker::compute_L2()
     switch (l2_state)
     {
         case L2_State::EXPECTING:
+            if(dyn_state > 0.7)
+            {
+                // create person
+                l2_state = L2_State::PERSON;
+            }
             break;
         case L2_State::PERSON:
+            if(dyn_state < 0.7)
+                l2_state = L2_State::EXPECTING;
+            // update person
+            // project downwards
             break;
     }
 }
