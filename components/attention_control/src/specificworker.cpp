@@ -150,7 +150,8 @@ void SpecificWorker::compute_L2()
             if(dyn_state < 0.7)
                 l2_state = L2_State::EXPECTING;
             // update person
-            // project downwards
+            // project where person is going to be
+            // send downwards anticipated proposal
             break;
     }
 }

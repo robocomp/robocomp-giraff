@@ -100,7 +100,11 @@ private:
     // Level 2
     struct Person
     {
-
+        // creation time
+        // position
+        // speed
+        // max acc
+        // size
     };
     Person person;
 
