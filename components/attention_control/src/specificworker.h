@@ -22,8 +22,6 @@
 	@author authorname
 */
 
-
-
 #ifndef SPECIFICWORKER_H
 #define SPECIFICWORKER_H
 
@@ -36,6 +34,7 @@
 #include <opencv2/objdetect.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/dnn.hpp>
+#include <opencv2/face.hpp>
 #include <sstream>
 #include <iostream>
 #include <istream>
@@ -58,28 +57,30 @@ public slots:
 	void initialize(int period);
 
 private:
-    enum class State { WAITING, BODY_DETECTED, FACE_DETECTED, READY_TO_INTERACT, INTERACTING, START_FOLLOWING, FOLLOWING, STOP };
-    State state = State::WAITING;
-
     enum class L1_State { SEARCHING, BODY_DETECTED, FACE_DETECTED, EYES_DETECTED, HANDS_DETECTED };
     L1_State l1_state = L1_State::SEARCHING;
+    std::map<L1_State, QString> l1_map{{L1_State::SEARCHING, "SEARCHING"},
+                                       {L1_State::BODY_DETECTED, "BODY_DETECTED"},
+                                       {L1_State::FACE_DETECTED, "FACE_DETECTED"}};
 
-	bool startup_check_flag;
+    enum class L2_State { EXPECTING, PERSON };
+    L2_State l2_state = L2_State::EXPECTING;
+
+    enum class L3_State { WAITING, READY_TO_INTERACT, INTERACTING, START_FOLLOWING, FOLLOWING, STOP };
+    L3_State l3_state = L3_State::WAITING;
+
+    bool startup_check_flag;
     cv::VideoCapture cap;
     FaceDetector face_detector;
     //BodyDetector body_detector;
-    cv::HOGDescriptor hog;
-    cv::dnn::Net net;
 
     //using DetectRes = std::tuple<std::optional<std::tuple<QRect, int>>, std::optional<std::tuple<QRect, int>>>;
     using DetectRes = std::tuple<std::optional<std::tuple<int,int,int>>, std::optional<std::tuple<int,int,int>>>;
     DetectRes read_image();
 
-    void move_tablet(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
-    void move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
-
     // YOLO
     // Initialize the parameters
+    cv::dnn::Net net;
     float confThreshold = 0.5; // Confidence threshold
     float nmsThreshold = 0.5;  // Non-maximum suppression threshold
     int inpWidth = 320;  // Width of network's input image
@@ -87,6 +88,21 @@ private:
     std::vector<std::string> classes;
     vector<cv::String> get_outputs_names(const cv::dnn::Net &net);
     vector<cv::Rect> yolo_detector(cv::Mat &frame);
+
+    // OPenCV Face
+    cv::CascadeClassifier faceDetector;
+    cv::Ptr<cv::face::Facemark> facemark;
+
+    // Level 1
+    void move_tablet(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
+    void move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
+    double dyn_state = 0;
+    // Level 2
+    struct Person
+    {
+
+    };
+    Person person;
 };
 
 #endif

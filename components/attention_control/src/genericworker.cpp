@@ -24,14 +24,15 @@ GenericWorker::GenericWorker(TuplePrx tprx) : QObject()
 {
 
 	camerargbdsimple_proxy = std::get<0>(tprx);
-	differentialrobot_proxy = std::get<1>(tprx);
-	emotionalmotor_proxy = std::get<2>(tprx);
-	jointmotorsimple_proxy = std::get<3>(tprx);
+	camerasimple_proxy = std::get<1>(tprx);
+	differentialrobot_proxy = std::get<2>(tprx);
+	emotionalmotor_proxy = std::get<3>(tprx);
+	jointmotorsimple_proxy = std::get<4>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 
 	Period = BASIC_PERIOD;
-	//connect(&timer, SIGNAL(timeout()), this, SLOT(compute()));
+	connect(&timer, SIGNAL(timeout()), this, SLOT(compute()));
 
 }
 

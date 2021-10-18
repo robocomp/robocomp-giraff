@@ -32,6 +32,8 @@ Ice.loadSlice("-I ./src/ --all ./src/CommonBehavior.ice")
 import RoboCompCommonBehavior
 Ice.loadSlice("-I ./src/ --all ./src/CameraRGBDSimple.ice")
 import RoboCompCameraRGBDSimple
+Ice.loadSlice("-I ./src/ --all ./src/CameraSimple.ice")
+import RoboCompCameraSimple
 Ice.loadSlice("-I ./src/ --all ./src/GenericBase.ice")
 import RoboCompGenericBase 
 Ice.loadSlice("-I ./src/ --all ./src/JoystickAdapter.ice")
@@ -51,7 +53,8 @@ import RoboCompRSSIStatus
 Ice.loadSlice("-I ./src/ --all ./src/JointMotorSimple.ice")
 import RoboCompJointMotorSimple
 
-import camerargbdsimpleI 
+import camerargbdsimpleI
+import camerasimpleI
 import laserI
 import differentialrobotI
 import joystickadapterI

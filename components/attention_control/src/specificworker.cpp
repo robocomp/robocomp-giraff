@@ -44,8 +44,6 @@ void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
 
-    // HOG
-    hog.setSVMDetector(cv::HOGDescriptor::getDefaultPeopleDetector());
     try{ jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{0.0001, 1 });}  // radians. 0 vertical
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 
@@ -60,6 +58,12 @@ void SpecificWorker::initialize(int period)
     net.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
     net.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
 
+    // Create an instance of Facemark
+    faceDetector.load("/usr/share/opencv4/haarcascades/haarcascade_frontalface_alt2.xml");
+    facemark = cv::face::FacemarkLBF::create();
+    // Load landmark detector
+    facemark->loadModel("opencv_face/lbfmodel.yaml");
+
     connect(&timer, SIGNAL(timeout()), this, SLOT(compute_L1()));
     this->Period = period;
 	if(this->startup_check_flag)
@@ -72,21 +76,28 @@ void SpecificWorker::initialize(int period)
 // THREE LEVELS ARCH. EACH LEVEL IS A STATE MACHINE
 ///////////////////////////////////////////////////
 
+// FIST LEVEL. read sensors and use classifiers to create dynamic control loops
+// that keep perceived objects (person parts) centered (in focus). Output presence state and pose
 void SpecificWorker::compute_L1()
 {
-    // FIST LEVEL. read sensors and use classifiers to create dynamic control loops
-    // that keep perceived objects (person parts) centered (in focus). Output presence state and pose
+    const float XMARK = 10;
+    const float YMARK = 0.7;
+    static int cont = 0;
+    const double k = (exp(-XMARK) + 1) * YMARK;
+    auto integrator = [k](double x){return k/(1.0 + exp(-x));};
+
     const auto &[body_o, face_o] = read_image();
     //move_eyes(); cuando Gerardo monte el interfaz
-    // move_tablet(body_o, face_o);
-    // move_base(body_o, face_o);
+
+    qInfo() << l1_map.at(l1_state) << dyn_state;
     switch(l1_state)
     {
         case L1_State::SEARCHING:
             if(face_o.has_value())
                 l1_state = L1_State::FACE_DETECTED;
-            if(body_o.has_value())
+            else if(body_o.has_value())
                 l1_state = L1_State::BODY_DETECTED;
+            dyn_state = integrator(cont--);
             // rotate to look for the person
             break;
         case L1_State::BODY_DETECTED:
@@ -97,6 +108,7 @@ void SpecificWorker::compute_L1()
             }
             move_tablet(body_o, face_o);
             move_base(body_o, face_o);
+            dyn_state = integrator(cont++);
             break;
         case L1_State::FACE_DETECTED:
             if(not face_o.has_value())
@@ -106,6 +118,7 @@ void SpecificWorker::compute_L1()
             }
             move_tablet(body_o, face_o);
             move_base(body_o, face_o);
+            dyn_state = integrator(cont++);
             break;
         case L1_State::EYES_DETECTED:
             break;
@@ -125,6 +138,14 @@ void SpecificWorker::compute_L2()
     // if it does not match, note as counter evidence
     // it no evidence comes, note as counter evidence
     // if enough counter evidence has accumulated, destroy the representation
+
+    switch (l2_state)
+    {
+        case L2_State::EXPECTING:
+            break;
+        case L2_State::PERSON:
+            break;
+    }
 }
 void SpecificWorker::compute_L3()
 {
@@ -156,16 +177,12 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
 {
     try
     {
-        //RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
-        RoboCompCameraRGBDSimple::TRGBD rgbd = camerargbdsimple_proxy->getAll("camera_tablet");
-        const auto &top_img = rgbd.image;
-        const auto &top_depth = rgbd.depth;
-        const int width = 300;
-        const int height = 300;
-        if (top_img.width != 0 and top_img.height != 0)
+        RoboCompCameraSimple::TImage rgb = camerasimple_proxy->getImage();
+        const int width = rgb.width;
+        const int height = rgb.height;
+        if (rgb.width != 0 and rgb.height != 0)
         {
-            cv::Mat img(top_img.height, top_img.width, CV_8UC3, rgbd.image.image.data());
-            cv::Mat depth(top_depth.height, top_depth.width, CV_32FC1, rgbd.depth.depth.data());
+            cv::Mat img(height, width, CV_8UC3, rgb.image.data());
             cv::Mat n_img;
             cv::resize(img, n_img, cv::Size(width, height));
             DetectRes ret{{},{}};
@@ -177,13 +194,26 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                 auto r = rectangles.front();
                 cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
                 QRect rect = QRect(r.x, r.y, r.width, r.height);
-                float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                std::get<0>(ret) = {(width/2)-rect.center().x(), (height/2)-rect.center().y(), k};
+                //float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
+                float k = 1000;
+                std::get<1>(ret) = {(width/2)-rect.center().x(), (height/2)-rect.center().y(), k};
+
+//                std::vector<cv::Rect> faces;
+//                // Convert frame to grayscale because it requires grayscale image.
+//                cv::Mat gray;
+//                cv::cvtColor(n_img, gray, cv::COLOR_BGR2GRAY);
+//                // Detect faces
+//                faceDetector.detectMultiScale(gray, faces);
+//                // Landmarks for one face is a vector of points
+//                // There can be more than one face in the image. Hence, we use a vector of vector of points.
+//                std::vector< vector<cv::Point2f> > landmarks;
+//                // Run landmark detector
+//                bool success = facemark->fit(n_img,faces,landmarks);
+//                if(success)
+//                    qInfo() << __FUNCTION__ << "Landmarks" << landmarks.size();
             }
             else //body
             {
-//                auto boxes = body_detector.detector(n_img);
-//                qInfo() << __FUNCTION__ << boxes.size();
                 // YOLO
                 auto people = yolo_detector(n_img);
                 if (not people.empty())
@@ -191,8 +221,9 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                     auto r = people.front();
                     cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
                     QRect rect = QRect(r.x, r.y, r.width, r.height);
-                    float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                    std::get<0>(ret) = {(inpWidth / 2) - rect.center().x(), (inpHeight / 2) - rect.center().y(), k};
+                    // float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
+                    float k = 1000;
+                    std::get<0>(ret) = {(width/2) - rect.center().x(), (height/2) - rect.center().y(), k};
                 }
             }
             // ehow image
