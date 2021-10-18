@@ -82,13 +82,11 @@ void SpecificWorker::compute_L1()
     const float XMARK = 10;
     const float YMARK = 0.7;
     static int cont = 0;
-    const double k = (exp(-XMARK) + 1) * YMARK;
-    auto integrator = [k](double x){return k/(1.0 + exp(-x));};
+    const double s = -XMARK/(log(1.0/YMARK - 1.0));
+    auto integrator = [s](double x){return 1.0/(1.0 + exp(-x/s));};
 
     const auto &[body_o, face_o] = read_image();
-	std::cout << "Image" << std::endl;
-    //move_eyes(); cuando Gerardo monte el interfaz
-
+    cont = std::clamp(cont, -20, 20);
     qInfo() << l1_map.at(l1_state) << dyn_state;
     switch(l1_state)
     {
