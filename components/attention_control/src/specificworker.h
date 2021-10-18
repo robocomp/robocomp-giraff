@@ -61,8 +61,8 @@ private:
     enum class State { WAITING, BODY_DETECTED, FACE_DETECTED, READY_TO_INTERACT, INTERACTING, START_FOLLOWING, FOLLOWING, STOP };
     State state = State::WAITING;
 
-    enum class L1_State { SEARCHING, BODY_DETECTED, FACE_DETECTED };
-    L1_State l1_state = State::SEARCHING;
+    enum class L1_State { SEARCHING, BODY_DETECTED, FACE_DETECTED, EYES_DETECTED, HANDS_DETECTED };
+    L1_State l1_state = L1_State::SEARCHING;
 
 	bool startup_check_flag;
     cv::VideoCapture cap;

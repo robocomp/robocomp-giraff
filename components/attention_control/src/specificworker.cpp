@@ -75,7 +75,7 @@ void SpecificWorker::initialize(int period)
 void SpecificWorker::compute_L1()
 {
     // FIST LEVEL. read sensors and use classifiers to create dynamic control loops
-    // that keep perceived objects (person parts) centered (in focus)
+    // that keep perceived objects (person parts) centered (in focus). Output presence state and pose
     const auto &[body_o, face_o] = read_image();
     //move_eyes(); cuando Gerardo monte el interfaz
     // move_tablet(body_o, face_o);
@@ -83,10 +83,11 @@ void SpecificWorker::compute_L1()
     switch(l1_state)
     {
         case L1_State::SEARCHING:
-            if(body_o.has_value())
-                l1_state = L1_State::BODY_DETECTED;
             if(face_o.has_value())
                 l1_state = L1_State::FACE_DETECTED;
+            if(body_o.has_value())
+                l1_state = L1_State::BODY_DETECTED;
+            // rotate to look for the person
             break;
         case L1_State::BODY_DETECTED:
             if(not body_o.has_value())
@@ -106,6 +107,10 @@ void SpecificWorker::compute_L1()
             move_tablet(body_o, face_o);
             move_base(body_o, face_o);
             break;
+        case L1_State::EYES_DETECTED:
+            break;
+        case L1_State::HANDS_DETECTED:
+            break;
     }
 }
 void SpecificWorker::compute_L2()
@@ -113,27 +118,23 @@ void SpecificWorker::compute_L2()
     // SECOND LEVEL: belief function to create and maintain a represented person
     // we need here to create, maintain and destroy (when needed) a "represented person" that exists because
     // enough evidence supports it. We want evidence coming from the control loops, not just the classifiers
-    // The logic here is, when new evidence gets in
-    // if there is no person, create it.
-    // from here, synthesize the evidence that should be coming
-    // if evidence comes, check if it matches. If it does update representation (and dynamic model of it)
+    // The logic here is, when new evidence (presence state and pose) gets in
+    // if there is no person, create it. It must have certain internal structure.
+    // from here, synthesize the evidence that should be coming and is relevant to the task
+    // if evidence comes, check if it matches. If it does, update representation (and dynamic model of it)
     // if it does not match, note as counter evidence
     // it no evidence comes, note as counter evidence
     // if enough counter evidence has accumulated, destroy the representation
 }
 void SpecificWorker::compute_L3()
 {
-    // THIRD LEVEL.  Control program to decide what to do next based on the represented person
+// THIRD LEVEL.  Mission specific control program to decide what to do next based on the represented person
 //    switch(state)
 //    {
 //        case State::WAITING:
-//            // if person detected move to BODY_DETECTED
+//            // if person detected move to PERSON_DETECTED
 //            break;
-//        case State::BODY_DETECTED:
-//            // while approaching and until face is visible. Then FACE_DETECTED
-//            break;
-//        case State::FACE_DETECTED:
-//            // wait until close enough and stable
+//        case State::PERSON_DETECTED:
 //            break;
 //        case State::READY_TO_INTERACT:
 //            // Wait for a signal or order and move to FOLLOW
