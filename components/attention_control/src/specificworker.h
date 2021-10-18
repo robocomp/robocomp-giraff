@@ -103,6 +103,8 @@ private:
 
     };
     Person person;
+
+    void move_eyes(optional<tuple<int, int, int>> face_o);
 };
 
 #endif

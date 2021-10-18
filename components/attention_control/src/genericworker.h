@@ -35,9 +35,7 @@
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
 
-
 using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompCameraSimple::CameraSimplePrxPtr,RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompEmotionalMotor::EmotionalMotorPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr>;
-
 
 class GenericWorker : public QObject
 {
@@ -50,7 +48,6 @@ public:
 
 	virtual bool setParams(RoboCompCommonBehavior::ParameterList params) = 0;
 	QMutex *mutex;
-
 
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompCameraSimple::CameraSimplePrxPtr camerasimple_proxy;

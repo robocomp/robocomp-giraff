@@ -22,6 +22,7 @@
 #include <cppitertools/zip.hpp>
 #include <cppitertools/range.hpp>
 #include <cppitertools/sliding_window.hpp>
+#include <unordered_map>
 
 /**
 * \brief Default constructor
@@ -137,6 +138,7 @@ void SpecificWorker::initialize(int period)
         else
         {
             std::cout << "Controller-DSR terminate: could not find a camera node named " << giraff_camera_usb_name << std::endl;
+
             std::terminate();
         }
 
@@ -148,6 +150,7 @@ void SpecificWorker::initialize(int period)
         {
             auto width = G->get_attrib_by_name<width_att>(robot_body.value());
             auto height = G->get_attrib_by_name<depth_att>(robot_body.value());
+            cout << "Width " << width.value() << " height " << height.value() << endl;
             if (width.has_value() and height.has_value())
             {
                 robot_polygon << QPointF(-width.value() / 2, -height.value() / 2)
@@ -193,14 +196,6 @@ void SpecificWorker::compute()
         custom_widget.textedit_current_plan->appendPlainText("-> compute: initiating plan " + current_plan.get_action());
         current_plan.set_running();
     }
-    if(current_plan.is_running())
-    {
-        //if( auto path = path_buffer.try_get(); path.has_value())
-        qInfo() << __FUNCTION__ << " Plan is running...";
-    }
-    else
-    { // there should be a plan after a few seconds
-    }
 
     auto robot_pos = inner_eigen->transform(world_name, robot_name).value();
     float coordX = point_dialog.goto_spinbox_coordX->value();
@@ -210,14 +205,24 @@ void SpecificWorker::compute()
     float adv = G->get_attrib_by_name<robot_ref_adv_speed_att>(robot_node.value()).value_or(0);
     float rot = G->get_attrib_by_name<robot_ref_rot_speed_att>(robot_node.value()).value_or(0);
 
-    if (current_plan.is_running()) {
-        float mod = sqrt(pow((coordX - robot_pos.x()), 2) + pow((coordY - robot_pos.y()), 2));
+    if (current_plan.is_running())
+    {
+        qInfo() << __FUNCTION__ << " Plan is running...";
 
-        if (mod < umbral && (adv == 0.0 && rot == 0.0)) {
-            current_plan.is_finished();
-            slot_stop_mission();
-            qInfo() << __FUNCTION__ << " Plan finished!";
+        if (current_plan.get_action() == "GOTO")
+        {
+            float mod = sqrt(pow((coordX - robot_pos.x()), 2) + pow((coordY - robot_pos.y()), 2));
+            if (mod < umbral && (adv == 0.0 && rot == 0.0))
+            {
+                current_plan.is_finished();
+                slot_stop_mission();
+                qInfo() << __FUNCTION__ << " Plan finished!";
+            }
         }
+    }
+
+    else
+    { // there should be a plan after a few seconds
     }
 
 
@@ -624,7 +629,6 @@ void SpecificWorker::slot_stop_mission()
     std::vector<Eigen::Vector2f> fake_path;
     draw_path(fake_path, &widget_2d->scene, true); // just remove
     draw_path(fake_path, &pathfollow_draw_widget->scene, true); // just remove
-
 }
 
 void SpecificWorker::slot_cancel_mission()
@@ -655,12 +659,23 @@ void SpecificWorker::slot_change_mission_selector(int index)
 /////////////////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScene* viewer_2d, bool remove)
 {
-    static std::vector<QGraphicsLineItem *> scene_road_points;
+    //static std::vector<QGraphicsLineItem *> scene_road_points;
+    static std::unordered_map<QGraphicsScene *, std::vector<QGraphicsLineItem *> *> scene_road_points_map;
+    std::vector<QGraphicsLineItem *> *scene_road_points;
+
+    if (scene_road_points_map.contains(viewer_2d))
+        scene_road_points = scene_road_points_map[viewer_2d];
+    else
+        scene_road_points = new std::vector<QGraphicsLineItem *>();
+
+    scene_road_points_map[viewer_2d] = scene_road_points;
 
     //clear previous points
-    for (QGraphicsLineItem* item : scene_road_points)
+    //for (QGraphicsLineItem* item : scene_road_points)
+    for (QGraphicsLineItem* item : *scene_road_points)
         viewer_2d->removeItem((QGraphicsItem *) item);
-    scene_road_points.clear();
+    //scene_road_points.clear();
+    scene_road_points->clear();
 
     if(remove) return;      // Just clear the path
 
@@ -690,8 +705,10 @@ void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScen
             line2 = viewer_2d->addLine(qsegment_perp, QPen(QBrush(QColor(QString::fromStdString("#F0FF00"))), 20));
             line1->setZValue(2000);
             line2->setZValue(2000);
-            scene_road_points.push_back(line1);
-            scene_road_points.push_back(line2);
+//            scene_road_points.push_back(line1);
+//            scene_road_points.push_back(line2);
+            scene_road_points->push_back(line1);
+            scene_road_points->push_back(line2);
         }
 }
 void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds)   //adv, rot, side

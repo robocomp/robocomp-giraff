@@ -46,7 +46,6 @@ void SpecificWorker::initialize(int period)
 
     try{ jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{0.0001, 1 });}  // radians. 0 vertical
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
-
     // Load YOLO network
     std::string modelConfiguration = "yolov3/yolov3.cfg";  //yolov4 is not supported in this version of OPenCV
     std::string modelWeights = "yolov3/yolov3.weights";
@@ -58,11 +57,11 @@ void SpecificWorker::initialize(int period)
     net.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
     net.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
 
-    // Create an instance of Facemark
-    faceDetector.load("/usr/share/opencv4/haarcascades/haarcascade_frontalface_alt2.xml");
-    facemark = cv::face::FacemarkLBF::create();
-    // Load landmark detector
-    facemark->loadModel("opencv_face/lbfmodel.yaml");
+//    // Create an instance of Facemark
+//    faceDetector.load("/usr/share/opencv4/haarcascades/haarcascade_frontalface_alt2.xml");
+//    facemark = cv::face::FacemarkLBF::create();
+//    // Load landmark detector
+//    facemark->loadModel("opencv_face/lbfmodel.yaml");
 
     connect(&timer, SIGNAL(timeout()), this, SLOT(compute_L1()));
     this->Period = period;
@@ -87,6 +86,7 @@ void SpecificWorker::compute_L1()
     auto integrator = [k](double x){return k/(1.0 + exp(-x));};
 
     const auto &[body_o, face_o] = read_image();
+	std::cout << "Image" << std::endl;
     //move_eyes(); cuando Gerardo monte el interfaz
 
     qInfo() << l1_map.at(l1_state) << dyn_state;
@@ -119,7 +119,7 @@ void SpecificWorker::compute_L1()
             move_tablet(body_o, face_o);
             move_base(body_o, face_o);
             dyn_state = integrator(cont++);
-            break;
+			break;
         case L1_State::EYES_DETECTED:
             break;
         case L1_State::HANDS_DETECTED:
@@ -191,6 +191,7 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
             auto rectangles = face_detector.detect_face_rectangles(n_img);
             if (not rectangles.empty())
             {
+				std::cout << "if" << std::endl;
                 auto r = rectangles.front();
                 cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
                 QRect rect = QRect(r.x, r.y, r.width, r.height);
@@ -282,6 +283,22 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, st
     }
     try { differentialrobot_proxy->setSpeedBase(advance, gain * rot); }
     catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+}
+void SpecificWorker::move_eyes(std::optional<std::tuple<int,int,int>> face_o)
+{
+    if( face_o.has_value())
+    {
+		emotionalmotor_proxy->isanybodythere(true);
+        auto [face_x_error, face_y_error, __] = face_o.value();
+        const float delta = 0.1;
+        const float tilt_x = (delta / 10) * face_x_error;  // map from -100,100 to -0.1,0.1 rads
+		const float tilt_y = (delta / 10) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
+		cout << tilt_x << std::endl;
+		cout << tilt_y << std::endl;
+        //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
+        try { emotionalmotor_proxy->pupposition(tilt_x,tilt_y); }  // radians. 0 vertical
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
 }
 std::vector<cv::Rect> SpecificWorker::yolo_detector(cv::Mat &frame)
 {
@@ -408,3 +425,52 @@ int SpecificWorker::startup_check()
 // cv::Mat n_img_bw;
 // cv::cvtColor(n_img, n_img_bw, cv::COLOR_BGR2GRAY);
 // hog.detectMultiScale(n_img_bw, found, weights);
+
+
+/**************************************/
+// From the RoboCompCameraSimple you can call this methods:
+// this->camerasimple_proxy->getImage(...)
+
+/**************************************/
+// From the RoboCompCameraSimple you can use this types:
+// RoboCompCameraSimple::TImage
+
+/**************************************/
+// From the RoboCompDifferentialRobot you can call this methods:
+// this->differentialrobot_proxy->correctOdometer(...)
+// this->differentialrobot_proxy->getBasePose(...)
+// this->differentialrobot_proxy->getBaseState(...)
+// this->differentialrobot_proxy->resetOdometer(...)
+// this->differentialrobot_proxy->setOdometer(...)
+// this->differentialrobot_proxy->setOdometerPose(...)
+// this->differentialrobot_proxy->setSpeedBase(...)
+// this->differentialrobot_proxy->stopBase(...)
+
+/**************************************/
+// From the RoboCompDifferentialRobot you can use this types:
+// RoboCompDifferentialRobot::TMechParams
+
+/**************************************/
+// From the RoboCompEmotionalMotor you can call this methods:
+// this->emotionalmotor_proxy->expressAnger(...)
+// this->emotionalmotor_proxy->expressDisgust(...)
+// this->emotionalmotor_proxy->expressFear(...)
+// this->emotionalmotor_proxy->expressJoy(...)
+// this->emotionalmotor_proxy->expressSadness(...)
+// this->emotionalmotor_proxy->expressSurprise(...)
+
+/**************************************/
+// From the RoboCompJointMotorSimple you can call this methods:
+// this->jointmotorsimple_proxy->getMotorParams(...)
+// this->jointmotorsimple_proxy->getMotorState(...)
+// this->jointmotorsimple_proxy->setPosition(...)
+// this->jointmotorsimple_proxy->setVelocity(...)
+// this->jointmotorsimple_proxy->setZeroPos(...)
+
+/**************************************/
+// From the RoboCompJointMotorSimple you can use this types:
+// RoboCompJointMotorSimple::MotorState
+// RoboCompJointMotorSimple::MotorParams
+// RoboCompJointMotorSimple::MotorGoalPosition
+// RoboCompJointMotorSimple::MotorGoalVelocity
+
