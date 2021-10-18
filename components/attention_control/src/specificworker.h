@@ -67,7 +67,7 @@ private:
 	bool startup_check_flag;
     cv::VideoCapture cap;
     FaceDetector face_detector;
-    BodyDetector body_detector;
+    //BodyDetector body_detector;
     cv::HOGDescriptor hog;
     cv::dnn::Net net;
 
