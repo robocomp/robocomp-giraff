@@ -160,15 +160,29 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
     {
         //RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
         RoboCompCameraSimple::TImage rgbd = camerasimple_proxy->getImage();
+
         // const auto &top_img = rgbd.image;
         // const auto &top_depth = rgbd.depth;
         const int width = 300;
         const int height = 300;
         if (rgbd.width != 0 and rgbd.height != 0)
         {
-            cv::Mat img(cv::Size(rgbd.width, rgbd.height), CV_8UC3, &rgbd.image[0], cv::Mat::AUTO_STEP);
+            // cv::Mat img(rgbd.width, rgbd.height, CV_8UC3, &rgbd.image[0], cv::Mat::AUTO_STEP);
+            cv::Mat img(rgbd.width, rgbd.height, CV_8UC3, &rgbd.image[0]);
             // cv::Mat depth(top_depth.height, top_depth.width, CV_32FC1, rgbd.depth.depth.data());
+            cout << img.at<double>(0,0) << endl;
+            // for(int  i= 0;i < img.rows-1;i++)
+            // {
+            //     for(int j = 0;j < img.cols-1;j++){
+            //         cout << "Row: " << i << " " << "Column: " << j << " :: " << img.at<double>(i,j) << endl;
+            //     }
+            // }
+
             cv::Mat n_img;
+                //pruebas de bucles desde 0 hasta h y w
+            cout << "Height: " << img.size().height << " Width: " << img.size().width<<endl;
+            cv::imshow("Camera tablet antes", img);
+
             cv::resize(img, n_img, cv::Size(width, height));
             DetectRes ret{{},{}};
 
