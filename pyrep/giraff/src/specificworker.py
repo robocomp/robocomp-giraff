@@ -59,6 +59,9 @@ class SpecificWorker(GenericWorker):
 
     def setParams(self, params):
         SCENE_FILE = params["scene_file"]
+        self.WITH_BILL = False
+        if "bill" in SCENE_FILE:
+            self.WITH_BILL = True
 
         self.pr = PyRep()
         self.pr.launch(SCENE_FILE, headless=False)
@@ -154,6 +157,7 @@ class SpecificWorker(GenericWorker):
         # Tablet tilt motor
         self.tablet_motor = Joint("tablet_joint")
         self.tablet_new_pos = None
+
 
     def compute(self):
         tc = TimeControl(0.05)
@@ -259,16 +263,17 @@ class SpecificWorker(GenericWorker):
 
             converted = self.convert_base_speed_to_motors_speed(adv, rot)
             # move Bill
-            if bill_advance > 0:
-                self.pr.script_call("walk_straight@Bill", 1)
-            elif bill_advance < 0:
-                self.pr.script_call("walk_straight_backwards@Bill", 1)
-            else:
-                self.pr.script_call("stop@Bill", 1)
-            if bill_rotate > 0:
-                self.pr.script_call("walk_left@Bill", 1)
-            elif bill_rotate < 0:
-                self.pr.script_call("walk_right@Bill", 1)
+            if self.WITH_BILL:
+                if bill_advance > 0:
+                    self.pr.script_call("walk_straight@Bill", 1)
+                elif bill_advance < 0:
+                    self.pr.script_call("walk_straight_backwards@Bill", 1)
+                else:
+                    self.pr.script_call("stop@Bill", 1)
+                if bill_rotate > 0:
+                    self.pr.script_call("walk_left@Bill", 1)
+                elif bill_rotate < 0:
+                    self.pr.script_call("walk_right@Bill", 1)
 
             #print("Joystick ", [adv, rot], converted)
             self.joystick_newdata = None
