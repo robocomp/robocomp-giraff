@@ -2,7 +2,6 @@ import "DifferentialRobot.idsl";
 import "CameraSimple.idsl";
 import "EmotionalMotor.idsl";
 import "JointMotorSimple.idsl";
-import "CameraSimple.idsl";
 
 Component attention_control
 {
