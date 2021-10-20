@@ -204,7 +204,7 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                 cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
                 QRect rect = QRect(r.x, r.y, r.width, r.height);
                 //float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                float k = 1000;
+                float k = 0;
                 std::get<1>(ret) = {(width/2)-rect.center().x(), (height/2)-rect.center().y(), k};
 
 //                std::vector<cv::Rect> faces;
@@ -231,7 +231,7 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                     cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
                     QRect rect = QRect(r.x, r.y, r.width, r.height);
                     // float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                    float k = 1000;
+                    float k = 0;
                     std::get<0>(ret) = {(width/2) - rect.center().x(), (height/2) - rect.center().y(), k};
                 }
             }
