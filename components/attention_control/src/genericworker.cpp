@@ -22,11 +22,11 @@
 */
 GenericWorker::GenericWorker(TuplePrx tprx) : QObject()
 {
-
-	camerasimple_proxy = std::get<0>(tprx);
-	differentialrobot_proxy = std::get<1>(tprx);
-	emotionalmotor_proxy = std::get<2>(tprx);
-	jointmotorsimple_proxy = std::get<3>(tprx);
+	camerargbdsimple_proxy = std::get<0>(tprx);
+	camerasimple_proxy = std::get<1>(tprx);
+	differentialrobot_proxy = std::get<2>(tprx);
+	emotionalmotor_proxy = std::get<3>(tprx);
+	jointmotorsimple_proxy = std::get<4>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 

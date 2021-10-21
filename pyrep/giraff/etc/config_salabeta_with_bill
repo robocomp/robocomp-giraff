@@ -7,6 +7,8 @@ FullPoseEstimation.Endpoints=tcp -p 10696
 BatteryStatus.Endpoints=tcp -p 10050
 RSSIStatus.Endpoints=tcp -p 10060
 JointMotorSimple.Endpoints=tcp -p 10086
+CameraSimple.Endpoints=tcp -p 10005
+
 
 # Endpoints for subscriptions interfaces
 JoystickAdapterTopic.Endpoints=tcp -p 13100

@@ -1,11 +1,13 @@
 CommonBehavior.Endpoints=tcp -p 17000
 # Proxies for required interfaces
 
-CameraSimpleProxy = camerasimple:tcp -h localhost -p 11060
-DifferentialRobotProxy = differentialrobot:tcp -h localhost -p 10004
-EmotionalMotorProxy = emotionalmotor:tcp -h localhost -p 10945
-JointMotorSimpleProxy = jointmotorsimple:tcp -h localhost -p 10009
+CameraRGBDSimpleProxy = camerargbdsimple:tcp -p 10095
+DifferentialRobotProxy = differentialrobot:tcp -p 10004
+EmotionalMotorProxy = emotionalmotor:tcp -p 10945
+JointMotorSimpleProxy = jointmotorsimple:tcp -h localhost -p 10086
+CameraSimpleProxy = camerasimple:tcp -p 11060
 
+inverted_tilt = true # if true works in real world
 
 Ice.Warn.Connections=0
 Ice.Trace.Network=0

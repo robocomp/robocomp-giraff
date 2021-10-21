@@ -37,6 +37,14 @@ SpecificWorker::~SpecificWorker()
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
+    try
+	{
+		RoboCompCommonBehavior::Parameter par = params.at("inverted_tilt");
+	    if(par.value == "true" or par.value == "True")
+            inverted_tilt = -1;
+        else inverted_tilt = 1;
+	}
+	catch(const std::exception &e) { qFatal("Error reading config params"); }
 	return true;
 }
 
@@ -44,8 +52,6 @@ void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
 
-    // HOG
-    hog.setSVMDetector(cv::HOGDescriptor::getDefaultPeopleDetector());
     try{ jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{0.0001, 1 });}  // radians. 0 vertical
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
     // Load YOLO network
@@ -58,6 +64,13 @@ void SpecificWorker::initialize(int period)
     net = cv::dnn::readNetFromDarknet(modelConfiguration, modelWeights);
     net.setPreferableBackend(cv::dnn::DNN_BACKEND_CUDA);
     net.setPreferableTarget(cv::dnn::DNN_TARGET_CUDA);
+
+//    // Create an instance of Facemark
+//    faceDetector.load("/usr/share/opencv4/haarcascades/haarcascade_frontalface_alt2.xml");
+//    facemark = cv::face::FacemarkLBF::create();
+//    // Load landmark detector
+//    facemark->loadModel("opencv_face/lbfmodel.yaml");
+
     connect(&timer, SIGNAL(timeout()), this, SLOT(compute_L1()));
     this->Period = period;
 	if(this->startup_check_flag)
@@ -70,44 +83,56 @@ void SpecificWorker::initialize(int period)
 // THREE LEVELS ARCH. EACH LEVEL IS A STATE MACHINE
 ///////////////////////////////////////////////////
 
+// FIST LEVEL. read sensors and use classifiers to create dynamic control loops
+// that keep perceived objects (person parts) centered (in focus). Output presence state and pose
 void SpecificWorker::compute_L1()
 {
-	std::cout << "compute_L1" << std::endl;
-    // FIST LEVEL. read sensors and use classifiers to create dynamic control loops
-    // that keep perceived objects (person parts) centered (in focus). Output presence state and pose
+    const float XMARK = 10;  // number or hits before getting 0.7
+    const float YMARK = 0.7; // threshold value for next level
+    static int cont = 0;
+    const double s = -XMARK/(log(1.0/YMARK - 1.0));
+    auto integrator = [s](double x){return 1.0/(1.0 + exp(-x/s));};
+
     const auto &[body_o, face_o] = read_image();
-	std::cout << "Image" << std::endl;
-    //move_eyes(); cuando Gerardo monte el interfaz
-    // move_tablet(body_o, face_o);
-    // move_base(body_o, face_o);
+    cont = std::clamp(cont, -20, 20);
+    qInfo() << l1_map.at(l1_state) << dyn_state;
     switch(l1_state)
     {
         case L1_State::SEARCHING:
             if(face_o.has_value())
                 l1_state = L1_State::FACE_DETECTED;
-            if(body_o.has_value())
+            else if(body_o.has_value())
                 l1_state = L1_State::BODY_DETECTED;
+            dyn_state = integrator(cont--);
             // rotate to look for the person
             break;
+    
         case L1_State::BODY_DETECTED:
             if(not body_o.has_value())
             {
+                // emotionalmotor_proxy->isanybodythere(false);
                 l1_state = L1_State::SEARCHING;
                 return;
             }
+            // emotionalmotor_proxy->isanybodythere(true);
             move_tablet(body_o, face_o);
-            move_base(body_o, face_o);
+            //move_base(body_o, face_o);
+            dyn_state = integrator(cont++);
             break;
         case L1_State::FACE_DETECTED:
             if(not face_o.has_value())
             {
+                emotionalmotor_proxy->isanybodythere(false);
                 l1_state = L1_State::SEARCHING;
+                
                 return;
             }
+            emotionalmotor_proxy->isanybodythere(true);
             move_tablet(body_o, face_o);
             move_base(body_o, face_o);
-			move_eyes(face_o);
-            break;
+            move_eyes(face_o);
+            dyn_state = integrator(cont++);
+			break;
         case L1_State::EYES_DETECTED:
             break;
         case L1_State::HANDS_DETECTED:
@@ -126,6 +151,27 @@ void SpecificWorker::compute_L2()
     // if it does not match, note as counter evidence
     // it no evidence comes, note as counter evidence
     // if enough counter evidence has accumulated, destroy the representation
+
+    switch (l2_state)
+    {
+        case L2_State::EXPECTING:
+            if(dyn_state > 0.7)
+            {
+                // create person
+                l2_state = L2_State::PERSON;
+            }
+            break;
+        case L2_State::PERSON:
+            if(dyn_state < 0.7)
+            {
+                // delete person. Maybe push into memory
+                l2_state = L2_State::EXPECTING;
+            }
+            // update person
+            // project where person is going to be
+            // plan perception annd send downwards anticipated proposal
+            break;
+    }
 }
 void SpecificWorker::compute_L3()
 {
@@ -155,35 +201,30 @@ void SpecificWorker::compute(){};
 ////////////////////////////////////////////////////////////////////
 SpecificWorker::DetectRes SpecificWorker::read_image()
 {
-
     try
     {
         //RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
-        RoboCompCameraSimple::TImage rgbd = camerasimple_proxy->getImage();
+        RoboCompCameraSimple::TImage rgb = camerasimple_proxy->getImage();
 
         // const auto &top_img = rgbd.image;
         // const auto &top_depth = rgbd.depth;
         const int width = 300;
         const int height = 300;
-        if (rgbd.width != 0 and rgbd.height != 0)
+        if (rgb.width != 0 and rgb.height != 0)
         {
-            // cv::Mat img(rgbd.width, rgbd.height, CV_8UC3, &rgbd.image[0], cv::Mat::AUTO_STEP);
-            cv::Mat img(rgbd.width, rgbd.height, CV_8UC3, &rgbd.image[0]);
-            // cv::Mat depth(top_depth.height, top_depth.width, CV_32FC1, rgbd.depth.depth.data());
-            cout << img.at<double>(0,0) << endl;
-            // for(int  i= 0;i < img.rows-1;i++)
-            // {
-            //     for(int j = 0;j < img.cols-1;j++){
-            //         cout << "Row: " << i << " " << "Column: " << j << " :: " << img.at<double>(i,j) << endl;
-            //     }
-            // }
+            cv::Mat img;
+            if (rgb.compressed)
+            {
+                auto img_uncomp = cv::imdecode(rgb.image, -1);
+                img = cv::Mat(rgb.height, rgb.width, CV_8UC3, &img_uncomp.data);
 
+            }
+            else 
+                img = cv::Mat(rgb.height, rgb.width, CV_8UC3, &rgb.image[0]);
+            
             cv::Mat n_img;
-                //pruebas de bucles desde 0 hasta h y w
-            cout << "Height: " << img.size().height << " Width: " << img.size().width<<endl;
-            cv::imshow("Camera tablet antes", img);
-
             cv::resize(img, n_img, cv::Size(width, height));
+
             DetectRes ret{{},{}};
 
             // face
@@ -194,14 +235,26 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                 auto r = rectangles.front();
                 cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
                 QRect rect = QRect(r.x, r.y, r.width, r.height);
-                // float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                // std::get<0>(ret) = {(width/2)-rect.center().x(), (height/2)-rect.center().y(), k};
+                //float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
+                float k = 0;
+                std::get<1>(ret) = {(width/2)-rect.center().x(), (height/2)-rect.center().y(), k};
+
+//                std::vector<cv::Rect> faces;
+//                // Convert frame to grayscale because it requires grayscale image.
+//                cv::Mat gray;
+//                cv::cvtColor(n_img, gray, cv::COLOR_BGR2GRAY);
+//                // Detect faces
+//                faceDetector.detectMultiScale(gray, faces);
+//                // Landmarks for one face is a vector of points
+//                // There can be more than one face in the image. Hence, we use a vector of vector of points.
+//                std::vector< vector<cv::Point2f> > landmarks;
+//                // Run landmark detector
+//                bool success = facemark->fit(n_img,faces,landmarks);
+//                if(success)
+//                    qInfo() << __FUNCTION__ << "Landmarks" << landmarks.size();
             }
             else //body
             {
-				std::cout << "else" << std::endl;
-//                auto boxes = body_detector.detector(n_img);
-//                qInfo() << __FUNCTION__ << boxes.size();
                 // YOLO
                 auto people = yolo_detector(n_img);
                 if (not people.empty())
@@ -210,10 +263,12 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                     cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
                     QRect rect = QRect(r.x, r.y, r.width, r.height);
                     // float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                    // std::get<0>(ret) = {(inpWidth / 2) - rect.center().x(), (inpHeight / 2) - rect.center().y(), k};
+                    float k = 0;
+                    std::get<0>(ret) = {(width/2) - rect.center().x(), (height/2) - rect.center().y(), k};
+                    
                 }
             }
-            // ehow image
+            // show image
             cv::cvtColor(n_img, n_img, cv::COLOR_BGR2RGB);
             cv::imshow("Camera tablet", n_img);
             cv::waitKey(1);
@@ -230,17 +285,17 @@ void SpecificWorker::move_tablet(std::optional<std::tuple<int,int,int>> body_o, 
     {
         auto [_, body_y_error, __] = body_o.value();
         const float delta = 0.1;
-        float tilt = (delta / 100) * body_y_error;  // map from -100,100 to -0.1,0.1 rads
+        float tilt = inverted_tilt * (delta / 100) * body_y_error;  // map from -100,100 to -0.1,0.1 rads
         auto pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
         //qInfo() << __FUNCTION__ << "BODY: pos" << pos << "error" << body_y_error << "tilt" << tilt << pos - tilt;
         try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
-        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+        catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to join motor " << std::endl; }
     }
     else if( face_o.has_value())
     {
         auto [_, face_y_error, __] = face_o.value();
         const float delta = 0.1;
-        const float tilt = (delta / 100) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
+        const float tilt = inverted_tilt * (delta / 100) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
         const float pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
         //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
         try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
@@ -250,8 +305,8 @@ void SpecificWorker::move_tablet(std::optional<std::tuple<int,int,int>> body_o, 
 void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o)
 {
     // rotate base
-    const float gain = 0.5;
-    float advance = 0;
+    const float gain = 0.1;
+    float advance = 0.0;
     float rot = 0.0;
     if(body_o.has_value())
     {
@@ -274,11 +329,11 @@ void SpecificWorker::move_eyes(std::optional<std::tuple<int,int,int>> face_o)
 {
     if( face_o.has_value())
     {
-		emotionalmotor_proxy->isanybodythere(true);
+		
         auto [face_x_error, face_y_error, __] = face_o.value();
         const float delta = 0.1;
         const float tilt_x = (delta / 10) * face_x_error;  // map from -100,100 to -0.1,0.1 rads
-		const float tilt_y = (delta / 10) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
+		const float tilt_y = -(delta / 10) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
 		cout << tilt_x << std::endl;
 		cout << tilt_y << std::endl;
         //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
@@ -309,7 +364,8 @@ std::vector<cv::Rect> SpecificWorker::yolo_detector(cv::Mat &frame)
             double confidence;
             // Get the value and location of the maximum score
             minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
-            if (confidence > confThreshold)
+        
+            if (confidence > confThreshold and classes[classIdPoint.x] == "person")
             {
                 int centerX = (int)(data[0] * frame.cols);
                 int centerY = (int)(data[1] * frame.rows);
@@ -320,6 +376,8 @@ std::vector<cv::Rect> SpecificWorker::yolo_detector(cv::Mat &frame)
                 classIds.push_back(classIdPoint.x);
                 confidences.push_back((float)confidence);
                 boxes.push_back(cv::Rect(left, top, width, height));
+                cout << " // " << classes[classIdPoint.x] << endl;
+                
             }
         }
     }

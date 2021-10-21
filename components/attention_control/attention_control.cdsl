@@ -7,7 +7,7 @@ Component attention_control
 {
     Communications
     {
-        requires DifferentialRobot, CameraSimple, EmotionalMotor, JointMotorSimple;
+        requires DifferentialRobot, CameraRGBDSimple, EmotionalMotor, JointMotorSimple, CameraSimple;
     };
     language Cpp11;
 };

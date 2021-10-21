@@ -58,8 +58,10 @@ class SpecificWorker(GenericWorker):
         print('SpecificWorker destructor')
 
     def setParams(self, params):
-        #SCENE_FILE = '../../etc/corralgiraff.ttt'
         SCENE_FILE = params["scene_file"]
+        self.WITH_BILL = False
+        if "bill" in SCENE_FILE:
+            self.WITH_BILL = True
 
         self.pr = PyRep()
         self.pr.launch(SCENE_FILE, headless=False)
@@ -90,7 +92,8 @@ class SpecificWorker(GenericWorker):
                                                          np.radians(cam.get_perspective_angle() / 2)),
                                                         "rgb": np.array(0),
                                                         "depth": np.ndarray(0),
-                                                        "is_ready": False
+                                                        "is_ready": False,
+                                                        "is_rgbd": False
                                                     }
 
         self.top_camera_name = "camera_top"
@@ -104,7 +107,8 @@ class SpecificWorker(GenericWorker):
                                                         np.radians(cam.get_perspective_angle() / 2)),
                                                      "rgb": np.array(0),
                                                      "depth": np.ndarray(0),
-                                                     "is_ready": False
+                                                     "is_ready": False,
+                                                     "is_rgbd": True
                                                     }
         self.cameras_read = self.cameras_write.copy()
 
@@ -154,12 +158,13 @@ class SpecificWorker(GenericWorker):
         self.tablet_motor = Joint("tablet_joint")
         self.tablet_new_pos = None
 
+
     def compute(self):
         tc = TimeControl(0.05)
         while True:
             self.pr.step()
             self.read_laser()
-            self.read_cameras([self.tablet_camera_name])
+            self.read_cameras([self.tablet_camera_name, self.top_camera_name])
             self.read_joystick()
             self.read_robot_pose()
             self.move_robot()
@@ -215,18 +220,22 @@ class SpecificWorker(GenericWorker):
         for camera_name in camera_names:
             cam = self.cameras_write[camera_name]
             image_float = cam["handle"].capture_rgb()
-            depth = cam["handle"].capture_depth(True)
             image = cv2.normalize(src=image_float, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
                                   dtype=cv2.CV_8U)
-            #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-            cam["rgb"] = RoboCompCameraRGBDSimple.TImage(cameraID=cam["id"], width=cam["width"], height=cam["height"],
-                                                         depth=3, focalx=cam["focal"], focaly=cam["focal"],
-                                                         alivetime=time.time(), image=image.tobytes())
-            cam["depth"] = RoboCompCameraRGBDSimple.TDepth(cameraID=cam["id"], width=cam["handle"].get_resolution()[0],
-                                                           height=cam["handle"].get_resolution()[1],
-                                                           focalx=cam["focal"], focaly=cam["focal"],
-                                                           alivetime=time.time(), depthFactor=1.0,
-                                                           depth=depth.tobytes())
+            if cam["is_rgbd"]:
+                depth = cam["handle"].capture_depth(True)
+                #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                cam["depth"] = RoboCompCameraRGBDSimple.TDepth(cameraID=cam["id"], width=cam["handle"].get_resolution()[0],
+                                                              height=cam["handle"].get_resolution()[1],
+                                                              focalx=cam["focal"], focaly=cam["focal"],
+                                                              alivetime=time.time(), depthFactor=1.0,
+                                                              depth=depth.tobytes())
+                cam["rgb"] = RoboCompCameraRGBDSimple.TImage(cameraID=cam["id"], width=cam["width"], height=cam["height"],
+                                                              depth=3, focalx=cam["focal"], focaly=cam["focal"],
+                                                              alivetime=time.time(), image=image.tobytes())
+            else:
+                cam["rgb"] = RoboCompCameraSimple.TImage(width=cam["width"], height=cam["height"],
+                                                              depth=3, image=image.tobytes(), compressed=False)
             cam["is_ready"] = True
 
         self.cameras_write, self.cameras_read = self.cameras_read, self.cameras_write
@@ -254,16 +263,17 @@ class SpecificWorker(GenericWorker):
 
             converted = self.convert_base_speed_to_motors_speed(adv, rot)
             # move Bill
-            if bill_advance > 0:
-                self.pr.script_call("walk_straight@Bill", 1)
-            elif bill_advance < 0:
-                self.pr.script_call("walk_straight_backwards@Bill", 1)
-            else:
-                self.pr.script_call("stop@Bill", 1)
-            if bill_rotate > 0:
-                self.pr.script_call("walk_left@Bill", 1)
-            elif bill_rotate < 0:
-                self.pr.script_call("walk_right@Bill", 1)
+            if self.WITH_BILL:
+                if bill_advance > 0:
+                    self.pr.script_call("walk_straight@Bill", 1)
+                elif bill_advance < 0:
+                    self.pr.script_call("walk_straight_backwards@Bill", 1)
+                else:
+                    self.pr.script_call("stop@Bill", 1)
+                if bill_rotate > 0:
+                    self.pr.script_call("walk_left@Bill", 1)
+                elif bill_rotate < 0:
+                    self.pr.script_call("walk_right@Bill", 1)
 
             #print("Joystick ", [adv, rot], converted)
             self.joystick_newdata = None
@@ -351,22 +361,26 @@ class SpecificWorker(GenericWorker):
     # getAll
     #
     def CameraRGBDSimple_getAll(self, camera):
-        if camera in self.cameras_read.keys() and self.cameras_read[camera]["is_ready"]:
+        if camera in self.cameras_read.keys() \
+                and self.cameras_read[camera]["is_ready"] \
+                and self.cameras_real[camera]["has_depth"]:
             return RoboCompCameraRGBDSimple.TRGBD(self.cameras_read[camera]["rgb"], self.cameras_read[camera]["depth"])
         else:
             e = RoboCompCameraRGBDSimple.HardwareFailedException()
-            e.what = "No camera found with this name: " + camera
+            e.what = "No camera found with this name or with depth attributes: " + camera
             raise e
 
     #
     # getDepth
     #
     def CameraRGBDSimple_getDepth(self, camera):
-        if camera in self.cameras_read.keys() and self.cameras_read[camera]["is_ready"]:
+        if camera in self.cameras_read.keys() \
+                and self.cameras_read[camera]["is_ready"] \
+                and self.cameras_real[camera]["has_depth"]:
             return self.cameras_read[camera]["depth"]
         else:
             e = RoboCompCameraRGBDSimple.HardwareFailedException()
-            e.what = "No camera found with this name: " + camera
+            e.what = "No camera found with this name or with depth attributes: " + camera
             raise e
 
     #
@@ -636,6 +650,25 @@ class SpecificWorker(GenericWorker):
         #
         pass
 
+
+   # =============== Methods for Component Implements ==================
+    # ===================================================================
+
+    #
+    # IMPLEMENTATION of getImage method from CameraSimple interface
+    #
+    def CameraSimple_getImage(self):
+        camera = self.tablet_camera_name
+        if camera in self.cameras_read.keys() \
+                and self.cameras_read[camera]["is_ready"]\
+                and not self.cameras_read[camera]["is_rgbd"]:
+                    return self.cameras_read[camera]["rgb"]
+        else:
+            e = RoboCompCameraSimple.HardwareFailedException()
+            e.what = "No (no RGBD) camera found with this name: " + camera
+            raise e
     # ===================================================================
     # ===================================================================
+
+
 
