@@ -148,10 +148,13 @@ void SpecificWorker::compute_L2()
             break;
         case L2_State::PERSON:
             if(dyn_state < 0.7)
+            {
+                // delete person. Maybe push into memory
                 l2_state = L2_State::EXPECTING;
+            }
             // update person
             // project where person is going to be
-            // send downwards anticipated proposal
+            // plan perception annd send downwards anticipated proposal
             break;
     }
 }
@@ -273,7 +276,7 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, st
 {
     // rotate base
     const float gain = 0.5;
-    float advance = 0;
+    float advance = 0.0;
     float rot = 0.0;
     if(body_o.has_value())
     {
