@@ -1,9 +1,16 @@
 CommonBehavior.Endpoints=tcp -p 10000
 # Proxies for required interfaces
 
-CameraRGBDSimpleProxy = camerargbdsimple:tcp -h 158.49.247.193 -p 10060
+CameraRGBDSimpleProxy = camerargbdsimple:tcp -h 158.49.247.193 -p 10095
 DifferentialRobotProxy = differentialrobot:tcp -h 158.49.247.193 -p 10004
 EmotionalMotorProxy = emotionalmotor:tcp -h 158.49.247.193  -p 10945
+JointMotorSimpleProxy = jointmotorsimple:tcp -h 158.49.247.193 -p 10086
+CameraSimpleProxy = camerasimple:tcp -h 158.49.247.193 -p 11060
+
+inverted_tilt = true # if true works in real world
+
+
+
 CameraSimple.Endpoints=tcp -p 10005
 
 

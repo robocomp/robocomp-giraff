@@ -24,7 +24,7 @@
 */
 SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorker(tprx)
 {
-	this->startup_check_flag = startup_check;
+    this->startup_check_flag = startup_check;
 }
 
 /**
@@ -32,25 +32,25 @@ SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorke
 */
 SpecificWorker::~SpecificWorker()
 {
-	std::cout << "Destroying SpecificWorker" << std::endl;
+    std::cout << "Destroying SpecificWorker" << std::endl;
 }
 
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
     try
-	{
-		RoboCompCommonBehavior::Parameter par = params.at("inverted_tilt");
-	    if(par.value == "true" or par.value == "True")
+    {
+        RoboCompCommonBehavior::Parameter par = params.at("inverted_tilt");
+        if(par.value == "true" or par.value == "True")
             inverted_tilt = -1;
         else inverted_tilt = 1;
-	}
-	catch(const std::exception &e) { qFatal("Error reading config params"); }
-	return true;
+    }
+    catch(const std::exception &e) { qFatal("Error reading config params"); }
+    return true;
 }
 
 void SpecificWorker::initialize(int period)
 {
-	std::cout << "Initialize worker" << std::endl;
+    std::cout << "Initialize worker" << std::endl;
 
     try{ jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{0.0001, 1 });}  // radians. 0 vertical
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
@@ -73,10 +73,10 @@ void SpecificWorker::initialize(int period)
 
     connect(&timer, SIGNAL(timeout()), this, SLOT(compute_L1()));
     this->Period = period;
-	if(this->startup_check_flag)
-		this->startup_check();
-	else
-		timer.start(Period);
+    if(this->startup_check_flag)
+        this->startup_check();
+    else
+        timer.start(Period);
 }
 
 ////////////////////////////////////////////////////
@@ -106,17 +106,15 @@ void SpecificWorker::compute_L1()
             dyn_state = integrator(cont--);
             // rotate to look for the person
             break;
-    
+
         case L1_State::BODY_DETECTED:
             if(not body_o.has_value())
             {
-                // emotionalmotor_proxy->isanybodythere(false);
                 l1_state = L1_State::SEARCHING;
                 return;
             }
-            // emotionalmotor_proxy->isanybodythere(true);
             move_tablet(body_o, face_o);
-            //move_base(body_o, face_o);
+            move_base(body_o, face_o);
             dyn_state = integrator(cont++);
             break;
         case L1_State::FACE_DETECTED:
@@ -124,7 +122,7 @@ void SpecificWorker::compute_L1()
             {
                 emotionalmotor_proxy->isanybodythere(false);
                 l1_state = L1_State::SEARCHING;
-                
+
                 return;
             }
             emotionalmotor_proxy->isanybodythere(true);
@@ -132,7 +130,7 @@ void SpecificWorker::compute_L1()
             move_base(body_o, face_o);
             move_eyes(face_o);
             dyn_state = integrator(cont++);
-			break;
+            break;
         case L1_State::EYES_DETECTED:
             break;
         case L1_State::HANDS_DETECTED:
@@ -219,9 +217,9 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                 img = cv::Mat(rgb.height, rgb.width, CV_8UC3, &img_uncomp.data);
 
             }
-            else 
+            else
                 img = cv::Mat(rgb.height, rgb.width, CV_8UC3, &rgb.image[0]);
-            
+
             cv::Mat n_img;
             cv::resize(img, n_img, cv::Size(width, height));
 
@@ -231,7 +229,7 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
             auto rectangles = face_detector.detect_face_rectangles(n_img);
             if (not rectangles.empty())
             {
-				std::cout << "if" << std::endl;
+                std::cout << "if" << std::endl;
                 auto r = rectangles.front();
                 cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
                 QRect rect = QRect(r.x, r.y, r.width, r.height);
@@ -265,7 +263,7 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                     // float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
                     float k = 0;
                     std::get<0>(ret) = {(width/2) - rect.center().x(), (height/2) - rect.center().y(), k};
-                    
+
                 }
             }
             // show image
@@ -281,13 +279,16 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
 }
 void SpecificWorker::move_tablet(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o)
 {
+    float tilt = 0.7;
+    float pos;
     if(body_o.has_value())
     {
         auto [_, body_y_error, __] = body_o.value();
         const float delta = 0.1;
-        float tilt = inverted_tilt * (delta / 100) * body_y_error;  // map from -100,100 to -0.1,0.1 rads
-        auto pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
+        tilt = inverted_tilt * (delta / 100) * body_y_error;  // map from -100,100 to -0.1,0.1 rads
+        pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
         //qInfo() << __FUNCTION__ << "BODY: pos" << pos << "error" << body_y_error << "tilt" << tilt << pos - tilt;
+        cout << "Move tablet body" << endl;
         try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
         catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to join motor " << std::endl; }
     }
@@ -295,25 +296,39 @@ void SpecificWorker::move_tablet(std::optional<std::tuple<int,int,int>> body_o, 
     {
         auto [_, face_y_error, __] = face_o.value();
         const float delta = 0.1;
-        const float tilt = inverted_tilt * (delta / 100) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
-        const float pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
+        tilt = inverted_tilt * (delta / 100) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
+        pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
         //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
+        cout << "Move tablet face" << endl;
         try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
         catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
     }
+
+    if (abs(tilt) > 0.1 )
+    {
+        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
+
+    /*else{
+        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }*/
 }
 void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o)
 {
     // rotate base
-    const float gain = 0.1;
+    const float gain = 0.3;
     float advance = 0.0;
     float rot = 0.0;
     if(body_o.has_value())
     {
         auto &[body_x_error, _, body_dist] = body_o.value();
         rot = -(2.f / 100) * body_x_error;
+        cout << "/////// rot:" << rot << endl;
         if(body_dist > 0 and body_dist < 800)
             advance = -(400.0 / 800.0) * body_dist;
+
     }
     else if(face_o.has_value())
     {
@@ -322,20 +337,29 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, st
         if(face_dist > 0 and face_dist < 800)
             advance = -(400.0 / 800.0) * face_dist;
     }
-    try { differentialrobot_proxy->setSpeedBase(advance, gain * rot); }
-    catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+
+    if (abs(rot) > 0.5 )
+    {
+        try { differentialrobot_proxy->setSpeedBase(advance, gain * rot); }
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
+
+    else{
+        try { differentialrobot_proxy->setSpeedBase(0.0, 0.0); }
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
 }
 void SpecificWorker::move_eyes(std::optional<std::tuple<int,int,int>> face_o)
 {
     if( face_o.has_value())
     {
-		
+
         auto [face_x_error, face_y_error, __] = face_o.value();
         const float delta = 0.1;
         const float tilt_x = (delta / 10) * face_x_error;  // map from -100,100 to -0.1,0.1 rads
-		const float tilt_y = -(delta / 10) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
-		cout << tilt_x << std::endl;
-		cout << tilt_y << std::endl;
+        const float tilt_y = -(delta / 10) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
+        cout << tilt_x << std::endl;
+        cout << tilt_y << std::endl;
         //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
         try { emotionalmotor_proxy->pupposition(tilt_x,tilt_y); }  // radians. 0 vertical
         catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
@@ -364,7 +388,7 @@ std::vector<cv::Rect> SpecificWorker::yolo_detector(cv::Mat &frame)
             double confidence;
             // Get the value and location of the maximum score
             minMaxLoc(scores, 0, &confidence, 0, &classIdPoint);
-        
+
             if (confidence > confThreshold and classes[classIdPoint.x] == "person")
             {
                 int centerX = (int)(data[0] * frame.cols);
@@ -377,7 +401,7 @@ std::vector<cv::Rect> SpecificWorker::yolo_detector(cv::Mat &frame)
                 confidences.push_back((float)confidence);
                 boxes.push_back(cv::Rect(left, top, width, height));
                 cout << " // " << classes[classIdPoint.x] << endl;
-                
+
             }
         }
     }
@@ -417,9 +441,9 @@ std::vector<cv::String> SpecificWorker::get_outputs_names(const cv::dnn::Net &ne
 ////////////////////////////////////////////////////////////////////////////////////
 int SpecificWorker::startup_check()
 {
-	std::cout << "Startup check" << std::endl;
-	QTimer::singleShot(200, qApp, SLOT(quit()));
-	return 0;
+    std::cout << "Startup check" << std::endl;
+    QTimer::singleShot(200, qApp, SLOT(quit()));
+    return 0;
 }
 
 /**************************************/

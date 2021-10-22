@@ -279,13 +279,14 @@ void SpecificWorker::create_path_mission()
 
                 const float radio = pathfollow_dialog.circle_radius_slider->value();
                 const float arco = 200;  // get from robot size
+                auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
                 temporary_plan.x_path.clear();
                 temporary_plan.y_path.clear();
                 std::vector<Eigen::Vector2f> local_path;
                 for(auto &&alfa : iter::range(0.0, 2*M_PI, (double)(arco/radio)))
                 {
-                    float x = radio * cos(alfa);
-                    float y = radio * sin(alfa);
+                    float x = radio * cos(alfa) + robot_pose.x();
+                    float y = radio * sin(alfa) + robot_pose.y();
                     temporary_plan.x_path.push_back(x);
                     temporary_plan.y_path.push_back(y);
                     local_path.emplace_back(Eigen::Vector2f(x, y));
@@ -299,6 +300,7 @@ void SpecificWorker::create_path_mission()
         std::vector<Eigen::Vector2f> fake_path;
         draw_path(fake_path, &pathfollow_draw_widget->scene, true);
         draw_path(fake_path, &widget_2d->scene, true);
+        auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
 
         const float long_radio = pathfollow_dialog.oval_long_radius_slider->value();
         const float short_radio = pathfollow_dialog.oval_short_radius_slider->value();
@@ -317,8 +319,8 @@ void SpecificWorker::create_path_mission()
         }
         for(auto &&alfa : iter::range(M_PI/2.0, -M_PI/2.0, -(double)(arco/short_radio)))
         {
-            float x = short_radio * cos(alfa) + long_radio/2;
-            float y = short_radio * sin(alfa);
+            float x = short_radio * cos(alfa) + long_radio/2 + robot_pose.x();
+            float y = short_radio * sin(alfa) + robot_pose.y();
             temporary_plan.x_path.push_back(x);
             temporary_plan.y_path.push_back(y);
             local_path.emplace_back(Eigen::Vector2f(x, y));
