@@ -25,17 +25,17 @@
 #include <CommonBehavior.h>
 
 #include <CameraRGBDSimple.h>
+#include <CameraSimple.h>
 #include <DifferentialRobot.h>
 #include <EmotionalMotor.h>
 #include <GenericBase.h>
+#include <JointMotorSimple.h>
 
 
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
 
-
-using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompEmotionalMotor::EmotionalMotorPrxPtr>;
-
+using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompCameraSimple::CameraSimplePrxPtr,RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompEmotionalMotor::EmotionalMotorPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr>;
 
 class GenericWorker : public QObject
 {
@@ -49,10 +49,11 @@ public:
 	virtual bool setParams(RoboCompCommonBehavior::ParameterList params) = 0;
 	QMutex *mutex;
 
-
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
+	RoboCompCameraSimple::CameraSimplePrxPtr camerasimple_proxy;
 	RoboCompDifferentialRobot::DifferentialRobotPrxPtr differentialrobot_proxy;
 	RoboCompEmotionalMotor::EmotionalMotorPrxPtr emotionalmotor_proxy;
+	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
 
 
 protected:

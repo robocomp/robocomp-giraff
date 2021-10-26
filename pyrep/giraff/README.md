@@ -1,4 +1,4 @@
-# viriatoPyrep
+# giraff_pyrep
 
 This is a pseudo-component, a Python adapter, that used the PyRep module to start CoppeliaSim and access the simulated scene. This method is much faster that the remote communcation through middlewares.
 The main limitation is that it cannot be regenerated using RoboComp's code generator, because it is Qt-free. The reason is the incompatibility between the CoppeliaSim own version of Qt and the version usually installed in the machine.
@@ -71,6 +71,16 @@ bin/viriatoPyrep config
     mprx["KinovaArmPubPub"] = kinovaarmpubTopic
 ```
 
+## Adding new implemented interfaces without "robocompdsl"
+
+- In main file "my_component.py" Add a block like this:
+
+```
+    adapter = ic.createObjectAdapter('CameraSimple')
+    adapter.add(camerasimpleI.CameraSimpleI(worker), ic.stringToIdentity('camerasimple'))
+    adapter.activate()
+```
+- 
 - In genericworker.py add 
 
 ```

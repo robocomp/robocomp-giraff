@@ -138,6 +138,7 @@ void SpecificWorker::initialize(int period)
         else
         {
             std::cout << "Controller-DSR terminate: could not find a camera node named " << giraff_camera_usb_name << std::endl;
+
             std::terminate();
         }
 
@@ -149,6 +150,7 @@ void SpecificWorker::initialize(int period)
         {
             auto width = G->get_attrib_by_name<width_att>(robot_body.value());
             auto height = G->get_attrib_by_name<depth_att>(robot_body.value());
+            cout << "Width " << width.value() << " height " << height.value() << endl;
             if (width.has_value() and height.has_value())
             {
                 robot_polygon << QPointF(-width.value() / 2, -height.value() / 2)
@@ -194,14 +196,6 @@ void SpecificWorker::compute()
         custom_widget.textedit_current_plan->appendPlainText("-> compute: initiating plan " + current_plan.get_action());
         current_plan.set_running();
     }
-    if(current_plan.is_running())
-    {
-        //if( auto path = path_buffer.try_get(); path.has_value())
-        qInfo() << __FUNCTION__ << " Plan is running...";
-    }
-    else
-    { // there should be a plan after a few seconds
-    }
 
     auto robot_pos = inner_eigen->transform(world_name, robot_name).value();
     float coordX = point_dialog.goto_spinbox_coordX->value();
@@ -211,14 +205,24 @@ void SpecificWorker::compute()
     float adv = G->get_attrib_by_name<robot_ref_adv_speed_att>(robot_node.value()).value_or(0);
     float rot = G->get_attrib_by_name<robot_ref_rot_speed_att>(robot_node.value()).value_or(0);
 
-    if (current_plan.is_running()) {
-        float mod = sqrt(pow((coordX - robot_pos.x()), 2) + pow((coordY - robot_pos.y()), 2));
+    if (current_plan.is_running())
+    {
+        qInfo() << __FUNCTION__ << " Plan is running...";
 
-        if (mod < umbral && (adv == 0.0 && rot == 0.0)) {
-            current_plan.is_finished();
-            slot_stop_mission();
-            qInfo() << __FUNCTION__ << " Plan finished!";
+        if (current_plan.get_action() == "GOTO")
+        {
+            float mod = sqrt(pow((coordX - robot_pos.x()), 2) + pow((coordY - robot_pos.y()), 2));
+            if (mod < umbral && (adv == 0.0 && rot == 0.0))
+            {
+                current_plan.is_finished();
+                slot_stop_mission();
+                qInfo() << __FUNCTION__ << " Plan finished!";
+            }
         }
+    }
+
+    else
+    { // there should be a plan after a few seconds
     }
 
 
@@ -275,13 +279,14 @@ void SpecificWorker::create_path_mission()
 
                 const float radio = pathfollow_dialog.circle_radius_slider->value();
                 const float arco = 200;  // get from robot size
+                auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
                 temporary_plan.x_path.clear();
                 temporary_plan.y_path.clear();
                 std::vector<Eigen::Vector2f> local_path;
                 for(auto &&alfa : iter::range(0.0, 2*M_PI, (double)(arco/radio)))
                 {
-                    float x = radio * cos(alfa);
-                    float y = radio * sin(alfa);
+                    float x = radio * cos(alfa) + robot_pose.x();
+                    float y = radio * sin(alfa) + robot_pose.y();
                     temporary_plan.x_path.push_back(x);
                     temporary_plan.y_path.push_back(y);
                     local_path.emplace_back(Eigen::Vector2f(x, y));
@@ -295,6 +300,7 @@ void SpecificWorker::create_path_mission()
         std::vector<Eigen::Vector2f> fake_path;
         draw_path(fake_path, &pathfollow_draw_widget->scene, true);
         draw_path(fake_path, &widget_2d->scene, true);
+        auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
 
         const float long_radio = pathfollow_dialog.oval_long_radius_slider->value();
         const float short_radio = pathfollow_dialog.oval_short_radius_slider->value();
@@ -313,8 +319,8 @@ void SpecificWorker::create_path_mission()
         }
         for(auto &&alfa : iter::range(M_PI/2.0, -M_PI/2.0, -(double)(arco/short_radio)))
         {
-            float x = short_radio * cos(alfa) + long_radio/2;
-            float y = short_radio * sin(alfa);
+            float x = short_radio * cos(alfa) + long_radio/2 + robot_pose.x();
+            float y = short_radio * sin(alfa) + robot_pose.y();
             temporary_plan.x_path.push_back(x);
             temporary_plan.y_path.push_back(y);
             local_path.emplace_back(Eigen::Vector2f(x, y));
@@ -625,7 +631,6 @@ void SpecificWorker::slot_stop_mission()
     std::vector<Eigen::Vector2f> fake_path;
     draw_path(fake_path, &widget_2d->scene, true); // just remove
     draw_path(fake_path, &pathfollow_draw_widget->scene, true); // just remove
-
 }
 
 void SpecificWorker::slot_cancel_mission()
@@ -656,6 +661,7 @@ void SpecificWorker::slot_change_mission_selector(int index)
 /////////////////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScene* viewer_2d, bool remove)
 {
+    //static std::vector<QGraphicsLineItem *> scene_road_points;
     static std::unordered_map<QGraphicsScene *, std::vector<QGraphicsLineItem *> *> scene_road_points_map;
     std::vector<QGraphicsLineItem *> *scene_road_points;
 
@@ -667,8 +673,10 @@ void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScen
     scene_road_points_map[viewer_2d] = scene_road_points;
 
     //clear previous points
+    //for (QGraphicsLineItem* item : scene_road_points)
     for (QGraphicsLineItem* item : *scene_road_points)
         viewer_2d->removeItem((QGraphicsItem *) item);
+    //scene_road_points.clear();
     scene_road_points->clear();
 
     if(remove) return;      // Just clear the path
@@ -699,6 +707,8 @@ void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScen
             line2 = viewer_2d->addLine(qsegment_perp, QPen(QBrush(QColor(QString::fromStdString("#F0FF00"))), 20));
             line1->setZValue(2000);
             line2->setZValue(2000);
+//            scene_road_points.push_back(line1);
+//            scene_road_points.push_back(line2);
             scene_road_points->push_back(line1);
             scene_road_points->push_back(line2);
         }
