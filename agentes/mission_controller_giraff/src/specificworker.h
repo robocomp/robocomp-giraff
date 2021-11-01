@@ -41,6 +41,7 @@
 #include <Eigen/Geometry>
 
 
+
 class SpecificWorker : public GenericWorker
 {
 Q_OBJECT
