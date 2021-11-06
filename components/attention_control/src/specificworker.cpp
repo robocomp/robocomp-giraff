@@ -72,11 +72,19 @@ void SpecificWorker::initialize(int period)
 //    facemark->loadModel("opencv_face/lbfmodel.yaml");
 
     connect(&timer, SIGNAL(timeout()), this, SLOT(compute_L1()));
-    this->Period = period;
+    connect(&timer_l2, SIGNAL(timeout()), this, SLOT(compute_L2()));
+    connect(&timer_l3, SIGNAL(timeout()), this, SLOT(compute_L3()));
+    this->Period = 80;
+    int Period_L2 = 150;
+    int Period_L3 = 220;
     if(this->startup_check_flag)
         this->startup_check();
     else
+    {
         timer.start(Period);
+        timer_l2.start(Period_L2);
+        timer_l3.start(Period_L3);
+    }
 }
 
 ////////////////////////////////////////////////////
@@ -95,16 +103,33 @@ void SpecificWorker::compute_L1()
 
     const auto &[body_o, face_o] = read_image();
     cont = std::clamp(cont, -20, 20);
-    qInfo() << l1_map.at(l1_state) << dyn_state;
     switch(l1_state)
     {
         case L1_State::SEARCHING:
-            if(face_o.has_value())
+            if (face_o.has_value())
+            {
+                auto &[_, __, d] = face_o.value();
+                this->l1_person.pos = Eigen::Vector2f(0, d);
+                this->l1_person.looking_at = Parts::FACE;
                 l1_state = L1_State::FACE_DETECTED;
-            else if(body_o.has_value())
+                return;
+            } else if (body_o.has_value())
+            {
+                auto &[_, __, d] = body_o.value();
                 l1_state = L1_State::BODY_DETECTED;
-            dyn_state = integrator(cont--);
+                this->l1_person.pos = Eigen::Vector2f(0, d);
+                this->l1_person.looking_at = Parts::BODY;
+                return;
+            }
+            this->l1_person.looking_at = Parts::NONE;
+            this->l1_person.dyn_state = integrator(cont--);
             // rotate to look for the person
+            if( robot.current_rot_speed > 0)
+                try{ differentialrobot_proxy->setSpeedBase(0, 0.5); robot.current_rot_speed = 0.5;  robot.current_adv_speed=0.0;}
+                catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to differential robot" << std::endl; }
+            else
+                try{ differentialrobot_proxy->setSpeedBase(0, -0.5); robot.current_rot_speed = -0.5;  robot.current_adv_speed=0.0;}
+                catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to differential robot" << std::endl; }
             break;
 
         case L1_State::BODY_DETECTED:
@@ -115,27 +140,32 @@ void SpecificWorker::compute_L1()
             }
             move_tablet(body_o, face_o);
             move_base(body_o, face_o);
-            dyn_state = integrator(cont++);
+            this->l1_person.pos = Eigen::Vector2f(0, std::get<2>(body_o.value()));
+            this->l1_person.dyn_state = integrator(cont++);
             break;
+
         case L1_State::FACE_DETECTED:
             if(not face_o.has_value())
             {
-                emotionalmotor_proxy->isanybodythere(false);
+                //try{ emotionalmotor_proxy->isanybodythere(false);}
+                //catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to emotional motor " << std::endl; }
                 l1_state = L1_State::SEARCHING;
-
                 return;
             }
-            emotionalmotor_proxy->isanybodythere(true);
+            //try{ emotionalmotor_proxy->isanybodythere(true);}
+            //catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to emotional motor " << std::endl; }
+            this->l1_person.pos = Eigen::Vector2f(0, std::get<2>(face_o.value()));
             move_tablet(body_o, face_o);
             move_base(body_o, face_o);
-            move_eyes(face_o);
-            dyn_state = integrator(cont++);
+            //move_eyes(face_o);
+            this->l1_person.dyn_state = integrator(cont++);
             break;
         case L1_State::EYES_DETECTED:
             break;
         case L1_State::HANDS_DETECTED:
             break;
     }
+   this->l1_person.print();
 }
 void SpecificWorker::compute_L2()
 {
@@ -153,167 +183,266 @@ void SpecificWorker::compute_L2()
     switch (l2_state)
     {
         case L2_State::EXPECTING:
-            if(dyn_state > 0.7)
+            if(this->l1_person.dyn_state > 0.7)
             {
                 // create person
+                L2_Person p;
+                p.pos =  Eigen::Vector2f(0,0);
+                p.vel = Eigen::Vector2f(0,0);
+                p.looking_at = l1_person.looking_at;
+                p.height = 160;
+                p.name = "Bill";
+                p.orientation = 0;
+                p.angular_spped = 0;
+                p.creation_time = std::chrono::system_clock::now();
+                l2_people.push_back(p);
                 l2_state = L2_State::PERSON;
             }
             break;
         case L2_State::PERSON:
-            if(dyn_state < 0.7)
+            if(this->l1_person.dyn_state < 0.7)
             {
                 // delete person. Maybe push into memory
+                l2_people.clear();
                 l2_state = L2_State::EXPECTING;
             }
             // update person
+            L2_Person &p = l2_people[0];
+            if(l1_person.pos.y() > 0 )  // don't update if bad depth reading
+                p.pos = l1_person.pos;
+            p.looking_at = l1_person.looking_at;
             // project where person is going to be
             // plan perception annd send downwards anticipated proposal
             break;
     }
+//    if(not l2_people.empty())
+//        l2_people.front().print();
 }
 void SpecificWorker::compute_L3()
 {
 // THIRD LEVEL.  Mission specific control program to decide what to do next based on the represented person
-//    switch(state)
-//    {
-//        case State::WAITING:
-//            // if person detected move to PERSON_DETECTED
-//            break;
-//        case State::PERSON_DETECTED:
-//            break;
-//        case State::READY_TO_INTERACT:
-//            // Wait for a signal or order and move to FOLLOW
-//            break;
-//        case State::START_FOLLOWING:
-//            // check person is moving away
-//            break;
-//        case State::FOLLOWING:
-//            // distance control
-//            break;
-//        case State::STOP:
-//            // person has stopped
-//            break;
-//    };
+    static std::chrono::system_clock::time_point ready_start;
+    static std::chrono::system_clock::time_point searching_initial_time;
+    switch(l3_state)
+    {
+        case L3_State::WAITING:
+            qInfo() << __FUNCTION__ << "L3 - WAITING";
+            // if person detected move to PERSON_DETECTED
+            if( not l2_people.empty()
+                and l2_people.front().looking_at == Parts::FACE
+                and l2_people.front().pos.norm() < 800)
+            {
+               l3_state = L3_State::READY_TO_INTERACT;
+               ready_start = std::chrono::system_clock::now();
+            }
+            break;
+        case L3_State::READY_TO_INTERACT:
+            // Wait for a signal or order and move to FOLLOW
+            qInfo() << __FUNCTION__ << "L3 - READY_TO_INTERACT";
+            if(std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now()-ready_start).count() > 1)
+                l3_state = L3_State::START_FOLLOWING;
+            break;
+        case L3_State::START_FOLLOWING:
+            // check face is no longer visible and body is
+            qInfo() << __FUNCTION__ << "L3 - START_FOLLOWING";
+            if(l2_people.empty())
+            {
+                l3_state = L3_State::SEARCHING;
+                searching_initial_time = std::chrono::system_clock::now();
+                return;
+            }
+            if( not l2_people.empty()
+                and l2_people.front().looking_at == Parts::BODY)
+                //and is moving away (velocity is > 0)
+            {
+                l3_state = L3_State::FOLLOWING;
+            }
+            break;
+        case L3_State::FOLLOWING:
+            // distance control
+            qInfo() << __FUNCTION__ << "L3 - FOLLOWING";
+            if(l2_people.empty())
+            {
+                l3_state = L3_State::START_FOLLOWING;
+                return;
+            }
+            try
+            {
+                differentialrobot_proxy->setSpeedBase(std::clamp(l2_people.front().pos.norm() - 600, 0.f, 1000.f), robot.current_rot_speed);
+                robot.current_adv_speed = l2_people.front().pos.norm() - 600;
+            }
+            catch (const Ice::Exception &e)
+            { std::cout << e.what() << " No connection to differential robot" << std::endl; }
+            break;
+        case L3_State::SEARCHING:
+            // person is lost. Wait for L2 and L2 levels to find it
+            qInfo() << __FUNCTION__ << "L3 - SEARCHING";
+            //qInfo() << __FUNCTION__ << std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now() - searching_initial_time).count();
+            if(not l2_people.empty())
+            {
+                l3_state = L3_State::FOLLOWING;
+                return;
+            }
+            if(std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now() - searching_initial_time).count() > 10)
+                l3_state = L3_State::WAITING;
+            break;
+    };
 }
 void SpecificWorker::compute(){};
+
 ////////////////////////////////////////////////////////////////////
 SpecificWorker::DetectRes SpecificWorker::read_image()
 {
+    RoboCompCameraSimple::TImage tablet_rgb;
+    RoboCompCameraRGBDSimple::TRGBD top_rgbd;
+    DetectRes ret{{},{}};
     try
     {
-        //RoboCompCameraRGBDSimple::TImage top_img = camerargbdsimple_proxy->getImage("camera_tablet");
-        RoboCompCameraSimple::TImage rgb = camerasimple_proxy->getImage();
-
-        // const auto &top_img = rgbd.image;
-        // const auto &top_depth = rgbd.depth;
-        const int width = 300;
-        const int height = 300;
-        if (rgb.width != 0 and rgb.height != 0)
-        {
-            cv::Mat img;
-            if (rgb.compressed)
-            {
-                auto img_uncomp = cv::imdecode(rgb.image, -1);
-                img = cv::Mat(rgb.height, rgb.width, CV_8UC3, &img_uncomp.data);
-
-            }
-            else
-                img = cv::Mat(rgb.height, rgb.width, CV_8UC3, &rgb.image[0]);
-
-            cv::Mat n_img;
-            cv::resize(img, n_img, cv::Size(width, height));
-
-            DetectRes ret{{},{}};
-
-            // face
-            auto rectangles = face_detector.detect_face_rectangles(n_img);
-            if (not rectangles.empty())
-            {
-                std::cout << "if" << std::endl;
-                auto r = rectangles.front();
-                cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
-                QRect rect = QRect(r.x, r.y, r.width, r.height);
-                //float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                float k = 0;
-                std::get<1>(ret) = {(width/2)-rect.center().x(), (height/2)-rect.center().y(), k};
-
-//                std::vector<cv::Rect> faces;
-//                // Convert frame to grayscale because it requires grayscale image.
-//                cv::Mat gray;
-//                cv::cvtColor(n_img, gray, cv::COLOR_BGR2GRAY);
-//                // Detect faces
-//                faceDetector.detectMultiScale(gray, faces);
-//                // Landmarks for one face is a vector of points
-//                // There can be more than one face in the image. Hence, we use a vector of vector of points.
-//                std::vector< vector<cv::Point2f> > landmarks;
-//                // Run landmark detector
-//                bool success = facemark->fit(n_img,faces,landmarks);
-//                if(success)
-//                    qInfo() << __FUNCTION__ << "Landmarks" << landmarks.size();
-            }
-            else //body
-            {
-                // YOLO
-                auto people = yolo_detector(n_img);
-                if (not people.empty())
-                {
-                    auto r = people.front();
-                    cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
-                    QRect rect = QRect(r.x, r.y, r.width, r.height);
-                    // float k = depth.at<float>(rect.center().x(), rect.center().y()) * 1000;  //mmm
-                    float k = 0;
-                    std::get<0>(ret) = {(width/2) - rect.center().x(), (height/2) - rect.center().y(), k};
-
-                }
-            }
-            // show image
-            cv::cvtColor(n_img, n_img, cv::COLOR_BGR2RGB);
-            cv::imshow("Camera tablet", n_img);
-            cv::waitKey(1);
-            return ret;
-        }
+        top_rgbd = camerargbdsimple_proxy->getAll("camera_top");
+        tablet_rgb = camerasimple_proxy->getImage();
     }
-    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
-    qWarning() << "Empty image or comms problem";
-    return {};
+    catch (const Ice::Exception &e)
+    {
+        std::cout << e.what() << " Empty image or comms problem" << std::endl;
+        return ret;
+    }
+    const auto &top_image = top_rgbd.image;
+    cv::Mat top_rgb_mat = cv::Mat(top_image.height, top_image.width, CV_8UC3, &top_rgbd.image.image[0]);
+    const auto &top_depth = top_rgbd.depth;
+    cv::Mat top_depth_mat = cv::Mat(top_depth.height, top_depth.width, CV_32F, &top_rgbd.depth.depth[0]);
+    const int width = 300;
+    const int height = 300;
+
+    if (top_image.width != 0 and top_image.height != 0)
+    {
+//        cv::Mat img;
+//        if (tablet_rgb.compressed)
+//        {
+//            auto img_uncomp = cv::imdecode(tablet_rgb.image, -1);
+//            img = cv::Mat(tablet_rgb.height, tablet_rgb.width, CV_8UC3, &img_uncomp.data);
+//        }
+//        else
+//            img = cv::Mat(tablet_rgb.height, tablet_rgb.width, CV_8UC3, &tablet_rgb.image[0]);
+
+        // from RGBD camera
+
+        cv::Mat n_img;
+        cv::resize(top_rgb_mat, n_img, cv::Size(width, height));
+
+        // face
+        auto rectangles = face_detector.detect_face_rectangles(n_img);
+        if (not rectangles.empty())
+        {
+            auto r = rectangles.front();
+            cv::rectangle(n_img, r, cv::Scalar(0, 105, 205), 3);
+            //qInfo() << __FUNCTION__ << "face " << rect;
+            float x_scale = (float)(top_depth_mat.cols-1)/n_img.cols;
+            float y_scale = (float)(top_depth_mat.rows-1)/n_img.rows;
+            QRectF rect = QRectF( x_scale*r.x, y_scale*r.y, x_scale*r.width, y_scale*r.height);
+            //qInfo() << __FUNCTION__ << "face " << rect << top_depth_mat.cols << top_depth_mat.rows;
+            if(x_scale*r.x + x_scale*r.width > top_depth_mat.cols) rect.setWidth(top_depth_mat.cols-x_scale*r.x);
+            if(y_scale*r.y + y_scale*r.height > top_depth_mat.rows) rect.setHeight(top_depth_mat.rows-y_scale*r.y);
+            cv::Mat1f roi = top_depth_mat(cv::Rect((int)rect.x(), (int)rect.y(), (int)rect.width(), (int)rect.height()));
+            float k = -1;
+            if(roi.cols >0 and roi.rows > 0)
+            {
+                double minVal;
+                double maxVal;
+                cv::Point minLoc;
+                cv::Point maxLoc;
+                cv::minMaxLoc(roi, &minVal, &maxVal, &minLoc, &maxLoc);
+                k = minVal * 1000; //mm
+            }
+            //FACE CENTERED in the upper third
+            std::get<1>(ret) = {(width/2)-rect.center().x(), (height/3)-rect.center().y(), k};
+            //qInfo() << __FUNCTION__ << "Depth face" << k;
+        }
+        else //body
+        {
+            // YOLO
+            auto people = yolo_detector(n_img);
+            if (not people.empty())
+            {
+                auto r = people.front();
+                cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
+                QRectF caca(r.x, r.y, r.width, r.height);
+                float x_scale = (float) top_depth_mat.cols / n_img.cols;
+                float y_scale = (float) top_depth_mat.rows / n_img.rows;
+                QRectF rect = QRectF(x_scale * r.x, y_scale * r.y, x_scale * r.width, y_scale * r.height);
+                if (x_scale * r.x + x_scale * r.width > top_depth_mat.cols) rect.setWidth(top_depth_mat.cols - x_scale * r.x - 1);
+                if (y_scale * r.y + y_scale * r.height > top_depth_mat.rows) rect.setHeight(top_depth_mat.rows - y_scale * r.y - 1);
+                //qInfo() << __FUNCTION__ << "body " << rect << top_depth_mat.cols << top_depth_mat.rows;
+                //qInfo() << __FUNCTION__ << "body " << (int)rect.x() << (int)rect.y() << (int)rect.width() << (int)rect.height();
+                try
+                {
+                    cv::Mat roi = top_depth_mat(cv::Rect((int) rect.x(), (int) rect.y(), (int) rect.width(), (int) rect.height()));
+                    float k=-1;
+                    if(roi.cols > 0 and roi.rows >0)
+                    {
+                        double minVal;
+                        double maxVal;
+                        cv::Point minLoc;
+                        cv::Point maxLoc;
+                        cv::minMaxLoc(roi, &minVal, &maxVal, &minLoc, &maxLoc);
+                        k = minVal * 1000; //mm
+                    }
+                    std::get<0>(ret) = {(width/2) - rect.center().x(), (height/2) - rect.center().y(), k};
+                }
+                catch(const std::exception &e)
+                {
+                    std::cout << e.what() << std::endl;
+                    qInfo() << __FUNCTION__ << "body " << (int)rect.x() << (int)rect.y() << (int)rect.width() << (int)rect.height();
+                };
+            }
+        }
+        // show image
+        cv::cvtColor(n_img, n_img, cv::COLOR_BGR2RGB);
+        cv::imshow("Camera tablet", n_img);
+        cv::waitKey(1);
+        return ret;
+    }
+    else
+    {
+        qWarning() << "Empty tablet image";
+        return ret;
+    }
 }
 void SpecificWorker::move_tablet(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o)
 {
     float tilt = 0.7;
-    float pos;
+    float pos = 0;
     if(body_o.has_value())
     {
-        auto [_, body_y_error, __] = body_o.value();
+        auto[_, body_y_error, __] = body_o.value();
         const float delta = 0.1;
         tilt = inverted_tilt * (delta / 100) * body_y_error;  // map from -100,100 to -0.1,0.1 rads
-        pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
-        //qInfo() << __FUNCTION__ << "BODY: pos" << pos << "error" << body_y_error << "tilt" << tilt << pos - tilt;
-        cout << "Move tablet body" << endl;
-        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
+        try
+        {
+            pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
+            //qInfo() << __FUNCTION__ << "BODY: pos" << pos << "error" << body_y_error << "tilt" << tilt << pos - tilt;
+            jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1});
+        }  // radians. 0 vertical
         catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to join motor " << std::endl; }
     }
     else if( face_o.has_value())
     {
-        auto [_, face_y_error, __] = face_o.value();
+        auto[_, face_y_error, __] = face_o.value();
         const float delta = 0.1;
         tilt = inverted_tilt * (delta / 100) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
-        pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
-        //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
-        cout << "Move tablet face" << endl;
-        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
-        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+        try
+        {
+            pos = jointmotorsimple_proxy->getMotorState("tablet_joint").pos;
+            // qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
+            if(fabs(pos-tilt) > 0.17)
+                jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1});
+        } // radians. 0 vertical
+        catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to join motor" << std::endl; }
     }
-
-    if (abs(tilt) > 0.1 )
-    {
-        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
-        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
-    }
-
-    /*else{
-        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
-        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
-    }*/
+//    if (abs(tilt) > 0.1 )
+//    {
+//        try { jointmotorsimple_proxy->setPosition("tablet_joint", RoboCompJointMotorSimple::MotorGoalPosition{pos - tilt, 1}); }  // radians. 0 vertical
+//        catch (const Ice::Exception &e) { std::cout << e.what() <<  " No connection to join motor" << std::endl; }
+//    }
 }
 void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o)
 {
@@ -325,27 +454,25 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, st
     {
         auto &[body_x_error, _, body_dist] = body_o.value();
         rot = -(2.f / 100) * body_x_error;
-        cout << "/////// rot:" << rot << endl;
-        if(body_dist > 0 and body_dist < 800)
-            advance = -(400.0 / 800.0) * body_dist;
+//        if(body_dist > 0 and body_dist < 400)
+//            advance = -(400.0 / 400.0) * body_dist;
 
     }
     else if(face_o.has_value())
     {
         auto &[face_x_error, _, face_dist] = face_o.value();
         rot = -(2.f / 100) * face_x_error;
-        if(face_dist > 0 and face_dist < 800)
-            advance = -(400.0 / 800.0) * face_dist;
+//        if(face_dist > 0 and face_dist < 400)
+//            advance = -(400.0 / 400.0) * face_dist;
     }
 
-    if (abs(rot) > 0.5 )
+    //if (abs(rot) > 0.5 )  // avoid sending small velocities
     {
-        try { differentialrobot_proxy->setSpeedBase(advance, gain * rot); }
-        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
-    }
-
-    else{
-        try { differentialrobot_proxy->setSpeedBase(0.0, 0.0); }
+        try
+        {
+            differentialrobot_proxy->setSpeedBase(robot.current_adv_speed, gain * rot);
+            robot.current_rot_speed = gain*rot;
+        }
         catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
     }
 }
@@ -358,11 +485,9 @@ void SpecificWorker::move_eyes(std::optional<std::tuple<int,int,int>> face_o)
         const float delta = 0.1;
         const float tilt_x = (delta / 10) * face_x_error;  // map from -100,100 to -0.1,0.1 rads
         const float tilt_y = -(delta / 10) * face_y_error;  // map from -100,100 to -0.1,0.1 rads
-        cout << tilt_x << std::endl;
-        cout << tilt_y << std::endl;
         //qInfo() << __FUNCTION__ << "FACE: pos" << pos << "error" << face_y_error << "tilt" << tilt << pos - tilt;
         try { emotionalmotor_proxy->pupposition(tilt_x,tilt_y); }  // radians. 0 vertical
-        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+        catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to emotional motor" << std::endl; }
     }
 }
 std::vector<cv::Rect> SpecificWorker::yolo_detector(cv::Mat &frame)
@@ -400,8 +525,6 @@ std::vector<cv::Rect> SpecificWorker::yolo_detector(cv::Mat &frame)
                 classIds.push_back(classIdPoint.x);
                 confidences.push_back((float)confidence);
                 boxes.push_back(cv::Rect(left, top, width, height));
-                cout << " // " << classes[classIdPoint.x] << endl;
-
             }
         }
     }
@@ -542,3 +665,19 @@ int SpecificWorker::startup_check()
 // RoboCompJointMotorSimple::MotorGoalPosition
 // RoboCompJointMotorSimple::MotorGoalVelocity
 
+
+
+
+//                std::vector<cv::Rect> faces;
+//                // Convert frame to grayscale because it requires grayscale image.
+//                cv::Mat gray;
+//                cv::cvtColor(n_img, gray, cv::COLOR_BGR2GRAY);
+//                // Detect faces
+//                faceDetector.detectMultiScale(gray, faces);
+//                // Landmarks for one face is a vector of points
+//                // There can be more than one face in the image. Hence, we use a vector of vector of points.
+//                std::vector< vector<cv::Point2f> > landmarks;
+//                // Run landmark detector
+//                bool success = facemark->fit(n_img,faces,landmarks);
+//                if(success)
+//                    qInfo() << __FUNCTION__ << "Landmarks" << landmarks.size();

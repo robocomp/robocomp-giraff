@@ -40,6 +40,8 @@
 #include <istream>
 #include <fstream>
 #include <ranges>
+#include <chrono>
+#include <Eigen/Dense>
 
 class SpecificWorker : public GenericWorker
 {
@@ -58,22 +60,18 @@ public slots:
 	void initialize(int period);
 
 private:
-    enum class L1_State { SEARCHING, BODY_DETECTED, FACE_DETECTED, EYES_DETECTED, HANDS_DETECTED };
-    L1_State l1_state = L1_State::SEARCHING;
-    std::map<L1_State, QString> l1_map{{L1_State::SEARCHING, "SEARCHING"},
-                                       {L1_State::BODY_DETECTED, "BODY_DETECTED"},
-                                       {L1_State::FACE_DETECTED, "FACE_DETECTED"}};
-
-    enum class L2_State { EXPECTING, PERSON };
-    L2_State l2_state = L2_State::EXPECTING;
-
-    enum class L3_State { WAITING, READY_TO_INTERACT, INTERACTING, START_FOLLOWING, FOLLOWING, STOP };
-    L3_State l3_state = L3_State::WAITING;
-
     bool startup_check_flag;
     cv::VideoCapture cap;
     FaceDetector face_detector;
     //BodyDetector body_detector;
+
+    //robot
+    struct Robot
+    {
+        float current_rot_speed = 0;
+        float current_adv_speed = 0;
+    };
+    Robot robot;
 
     //using DetectRes = std::tuple<std::optional<std::tuple<QRect, int>>, std::optional<std::tuple<QRect, int>>>;
     using DetectRes = std::tuple<std::optional<std::tuple<int,int,int>>, std::optional<std::tuple<int,int,int>>>;
@@ -94,20 +92,66 @@ private:
     cv::CascadeClassifier faceDetector;
     cv::Ptr<cv::face::Facemark> facemark;
 
+    enum class Parts {NONE, FACE, BODY};
+
     // Level 1
+    enum class L1_State { SEARCHING, BODY_DETECTED, FACE_DETECTED, EYES_DETECTED, HANDS_DETECTED };
+    L1_State l1_state = L1_State::SEARCHING;
+    std::map<L1_State, QString> l1_map{{L1_State::SEARCHING, "SEARCHING"},
+                                       {L1_State::BODY_DETECTED, "BODY_DETECTED"},
+                                       {L1_State::FACE_DETECTED, "FACE_DETECTED"}};
+    struct L1_Person  // a light representation of an instantaneous person
+    {
+        Eigen::Vector2f pos;
+        float orientation;
+        float height;
+        double dyn_state = 0;
+        Parts looking_at = Parts::NONE;
+        void print()
+        {
+            std::cout << "--------L1-Person---------" << std::endl;
+            std::cout << "pos: " << pos.x() << ", " <<  pos.y() << std::endl;
+            if(looking_at == Parts::FACE) std::cout << "looking_at: FACE" << std::endl;
+            if(looking_at == Parts::BODY) std::cout << "looking_at: BODY" << std::endl;
+            if(looking_at == Parts::NONE) std::cout << "looking_at: NONE" << std::endl;
+            std::cout << "dyn: " << dyn_state << std::endl;
+        }
+    };
+    L1_Person l1_person;
     void move_tablet(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
     void move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
-    double dyn_state = 0;
+
     // Level 2
-    struct Person
+    QTimer timer_l2;
+    enum class L2_State { EXPECTING, PERSON };
+    L2_State l2_state = L2_State::EXPECTING;
+    struct L2_Person // a stable representation of a multimodal person
     {
-        // creation time
-        // position
-        // speed
-        // max acc
-        // size
+        std::chrono::time_point<std::chrono::system_clock> creation_time;
+        Eigen::Vector2f pos;
+        float orientation;
+        Eigen::Vector2f vel;
+        float angular_spped;
+        float height;
+        std::string name;
+        Parts looking_at = Parts::NONE;
+        void print()
+        {
+            std::cout << "--------L2-Person---------" << std::endl;
+            std::cout << "pos: " << pos.x() << ", " << pos.y() << std::endl;
+            if(looking_at == Parts::FACE)
+            {  std::cout << "looking_at: FACE" << std::endl;}
+            if(looking_at == Parts::BODY)
+            {  std::cout << "looking_at: BODY" << std::endl;}
+            std::cout << "duration: " << std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now()-creation_time).count() << std::endl;
+        }
     };
-    Person person;
+    std::vector<L2_Person> l2_people;
+
+    // Level 3
+    QTimer timer_l3;
+    enum class L3_State { WAITING, READY_TO_INTERACT, START_FOLLOWING, FOLLOWING, STOP, SEARCHING };
+    L3_State l3_state = L3_State::WAITING;
 
     void move_eyes(optional<tuple<int, int, int>> face_o);
 
