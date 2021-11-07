@@ -74,6 +74,7 @@ void SpecificWorker::initialize(int period)
     connect(&timer, SIGNAL(timeout()), this, SLOT(compute_L1()));
     connect(&timer_l2, SIGNAL(timeout()), this, SLOT(compute_L2()));
     connect(&timer_l3, SIGNAL(timeout()), this, SLOT(compute_L3()));
+    connect(&timer_bill, SIGNAL(timeout()), this, SLOT(compute_bill()));
     this->Period = 80;
     int Period_L2 = 150;
     int Period_L3 = 220;
@@ -84,7 +85,22 @@ void SpecificWorker::initialize(int period)
         timer.start(Period);
         timer_l2.start(Period_L2);
         timer_l3.start(Period_L3);
+        timer_bill.start(1000);
     }
+
+    // send Bill to robot
+    try
+    {
+        RoboCompGenericBase::TBaseState bState;
+        differentialrobot_proxy->getBaseState(bState);
+        auto pose = billcoppelia_proxy->getPose();
+        QLineF line(pose.x, pose.y, bState.x, bState.z);
+        float percent = (line.length() - 600)/line.length();
+        QPointF p = line.pointAt(percent);
+        qInfo() << __FUNCTION__ << pose.x << pose.y << line << percent;
+        billcoppelia_proxy->setTarget(p.x(), p.y());
+    }
+    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;};
 }
 
 ////////////////////////////////////////////////////
@@ -127,10 +143,10 @@ void SpecificWorker::compute_L1()
             this->l1_person.dyn_state = integrator(cont--);
             // rotate to look for the person
             if( robot.current_rot_speed > 0)
-                try{ differentialrobot_proxy->setSpeedBase(0, 0.5); robot.current_rot_speed = 0.5;  robot.current_adv_speed=0.0;}
+                try{ differentialrobot_proxy->setSpeedBase(0, 0.7); robot.current_rot_speed = 0.5;  robot.current_adv_speed=0.0;}
                 catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to differential robot" << std::endl; }
             else
-                try{ differentialrobot_proxy->setSpeedBase(0, -0.5); robot.current_rot_speed = -0.5;  robot.current_adv_speed=0.0;}
+                try{ differentialrobot_proxy->setSpeedBase(0, -0.7); robot.current_rot_speed = -0.5;  robot.current_adv_speed=0.0;}
                 catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to differential robot" << std::endl; }
             break;
 
@@ -167,7 +183,7 @@ void SpecificWorker::compute_L1()
         case L1_State::HANDS_DETECTED:
             break;
     }
-   this->l1_person.print();
+   //this->l1_person.print();
 }
 void SpecificWorker::compute_L2()
 {
@@ -245,13 +261,14 @@ void SpecificWorker::compute_L3()
                 l3_state = L3_State::START_FOLLOWING;
             break;
         case L3_State::START_FOLLOWING:
-            // check face is no longer visible and body is
+            // if no person go to searching
             if(l2_people.empty())
             {
                 l3_state = L3_State::SEARCHING;
                 searching_initial_time = std::chrono::system_clock::now();
                 return;
             }
+            // if there is person and a body go to following
             if( not l2_people.empty()
                 and l2_people.front().looking_at == Parts::BODY)
                 //and is moving away (velocity is > 0)
@@ -280,8 +297,56 @@ void SpecificWorker::compute_L3()
                 l3_state = L3_State::WAITING;
             }
             break;
+        case L3_State::STOP:
+            break;
     };
     l3_person.print(l3_state);
+}
+void SpecificWorker::compute_bill()
+{
+    static std::random_device rd;
+    static std::mt19937 mt(rd());
+    static std::uniform_real_distribution<double> x_random(-4500, 4500);
+    static std::uniform_real_distribution<double> y_random(-2000, 4000);
+    static Eigen::Vector2f bill_target;
+    static std::vector<Eigen::Vector2f> points {Eigen::Vector2f(0, -1800),
+                                                Eigen::Vector2f(-3000, -1800),
+                                                Eigen::Vector2f(-3000, 1800),
+                                                Eigen::Vector2f(3000, 1800),
+                                                Eigen::Vector2f(3000, -1800),
+                                                Eigen::Vector2f(0, -1800)};
+    static std::vector<Eigen::Vector2f>::iterator iter = points.begin();
+
+    switch (bill_state)
+    {
+        case Bill_State::NEW_POINT:
+            qInfo() << __FUNCTION__ << "Bill - new point";
+            if(l3_state == L3_State::START_FOLLOWING or l3_state == L3_State::FOLLOWING)
+                // select new point
+                try
+                {
+                    //bill_target = Eigen::Vector2f(x_random(mt), y_random(mt));
+                    bill_target = *iter;
+                    if(++iter==points.end()) iter = points.begin();
+                    billcoppelia_proxy->setTarget(bill_target.x(), bill_target.y());
+                    bill_state = Bill_State::TO_POINT;
+                }
+                catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;};
+            break;
+        case Bill_State::TO_POINT:
+            qInfo() << __FUNCTION__ << "Bill - to_point";
+            try
+            {
+                auto pose = billcoppelia_proxy->getPose();
+                qInfo() << __FUNCTION__ << pose.vx << pose.vy;
+                if(fabs(pose.vx) < 20 and fabs(pose.vy) < 20 )
+                {
+                    bill_state = Bill_State::NEW_POINT;
+                }
+            }
+            catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;};
+            break;
+    }
 }
 void SpecificWorker::compute(){};
 
@@ -455,7 +520,7 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o,
         {
             if(fabs(body_dist-MIN_PERSON_DISTANCE) < 100)
                 advance = 0;
-            if((body_dist-MIN_PERSON_DISTANCE) < -100)
+            if((body_dist-MIN_PERSON_DISTANCE) < -300)
                 advance = std::clamp(body_dist-MIN_PERSON_DISTANCE, -300.f, 0.f);
             else
                 advance = MAX_ADVANCE_SPEED * (body_dist-MIN_PERSON_DISTANCE)*(1/1000.f) * exp(-rot*rot*2);
@@ -476,7 +541,7 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o,
     {
         try
         {
-            const float gain = 0.4;
+            const float gain = 0.5;
             differentialrobot_proxy->setSpeedBase(advance, gain * rot);
             robot.current_rot_speed = gain*rot;
             robot.current_adv_speed = advance;

@@ -256,7 +256,7 @@ class SpecificWorker(GenericWorker):
                 if x.name == "rotate" or x.name == "turn":
                     rot = x.value if np.abs(x.value) > 0.01 else 0
                 if x.name == "bill_advance":
-                    bill_advance = x.value if np.abs(x.value) > 1 else 0
+                    bill_advance = x.value if np.abs(x.value) > 0.05 else 0
                     print("bill_advance ", bill_advance)
                 if x.name == "bill_rotate":
                     bill_rotate = x.value if np.abs(x.value) > 0.05 else 0
@@ -264,16 +264,20 @@ class SpecificWorker(GenericWorker):
             converted = self.convert_base_speed_to_motors_speed(adv, rot)
             # move Bill
             if self.WITH_BILL:
-                if bill_advance > 0:
-                    self.pr.script_call("walk_straight@Bill", 1)
-                elif bill_advance < 0:
-                    self.pr.script_call("walk_straight_backwards@Bill", 1)
-                else:
-                    self.pr.script_call("stop@Bill", 1)
-                if bill_rotate > 0:
-                    self.pr.script_call("walk_left@Bill", 1)
-                elif bill_rotate < 0:
-                    self.pr.script_call("walk_right@Bill", 1)
+                bill_target = Shape("Bill_goalDummy")
+                current_pos = bill_target.get_position()
+                bill_target.set_position([current_pos[0]+bill_rotate*0.5, current_pos[1]+bill_advance*0.5, current_pos[2]])
+                # if bill_advance > 0:
+                #     self.pr.script_call("walk_straight@Bill", 1)
+                # elif bill_advance < 0:
+                #     self.pr.script_call("walk_straight_backwards@Bill", 1)
+                # else:
+                #     self.pr.script_call("stop@Bill", 1)
+                # if bill_rotate > 0:
+                #     self.pr.script_call("walk_left@Bill", 1)
+                # elif bill_rotate < 0:
+                #     self.pr.script_call("walk_right@Bill", 1)
+
 
             #print("Joystick ", [adv, rot], converted)
             self.joystick_newdata = None
@@ -363,7 +367,7 @@ class SpecificWorker(GenericWorker):
     def CameraRGBDSimple_getAll(self, camera):
         if camera in self.cameras_read.keys() \
                 and self.cameras_read[camera]["is_ready"] \
-                and self.cameras_real[camera]["has_depth"]:
+                and self.cameras_read[camera]["is_rgbd"]:
             return RoboCompCameraRGBDSimple.TRGBD(self.cameras_read[camera]["rgb"], self.cameras_read[camera]["depth"])
         else:
             e = RoboCompCameraRGBDSimple.HardwareFailedException()
@@ -652,8 +656,6 @@ class SpecificWorker(GenericWorker):
 
 
    # =============== Methods for Component Implements ==================
-    # ===================================================================
-
     #
     # IMPLEMENTATION of getImage method from CameraSimple interface
     #
@@ -669,6 +671,36 @@ class SpecificWorker(GenericWorker):
             raise e
     # ===================================================================
     # ===================================================================
+    #
+    # IMPLEMENTATION of getPose method from BillCoppelia interface
+    #
+    def BillCoppelia_getPose(self):
+        ret = RoboCompBillCoppelia.Pose()
+        bill = Dummy("Bill")
+        pos = bill.get_position()
+        ret.x = pos[0] * 1000.0
+        ret.y = pos[1] * 1000.0
+        linear_vel, ang_vel = bill.get_velocity()
+        ret.vx = linear_vel[0] * 1000.0
+        ret.vy = linear_vel[1] * 1000.0
+        ret.vo = ang_vel[2]
+        ret.orientation = bill.get_orientation()[2]
+        return ret
 
+    #
+    # IMPLEMENTATION of setSpeed method from BillCoppelia interface
+    #
+    def BillCoppelia_setSpeed(self, adv, rot):
+        pass
+
+    #
+    # IMPLEMENTATION of setTarget method from BillCoppelia interface
+    #
+    def BillCoppelia_setTarget(self, tx, ty):
+        bill_target = Shape("Bill_goalDummy")
+        current_pos = bill_target.get_position()
+        bill_target.set_position([tx/1000.0, ty/1000.0, current_pos[2]])
+
+    # ===================================================================
 
 

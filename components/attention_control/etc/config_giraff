@@ -7,6 +7,7 @@ DifferentialRobotProxy = differentialrobot:tcp -p 10004
 EmotionalMotorProxy = emotionalmotor:tcp -p 10945
 JointMotorSimpleProxy = jointmotorsimple:tcp -h localhost -p 10086
 CameraSimpleProxy = camerasimple:tcp -p 10005
+BillCoppeliaProxy = billcoppelia:tcp -h localhost -p 11046
 
 inverted_tilt = false # if true works in real world
 

@@ -160,6 +160,10 @@ if __name__ == '__main__':
     adapter.add(coppeliautilsI.CoppeliaUtilsI(worker), ic.stringToIdentity('coppeliautils'))
     adapter.activate()
 
+    adapter = ic.createObjectAdapter('BillCoppelia')
+    adapter.add(billcoppeliaI.BillCoppeliaI(worker), ic.stringToIdentity('billcoppelia'))
+    adapter.activate()
+
     JoystickAdapter_adapter = ic.createObjectAdapter("JoystickAdapterTopic")
     joystickadapterI_ = joystickadapterI.JoystickAdapterI(worker)
     joystickadapter_proxy = JoystickAdapter_adapter.addWithUUID(joystickadapterI_).ice_oneway()

@@ -130,6 +130,7 @@ int ::attention_control::run(int argc, char* argv[])
 
 	int status=EXIT_SUCCESS;
 
+	RoboCompBillCoppelia::BillCoppeliaPrxPtr billcoppelia_proxy;
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompCameraSimple::CameraSimplePrxPtr camerasimple_proxy;
 	RoboCompDifferentialRobot::DifferentialRobotPrxPtr differentialrobot_proxy;
@@ -138,6 +139,22 @@ int ::attention_control::run(int argc, char* argv[])
 
 	string proxy, tmp;
 	initialize();
+
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "BillCoppeliaProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy BillCoppeliaProxy\n";
+		}
+		billcoppelia_proxy = Ice::uncheckedCast<RoboCompBillCoppelia::BillCoppeliaPrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy BillCoppelia: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("BillCoppeliaProxy initialized Ok!");
+
 
 	try
 	{
@@ -219,7 +236,7 @@ int ::attention_control::run(int argc, char* argv[])
 	rInfo("JointMotorSimpleProxy initialized Ok!");
 
 
-	tprx = std::make_tuple(camerargbdsimple_proxy,camerasimple_proxy,differentialrobot_proxy,emotionalmotor_proxy,jointmotorsimple_proxy);
+	tprx = std::make_tuple(billcoppelia_proxy,camerargbdsimple_proxy,camerasimple_proxy,differentialrobot_proxy,emotionalmotor_proxy,jointmotorsimple_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx, startup_check_flag);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());

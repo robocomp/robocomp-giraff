@@ -44,6 +44,8 @@ Ice.loadSlice("-I ./src/ --all ./src/DifferentialRobot.ice")
 import RoboCompDifferentialRobot
 Ice.loadSlice("-I ./src/ --all ./src/CoppeliaUtils.ice")
 import RoboCompCoppeliaUtils
+Ice.loadSlice("-I ./src/ --all ./src/BillCoppelia.ice")
+import RoboCompBillCoppelia
 Ice.loadSlice("-I ./src/ --all ./src/FullPoseEstimation.ice")
 import RoboCompFullPoseEstimation
 Ice.loadSlice("-I ./src/ --all ./src/BatteryStatus.ice")
@@ -63,6 +65,7 @@ import fullposeestimationI
 import batterystatusI
 import rssistatusI
 import jointmotorsimpleI
+import billcoppeliaI
 
 class GenericWorker():
 

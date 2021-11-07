@@ -56,6 +56,7 @@ public slots:
     void compute_L1();
     void compute_L2();
     void compute_L3();
+    void compute_bill();
     int startup_check();
 	void initialize(int period);
 
@@ -111,7 +112,7 @@ private:
         Actions current_action = Actions::WAIT;
         void print()
         {
-            std::cout << "--------L1-Person---------" << std::endl;
+            std::cout << "-------- L1 ----------" << std::endl;
             std::cout << "pos: " << pos.x() << ", " <<  pos.y() << std::endl;
             if(looking_at == Parts::FACE) std::cout << "looking_at: FACE" << std::endl;
             if(looking_at == Parts::BODY) std::cout << "looking_at: BODY" << std::endl;
@@ -139,7 +140,7 @@ private:
         Parts looking_at = Parts::NONE;
         void print()
         {
-            std::cout << "--------L2-Person---------" << std::endl;
+            std::cout << "-------- L2 -----------" << std::endl;
             std::cout << "pos: " << pos.x() << ", " << pos.y() << std::endl;
             if(looking_at == Parts::FACE)
             {  std::cout << "looking_at: FACE" << std::endl;}
@@ -170,6 +171,11 @@ private:
     };
     L3_Person l3_person;
     void move_eyes(optional<tuple<int, int, int>> face_o);
+
+    // Bill
+    QTimer timer_bill;
+    enum class Bill_State {TO_POINT, NEW_POINT};
+    Bill_State bill_state = Bill_State::NEW_POINT;
 
     // tilt
     int inverted_tilt = 1;

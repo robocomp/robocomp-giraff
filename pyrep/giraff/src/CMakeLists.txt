@@ -3,5 +3,5 @@ PROJECT(  pioneerPyrep )
 
 INCLUDE( $ENV{ROBOCOMP}/cmake/robocomp.cmake )
 
-ROBOCOMP_IDSL_TO_ICE( CommonBehavior CameraRGBDSimple GenericBase JoystickAdapter Laser DifferentialRobot CoppeliaUtils FullPoseEstimation  BatteryStatus RSSIStatus JointMotorSimple CameraSimple)
+ROBOCOMP_IDSL_TO_ICE( CommonBehavior CameraRGBDSimple GenericBase JoystickAdapter Laser DifferentialRobot CoppeliaUtils FullPoseEstimation  BatteryStatus RSSIStatus JointMotorSimple CameraSimple, BillCoppelia)
 
