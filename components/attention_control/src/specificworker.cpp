@@ -402,20 +402,26 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
             //qInfo() << __FUNCTION__ << "face " << rect << top_depth_mat.cols << top_depth_mat.rows;
             if(x_scale*r.x + x_scale*r.width > top_depth_mat.cols) rect.setWidth(top_depth_mat.cols-x_scale*r.x);
             if(y_scale*r.y + y_scale*r.height > top_depth_mat.rows) rect.setHeight(top_depth_mat.rows-y_scale*r.y);
-            cv::Mat1f roi = top_depth_mat(cv::Rect((int)rect.x(), (int)rect.y(), (int)rect.width(), (int)rect.height()));
-            float k = -1;
-            if(roi.cols >0 and roi.rows > 0)
+            try
             {
-                double minVal;
-                double maxVal;
-                cv::Point minLoc;
-                cv::Point maxLoc;
-                cv::minMaxLoc(roi, &minVal, &maxVal, &minLoc, &maxLoc);
-                k = minVal * 1000; //mm
+                cv::Mat roi = top_depth_mat(cv::Rect((int) rect.x(), (int) rect.y(), (int) rect.width(), (int) rect.height()));
+                float k=-1;
+                if(roi.cols > 0 and roi.rows >0)
+                {
+                    double minVal;
+                    double maxVal;
+                    cv::Point minLoc;
+                    cv::Point maxLoc;
+                    cv::minMaxLoc(roi, &minVal, &maxVal, &minLoc, &maxLoc);
+                    k = minVal * 1000; //mm
+                }
+                std::get<1>(ret) = {(width/2) - rect.center().x(), (height/2) - rect.center().y(), k};
             }
-            //FACE CENTERED in the upper third
-            std::get<1>(ret) = {(width/2)-rect.center().x(), (height/3)-rect.center().y(), k};
-            //qInfo() << __FUNCTION__ << "Depth face" << k;
+            catch(const std::exception &e)
+            {
+                std::cout << e.what() << std::endl;
+                qInfo() << __FUNCTION__ << "body " << (int)rect.x() << (int)rect.y() << (int)rect.width() << (int)rect.height();
+            };
         }
         else //body
         {
@@ -425,14 +431,11 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
             {
                 auto r = people.front();
                 cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
-                QRectF caca(r.x, r.y, r.width, r.height);
                 float x_scale = (float) top_depth_mat.cols / n_img.cols;
                 float y_scale = (float) top_depth_mat.rows / n_img.rows;
                 QRectF rect = QRectF(x_scale * r.x, y_scale * r.y, x_scale * r.width, y_scale * r.height);
                 if (x_scale * r.x + x_scale * r.width > top_depth_mat.cols) rect.setWidth(top_depth_mat.cols - x_scale * r.x - 1);
                 if (y_scale * r.y + y_scale * r.height > top_depth_mat.rows) rect.setHeight(top_depth_mat.rows - y_scale * r.y - 1);
-                //qInfo() << __FUNCTION__ << "body " << rect << top_depth_mat.cols << top_depth_mat.rows;
-                //qInfo() << __FUNCTION__ << "body " << (int)rect.x() << (int)rect.y() << (int)rect.width() << (int)rect.height();
                 try
                 {
                     cv::Mat roi = top_depth_mat(cv::Rect((int) rect.x(), (int) rect.y(), (int) rect.width(), (int) rect.height()));
@@ -520,7 +523,7 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o,
         {
             if(fabs(body_dist-MIN_PERSON_DISTANCE) < 100)
                 advance = 0;
-            if((body_dist-MIN_PERSON_DISTANCE) < -300)
+            if((body_dist-MIN_PERSON_DISTANCE) < -00)
                 advance = std::clamp(body_dist-MIN_PERSON_DISTANCE, -300.f, 0.f);
             else
                 advance = MAX_ADVANCE_SPEED * (body_dist-MIN_PERSON_DISTANCE)*(1/1000.f) * exp(-rot*rot*2);
