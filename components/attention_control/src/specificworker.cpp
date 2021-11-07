@@ -119,6 +119,8 @@ void SpecificWorker::compute_L1()
                 l1_state = L1_State::BODY_DETECTED;
                 this->l1_person.pos = Eigen::Vector2f(0, d);
                 this->l1_person.looking_at = Parts::BODY;
+//                try{ differentialrobot_proxy->setSpeedBase(0, 0); robot.current_rot_speed = 0;  robot.current_adv_speed=0.0;}
+//                catch (const Ice::Exception &e) { std::cout << e.what() << " No connection to differential robot" << std::endl; }
                 return;
             }
             this->l1_person.looking_at = Parts::NONE;
@@ -211,8 +213,10 @@ void SpecificWorker::compute_L2()
             if(l1_person.pos.y() > 0 )  // don't update if bad depth reading
                 p.pos = l1_person.pos;
             p.looking_at = l1_person.looking_at;
+            // downward flow
             // project where person is going to be
             // plan perception annd send downwards anticipated proposal
+            l1_person.current_action = p.current_action;
             break;
     }
 //    if(not l2_people.empty())
@@ -226,7 +230,6 @@ void SpecificWorker::compute_L3()
     switch(l3_state)
     {
         case L3_State::WAITING:
-            qInfo() << __FUNCTION__ << "L3 - WAITING";
             // if person detected move to PERSON_DETECTED
             if( not l2_people.empty()
                 and l2_people.front().looking_at == Parts::FACE
@@ -238,13 +241,11 @@ void SpecificWorker::compute_L3()
             break;
         case L3_State::READY_TO_INTERACT:
             // Wait for a signal or order and move to FOLLOW
-            qInfo() << __FUNCTION__ << "L3 - READY_TO_INTERACT";
             if(std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now()-ready_start).count() > 1)
                 l3_state = L3_State::START_FOLLOWING;
             break;
         case L3_State::START_FOLLOWING:
             // check face is no longer visible and body is
-            qInfo() << __FUNCTION__ << "L3 - START_FOLLOWING";
             if(l2_people.empty())
             {
                 l3_state = L3_State::SEARCHING;
@@ -260,33 +261,27 @@ void SpecificWorker::compute_L3()
             break;
         case L3_State::FOLLOWING:
             // distance control
-            qInfo() << __FUNCTION__ << "L3 - FOLLOWING";
             if(l2_people.empty())
             {
                 l3_state = L3_State::START_FOLLOWING;
                 return;
             }
-            try
-            {
-                differentialrobot_proxy->setSpeedBase(std::clamp(l2_people.front().pos.norm() - 600, 0.f, 1000.f), robot.current_rot_speed);
-                robot.current_adv_speed = l2_people.front().pos.norm() - 600;
-            }
-            catch (const Ice::Exception &e)
-            { std::cout << e.what() << " No connection to differential robot" << std::endl; }
+            l2_people[0].current_action = Actions::FOLLOW;
             break;
         case L3_State::SEARCHING:
             // person is lost. Wait for L2 and L2 levels to find it
-            qInfo() << __FUNCTION__ << "L3 - SEARCHING";
-            //qInfo() << __FUNCTION__ << std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now() - searching_initial_time).count();
             if(not l2_people.empty())
             {
                 l3_state = L3_State::FOLLOWING;
                 return;
             }
             if(std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now() - searching_initial_time).count() > 10)
+            {
                 l3_state = L3_State::WAITING;
+            }
             break;
     };
+    l3_person.print(l3_state);
 }
 void SpecificWorker::compute(){};
 
@@ -444,16 +439,27 @@ void SpecificWorker::move_tablet(std::optional<std::tuple<int,int,int>> body_o, 
 //        catch (const Ice::Exception &e) { std::cout << e.what() <<  " No connection to join motor" << std::endl; }
 //    }
 }
-void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o)
+void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o,
+                               std::optional<std::tuple<int,int,int>> face_o)
 {
     // rotate base
-    const float gain = 0.3;
     float advance = 0.0;
     float rot = 0.0;
+    const float MAX_ADVANCE_SPEED = 500;
+    const float MIN_PERSON_DISTANCE = 700;
     if(body_o.has_value())
     {
         auto &[body_x_error, _, body_dist] = body_o.value();
         rot = -(2.f / 100) * body_x_error;
+        if(l1_person.current_action == Actions::FOLLOW)
+        {
+            if(fabs(body_dist-MIN_PERSON_DISTANCE) < 100)
+                advance = 0;
+            if((body_dist-MIN_PERSON_DISTANCE) < -100)
+                advance = std::clamp(body_dist-MIN_PERSON_DISTANCE, -300.f, 0.f);
+            else
+                advance = MAX_ADVANCE_SPEED * (body_dist-MIN_PERSON_DISTANCE)*(1/1000.f) * exp(-rot*rot*2);
+        }
 //        if(body_dist > 0 and body_dist < 400)
 //            advance = -(400.0 / 400.0) * body_dist;
 
@@ -470,8 +476,10 @@ void SpecificWorker::move_base(std::optional<std::tuple<int,int,int>> body_o, st
     {
         try
         {
-            differentialrobot_proxy->setSpeedBase(robot.current_adv_speed, gain * rot);
+            const float gain = 0.4;
+            differentialrobot_proxy->setSpeedBase(advance, gain * rot);
             robot.current_rot_speed = gain*rot;
+            robot.current_adv_speed = advance;
         }
         catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
     }

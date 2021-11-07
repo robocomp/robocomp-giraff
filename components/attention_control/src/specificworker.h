@@ -93,6 +93,7 @@ private:
     cv::Ptr<cv::face::Facemark> facemark;
 
     enum class Parts {NONE, FACE, BODY};
+    enum class Actions { FOLLOW, WAIT };
 
     // Level 1
     enum class L1_State { SEARCHING, BODY_DETECTED, FACE_DETECTED, EYES_DETECTED, HANDS_DETECTED };
@@ -107,6 +108,7 @@ private:
         float height;
         double dyn_state = 0;
         Parts looking_at = Parts::NONE;
+        Actions current_action = Actions::WAIT;
         void print()
         {
             std::cout << "--------L1-Person---------" << std::endl;
@@ -145,6 +147,7 @@ private:
             {  std::cout << "looking_at: BODY" << std::endl;}
             std::cout << "duration: " << std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now()-creation_time).count() << std::endl;
         }
+        Actions current_action = Actions::WAIT;
     };
     std::vector<L2_Person> l2_people;
 
@@ -152,7 +155,20 @@ private:
     QTimer timer_l3;
     enum class L3_State { WAITING, READY_TO_INTERACT, START_FOLLOWING, FOLLOWING, STOP, SEARCHING };
     L3_State l3_state = L3_State::WAITING;
-
+    struct L3_Person
+    {
+        void print(L3_State state)
+        {
+            std::cout << "-------- L3 ---------" << std::endl;
+            if(state == L3_State::WAITING) std::cout << "state: WAITING" << std::endl;
+            if(state == L3_State::READY_TO_INTERACT) std::cout << "state: READY_TO_INTERACT" << std::endl;
+            if(state == L3_State::START_FOLLOWING) std::cout << "state: START_FOLLOWING" << std::endl;
+            if(state == L3_State::FOLLOWING) std::cout << "state: FOLLOWING" << std::endl;
+            if(state == L3_State::SEARCHING) std::cout << "state: SEARCHING" << std::endl;
+            if(state == L3_State::STOP) std::cout << "state: STOP" << std::endl;
+        }
+    };
+    L3_Person l3_person;
     void move_eyes(optional<tuple<int, int, int>> face_o);
 
     // tilt
