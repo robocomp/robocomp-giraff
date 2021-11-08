@@ -697,7 +697,7 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of setTarget method from BillCoppelia interface
     #
     def BillCoppelia_setTarget(self, tx, ty):
-        bill_target = Shape("Bill_goalDummy")
+        bill_target = Dummy("Bill_goalDummy")
         current_pos = bill_target.get_position()
         bill_target.set_position([tx/1000.0, ty/1000.0, current_pos[2]])
 
