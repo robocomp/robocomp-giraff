@@ -163,7 +163,7 @@ class SpecificWorker(GenericWorker):
         tc = TimeControl(0.05)
         while True:
             self.pr.step()
-            self.read_laser()
+            self.read_laser_raw()
             self.read_cameras([self.tablet_camera_name, self.top_camera_name])
             self.read_joystick()
             self.read_robot_pose()
@@ -174,6 +174,31 @@ class SpecificWorker(GenericWorker):
     ###########################################
     ### LASER get and publish laser data
     ###########################################
+    def read_laser_raw(self):
+        data = self.pr.script_call("get_depth_data@Hokuyo", 1)
+        if len(data[1]) > 0:
+            self.hokuyo = Shape("Hokuyo")
+            h_pos = self.hokuyo.get_position()
+            polar = np.zeros(shape=(int(len(data[1])/3), 2))
+            self.ldata_write = []
+            for x, y, z in self.grouper(data[1], 3):                      # extract non-intersecting groups of 3
+                self.ldata_write.append(RoboCompLaser.TData(-np.arctan2(y, x), np.linalg.norm([x, y])*1000.0))
+
+            # if self.ldata_write[0] == 0:
+            #    self.ldata_write[0] = 200  # half robot width
+            # del self.ldata_write[-3:]
+            # del self.ldata_write[:3]
+            # for i in range(1, len(self.ldata_write)):
+            #    if self.ldata_write[i].dist == 0:
+            #        self.ldata_write[i].dist = self.ldata_write[i - 1].dist
+
+
+            self.ldata_read, self.ldata_write = self.ldata_write, self.ldata_read
+
+            # try:
+            #     self.laserpub_proxy.pushLaserData(self.ldata_read)
+            # except Ice.Exception as e:
+            #     print(e)
 
     def read_laser(self):
         data = self.pr.script_call("get_depth_data@Hokuyo", 1)
@@ -191,16 +216,19 @@ class SpecificWorker(GenericWorker):
 
             angles = np.linspace(-np.radians(120), np.radians(120), 360)  # create regular angular values
             positions = np.searchsorted(angles, polar[:, 0])  # list of closest position in polar for each laser measurement
-            self.ldata_write = [RoboCompLaser.TData(a, 0) for a in angles]  # create empty 360 angle array
+            self.ldata_write = [RoboCompLaser.TData(a, 0) for a in angles]  # create empty 240 angle array
             pos, medians = npi.group_by(positions).median(polar[:, 1])  # group by repeated positions
             for p, m in it.zip_longest(pos, medians):  # fill the angles with measures
                 if p < len(self.ldata_write):
                     self.ldata_write[p].dist = int(m * 1000)  # to millimeters
             if self.ldata_write[0] == 0:
-                self.ldata_write[0] = 200  # half robot width
-            for i in range(0, len(self.ldata_write)):
-                if self.ldata_write[i].dist == 0:
-                    self.ldata_write[i].dist = self.ldata_write[i - 1].dist
+               self.ldata_write[0] = 200  # half robot width
+            del self.ldata_write[-3:]
+            del self.ldata_write[:3]
+            for i in range(1, len(self.ldata_write)):
+               if self.ldata_write[i].dist == 0:
+                   self.ldata_write[i].dist = self.ldata_write[i - 1].dist
+
 
             self.ldata_read, self.ldata_write = self.ldata_write, self.ldata_read
 
