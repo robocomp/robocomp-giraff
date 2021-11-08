@@ -3,7 +3,8 @@ SET ( SOURCES
   specificworker.cpp
   specificmonitor.cpp
   FaceDetector.cpp
-  BodyDetector.cpp
+  #BodyDetector.cpp
+  $ENV{ROBOCOMP}/classes/abstract_graphic_viewer/abstract_graphic_viewer.h
 )
 
 # Headers set

@@ -42,6 +42,9 @@
 #include <ranges>
 #include <chrono>
 #include <Eigen/Dense>
+#include <QPolygonF>
+#include <abstract_graphic_viewer/abstract_graphic_viewer.h>
+
 
 class SpecificWorker : public GenericWorker
 {
@@ -65,18 +68,35 @@ private:
     cv::VideoCapture cap;
     FaceDetector face_detector;
     //BodyDetector body_detector;
+    AbstractGraphicViewer *viewer;
 
     //robot
     struct Robot
     {
         float current_rot_speed = 0;
         float current_adv_speed = 0;
+        float length = 400;
     };
     Robot robot;
+    RoboCompLaser::TLaserData ldata;
+    std::tuple<bool, float, float>  person_outside_laser(const QPointF &body, float body_dist);
+    bool clear_path_to_point(const QPointF &p, const QPolygonF &laser_poly);
+    const int ROBOT_LENGTH = 400;
+    QGraphicsPolygonItem *robot_polygon;
+    QGraphicsRectItem *laser_in_robot_polygon;
+    void draw_laser(const RoboCompLaser::TLaserData &ldata);
+    RoboCompFullPoseEstimation::FullPoseEuler r_state;
 
+    // camera
     //using DetectRes = std::tuple<std::optional<std::tuple<QRect, int>>, std::optional<std::tuple<QRect, int>>>;
-    using DetectRes = std::tuple<std::optional<std::tuple<int,int,int>>, std::optional<std::tuple<int,int,int>>>;
+    using DetectRes = std::tuple<std::optional<std::tuple<int,int,int, QPointF>>, std::optional<std::tuple<int,int,int,QPointF>>>;
     DetectRes read_image();
+    struct Camera
+    {
+        float focal_x;
+        int cols, rows;
+    };
+    Camera camera;
 
     // YOLO
     // Initialize the parameters
@@ -97,6 +117,7 @@ private:
     enum class Actions { FOLLOW, WAIT };
 
     // Level 1
+    QTimer timer_l1;
     enum class L1_State { SEARCHING, BODY_DETECTED, FACE_DETECTED, EYES_DETECTED, HANDS_DETECTED };
     L1_State l1_state = L1_State::SEARCHING;
     std::map<L1_State, QString> l1_map{{L1_State::SEARCHING, "SEARCHING"},
@@ -121,8 +142,8 @@ private:
         }
     };
     L1_Person l1_person;
-    void move_tablet(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
-    void move_base(std::optional<std::tuple<int,int,int>> body_o, std::optional<std::tuple<int,int,int>> face_o);
+    void move_tablet(const DetectRes &detected);
+    void move_base(const DetectRes &detected);
 
     // Level 2
     QTimer timer_l2;
@@ -179,6 +200,11 @@ private:
 
     // tilt
     int inverted_tilt = 1;
+
+
+    Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p);
+
+    Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
 };
 
 #endif

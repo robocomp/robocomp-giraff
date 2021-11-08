@@ -20,7 +20,7 @@
 /**
 * \brief Default constructor
 */
-GenericWorker::GenericWorker(TuplePrx tprx) : QObject()
+GenericWorker::GenericWorker(TuplePrx tprx) : Ui_guiDlg()
 {
 
 	billcoppelia_proxy = std::get<0>(tprx);
@@ -28,10 +28,17 @@ GenericWorker::GenericWorker(TuplePrx tprx) : QObject()
 	camerasimple_proxy = std::get<2>(tprx);
 	differentialrobot_proxy = std::get<3>(tprx);
 	emotionalmotor_proxy = std::get<4>(tprx);
-	jointmotorsimple_proxy = std::get<5>(tprx);
+	fullposeestimation_proxy = std::get<5>(tprx);
+	jointmotorsimple_proxy = std::get<6>(tprx);
+	laser_proxy = std::get<7>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 
+
+	#ifdef USE_QTGUI
+		setupUi(this);
+		show();
+	#endif
 	Period = BASIC_PERIOD;
 	connect(&timer, SIGNAL(timeout()), this, SLOT(compute()));
 

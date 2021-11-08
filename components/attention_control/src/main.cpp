@@ -135,7 +135,9 @@ int ::attention_control::run(int argc, char* argv[])
 	RoboCompCameraSimple::CameraSimplePrxPtr camerasimple_proxy;
 	RoboCompDifferentialRobot::DifferentialRobotPrxPtr differentialrobot_proxy;
 	RoboCompEmotionalMotor::EmotionalMotorPrxPtr emotionalmotor_proxy;
+	RoboCompFullPoseEstimation::FullPoseEstimationPrxPtr fullposeestimation_proxy;
 	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
+	RoboCompLaser::LaserPrxPtr laser_proxy;
 
 	string proxy, tmp;
 	initialize();
@@ -222,6 +224,22 @@ int ::attention_control::run(int argc, char* argv[])
 
 	try
 	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "FullPoseEstimationProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy FullPoseEstimationProxy\n";
+		}
+		fullposeestimation_proxy = Ice::uncheckedCast<RoboCompFullPoseEstimation::FullPoseEstimationPrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy FullPoseEstimation: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("FullPoseEstimationProxy initialized Ok!");
+
+
+	try
+	{
 		if (not GenericMonitor::configGetString(communicator(), prefix, "JointMotorSimpleProxy", proxy, ""))
 		{
 			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy JointMotorSimpleProxy\n";
@@ -236,7 +254,23 @@ int ::attention_control::run(int argc, char* argv[])
 	rInfo("JointMotorSimpleProxy initialized Ok!");
 
 
-	tprx = std::make_tuple(billcoppelia_proxy,camerargbdsimple_proxy,camerasimple_proxy,differentialrobot_proxy,emotionalmotor_proxy,jointmotorsimple_proxy);
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "LaserProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy LaserProxy\n";
+		}
+		laser_proxy = Ice::uncheckedCast<RoboCompLaser::LaserPrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy Laser: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("LaserProxy initialized Ok!");
+
+
+	tprx = std::make_tuple(billcoppelia_proxy,camerargbdsimple_proxy,camerasimple_proxy,differentialrobot_proxy,emotionalmotor_proxy,fullposeestimation_proxy,jointmotorsimple_proxy,laser_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx, startup_check_flag);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());

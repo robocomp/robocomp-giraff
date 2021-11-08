@@ -22,6 +22,13 @@
 #include "config.h"
 #include <stdint.h>
 #include <qlog/qlog.h>
+
+#if Qt5_FOUND
+	#include <QtWidgets>
+#else
+	#include <QtGui>
+#endif
+#include <ui_mainUI.h>
 #include <CommonBehavior.h>
 
 #include <BillCoppelia.h>
@@ -29,18 +36,20 @@
 #include <CameraSimple.h>
 #include <DifferentialRobot.h>
 #include <EmotionalMotor.h>
+#include <FullPoseEstimation.h>
 #include <GenericBase.h>
 #include <JointMotorSimple.h>
+#include <Laser.h>
 
 
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
 
 
-using TuplePrx = std::tuple<RoboCompBillCoppelia::BillCoppeliaPrxPtr,RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompCameraSimple::CameraSimplePrxPtr,RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompEmotionalMotor::EmotionalMotorPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr>;
+using TuplePrx = std::tuple<RoboCompBillCoppelia::BillCoppeliaPrxPtr,RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompCameraSimple::CameraSimplePrxPtr,RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompEmotionalMotor::EmotionalMotorPrxPtr,RoboCompFullPoseEstimation::FullPoseEstimationPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr,RoboCompLaser::LaserPrxPtr>;
 
 
-class GenericWorker : public QObject
+class GenericWorker : public QWidget, public Ui_guiDlg
 {
 Q_OBJECT
 public:
@@ -58,7 +67,9 @@ public:
 	RoboCompCameraSimple::CameraSimplePrxPtr camerasimple_proxy;
 	RoboCompDifferentialRobot::DifferentialRobotPrxPtr differentialrobot_proxy;
 	RoboCompEmotionalMotor::EmotionalMotorPrxPtr emotionalmotor_proxy;
+	RoboCompFullPoseEstimation::FullPoseEstimationPrxPtr fullposeestimation_proxy;
 	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
+	RoboCompLaser::LaserPrxPtr laser_proxy;
 
 
 protected:

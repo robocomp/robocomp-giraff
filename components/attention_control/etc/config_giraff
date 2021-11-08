@@ -8,6 +8,8 @@ EmotionalMotorProxy = emotionalmotor:tcp -p 10945
 JointMotorSimpleProxy = jointmotorsimple:tcp -h localhost -p 10086
 CameraSimpleProxy = camerasimple:tcp -p 10005
 BillCoppeliaProxy = billcoppelia:tcp -h localhost -p 11046
+LaserProxy = laser:tcp -h localhost -p 10003
+FullPoseEstimationProxy = fullposeestimation:tcp -h localhost -p 10696
 
 inverted_tilt = false # if true works in real world
 

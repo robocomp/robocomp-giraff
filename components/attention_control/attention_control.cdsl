@@ -4,12 +4,16 @@ import "EmotionalMotor.idsl";
 import "JointMotorSimple.idsl";
 import "CameraRGBDSimple.idsl";
 import "BillCoppelia.idsl";
+import "Laser.idsl";
+import "FullPoseEstimation.idsl";
+
 
 Component attention_control
 {
     Communications
     {
-        requires DifferentialRobot, CameraRGBDSimple, EmotionalMotor, JointMotorSimple, CameraSimple, BillCoppelia;
+        requires DifferentialRobot, CameraRGBDSimple, EmotionalMotor, JointMotorSimple, CameraSimple, BillCoppelia, Laser, FullPoseEstimation;
     };
     language Cpp11;
+    gui Qt(QWidget);
 };
