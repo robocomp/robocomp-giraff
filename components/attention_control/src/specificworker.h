@@ -201,10 +201,12 @@ private:
     // tilt
     int inverted_tilt = 1;
 
-
+    // aux
     Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p);
-
     Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
+    inline QPointF toQPointF(const Eigen::Vector2f &p);
+    inline Eigen::Vector2f toEigen2f(const QPointF &p);
+
 };
 
 #endif

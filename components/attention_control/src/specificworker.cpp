@@ -546,14 +546,22 @@ void SpecificWorker::move_base(const DetectRes &detected)
     const float MAX_ADVANCE_SPEED = 500;
     const float MIN_PERSON_DISTANCE = 700;
     const auto &[body_o, face_o] = detected;
+
+    static QGraphicsItem *graphics_line = nullptr;
+    if (graphics_line != nullptr)
+        viewer->scene.removeItem(graphics_line);
+
     if(body_o.has_value())
     {
         auto &[body_x_error, _, body_dist, center] = body_o.value();
         //if person outside laser, compute a virtual waypoint inside laser and closest to person and closest to last virtualwaypoint
         if( const auto &[out, dist, angle] = person_outside_laser(center, body_dist); out == true)
         {
-            qInfo() << __FUNCTION__ << "Person not in sight" << angle;
-            //rot = angle*0.5;
+            QLineF line(toQPointF(from_robot_to_world(Eigen::Vector2f(0,0))),
+                        toQPointF(from_robot_to_world(Eigen::Vector2f(dist*sin(angle),dist*cos(angle)))));
+            //qInfo() << __FUNCTION__ << "Person not in sight" << dist << angle << line;
+            graphics_line = viewer->scene.addLine(line, QPen(QColor("Orange"), 50));
+            //rot = angle*0.9;
         }
        else
             rot = -(2.f / 100) * body_x_error;
@@ -562,7 +570,7 @@ void SpecificWorker::move_base(const DetectRes &detected)
         {
             if(fabs(body_dist-MIN_PERSON_DISTANCE) < 100)
                 advance = 0;
-            if((body_dist-MIN_PERSON_DISTANCE) < -00)
+            if((body_dist-MIN_PERSON_DISTANCE) < -300)
                 advance = std::clamp(body_dist-MIN_PERSON_DISTANCE, -300.f, 0.f);
             else
                 advance = MAX_ADVANCE_SPEED * (body_dist-MIN_PERSON_DISTANCE)*(1/1000.f) * exp(-rot*rot*2);
@@ -602,26 +610,27 @@ std::tuple<bool, float, float> SpecificWorker::person_outside_laser(const QPoint
     laser_poly.pop_back();
 
     // body must be backprojected to XYZ camera coordinate system
-    float y = body_dist;
-    float x = (body.x()-camera.cols/2.0) * y / camera.focal_x;
+    float bpy = body_dist;
+    float bpx = (body.x()-camera.cols/2.0) * bpy / camera.focal_x;
 
-    if(not clear_path_to_point(QPointF(x,y), laser_poly))
+    if(not clear_path_to_point(QPointF(bpx, bpy), laser_poly))
     {
-        const float A=0.2, B=0.5, C=0.5, D=0.7;
+        const float A=0.4, B=0.5, C=0.5, D=0.6;
         std::vector<std::tuple<float, float, float>> scores;
         for (const auto &l: ldata)
         {
-              float x= l.dist * sin(l.angle); float y= l.dist * cos(l.angle);
-//            if (clear_path_to_point(QPointF(x,y), laser_poly))
-//            {
+            float x= l.dist * sin(l.angle); float y= l.dist * cos(l.angle);
+            if (clear_path_to_point(QPointF(x,y), laser_poly))
+           {
                 float inv_dist_to_robot;
                 if (l.dist > 0) inv_dist_to_robot = 1.0 / l.dist; else inv_dist_to_robot = std::numeric_limits<float>::max();
                 float angle_to_robot = l.angle;
                 float angle_to_previous = fabs(angle_ant - l.angle);
-                float dist_to_person = (Eigen::Vector2f(body.x(), body.y()) - Eigen::Vector2f(x,y)).norm();
+                float dist_to_person = (Eigen::Vector2f(bpx, bpy) - Eigen::Vector2f(x,y)).norm();
                 float score = A * inv_dist_to_robot + B * angle_to_robot + C * angle_to_previous + D * dist_to_person;
                 scores.push_back(std::make_tuple(score, l.dist, l.angle));
-            //}
+                // BUSCAR UNA CONDICION QUE EXCLUYA angulos entre el robot y la persona
+            }
         }
         if( auto min = std::ranges::min_element(scores, [](auto a, auto b) { return std::get<0>(a) < std::get<0>(b); }); min != scores.end())
         {
@@ -633,9 +642,6 @@ std::tuple<bool, float, float> SpecificWorker::person_outside_laser(const QPoint
 }
 bool SpecificWorker::clear_path_to_point(const QPointF &goal, const QPolygonF &laser_poly)
 {
-    // lambda to convert from Eigen to QPointF
-    auto toQPointF = [](const Eigen::Vector2f &p){ return QPointF(p.x(),p.y());};
-
     //qInfo() << __FUNCTION__ << goal;
 
     // create tube lines
@@ -643,8 +649,8 @@ bool SpecificWorker::clear_path_to_point(const QPointF &goal, const QPolygonF &l
     Eigen::Vector2f robot(0.0,0.0);
     // number of parts the target vector is divided into
     float parts = (goal_r).norm()/(this->robot.length/4);
-    Eigen::Vector2f rside(220, 200);
-    Eigen::Vector2f lside(-220, 200);
+    Eigen::Vector2f rside(260, 200);
+    Eigen::Vector2f lside(-260, 200);
     if(parts < 1) return true;
 
     bool res = true;
@@ -667,26 +673,27 @@ bool SpecificWorker::clear_path_to_point(const QPointF &goal, const QPolygonF &l
     }
 
     // draw
-    QLineF line_center(toQPointF(from_robot_to_world(robot)), toQPointF(from_robot_to_world(Eigen::Vector2f(p.x(),p.y()))));
-    QLineF line_right(toQPointF(from_robot_to_world(robot+rside)), toQPointF(from_robot_to_world(Eigen::Vector2f(q.x(),q.y()))));
-    QLineF line_left(toQPointF(from_robot_to_world(robot+lside)), toQPointF(from_robot_to_world(Eigen::Vector2f(r.x(),q.y()))));
-    static QGraphicsItem *graphics_line_center = nullptr;
-    static QGraphicsItem *graphics_line_right = nullptr;
-    static QGraphicsItem *graphics_line_left = nullptr;
-    static QGraphicsItem *graphics_target = nullptr;
-    if (graphics_line_center != nullptr)
-        viewer->scene.removeItem(graphics_line_center);
-    if (graphics_line_right != nullptr)
-        viewer->scene.removeItem(graphics_line_right);
-    if (graphics_line_left != nullptr)
-        viewer->scene.removeItem(graphics_line_left);
-    if (graphics_target != nullptr)
-        viewer->scene.removeItem(graphics_target);
-    graphics_line_center = viewer->scene.addLine(line_center, QPen(QColor("Blue"), 30));
-    graphics_line_right = viewer->scene.addLine(line_right, QPen(QColor("Orange"), 30));
-    graphics_line_left = viewer->scene.addLine(line_left, QPen(QColor("Magenta"), 30));
-    graphics_target = viewer->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("Blue")), QBrush(QColor("Blue")));
-    graphics_target->setPos(goal.x(), goal.y());
+//    QLineF line_center(toQPointF(from_robot_to_world(robot)), toQPointF(from_robot_to_world(Eigen::Vector2f(p.x(),p.y()))));
+//    QLineF line_right(toQPointF(from_robot_to_world(robot+rside)), toQPointF(from_robot_to_world(Eigen::Vector2f(q.x(),q.y()))));
+//    QLineF line_left(toQPointF(from_robot_to_world(robot+lside)), toQPointF(from_robot_to_world(Eigen::Vector2f(r.x(),q.y()))));
+//    static QGraphicsItem *graphics_line_center = nullptr;
+//    static QGraphicsItem *graphics_line_right = nullptr;
+//    static QGraphicsItem *graphics_line_left = nullptr;
+//    static QGraphicsItem *graphics_target = nullptr;
+//    if (graphics_line_center != nullptr)
+//        viewer->scene.removeItem(graphics_line_center);
+//    if (graphics_line_right != nullptr)
+//        viewer->scene.removeItem(graphics_line_right);
+//    if (graphics_line_left != nullptr)
+//        viewer->scene.removeItem(graphics_line_left);
+//    if (graphics_target != nullptr)
+//        viewer->scene.removeItem(graphics_target);
+//    graphics_line_center = viewer->scene.addLine(line_center, QPen(QColor("Blue"), 30));
+//    graphics_line_right = viewer->scene.addLine(line_right, QPen(QColor("Orange"), 30));
+//    graphics_line_left = viewer->scene.addLine(line_left, QPen(QColor("Magenta"), 30));
+//    graphics_target = viewer->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("Blue")), QBrush(QColor("Blue")));
+//    auto goal_w = from_robot_to_world(goal_r);
+//    graphics_target->setPos(goal_w.x(), goal_w.y());
 
     return res;
 }
@@ -802,6 +809,11 @@ Eigen::Vector2f SpecificWorker::from_world_to_robot(const Eigen::Vector2f &p)
     matrix << cos(r_state.rz) , -sin(r_state.rz) , sin(r_state.rz) , cos(r_state.rz);
     return (matrix.transpose() * (p - Eigen::Vector2f(r_state.x, r_state.y)));
 }
+QPointF SpecificWorker::toQPointF(const Eigen::Vector2f &p)
+{ return QPointF(p.x(),p.y());};
+Eigen::Vector2f SpecificWorker::toEigen2f(const QPointF &p)
+{ return Eigen::Vector2f(p.x(),p.y());};
+
 ////////////////////////////////////////////////////////////////////////////////////
 int SpecificWorker::startup_check()
 {
