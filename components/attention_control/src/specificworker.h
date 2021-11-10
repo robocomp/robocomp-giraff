@@ -79,7 +79,7 @@ private:
     };
     Robot robot;
     RoboCompLaser::TLaserData ldata;
-    std::tuple<bool, float, float>  person_outside_laser(const QPointF &body, float body_dist);
+    bool person_outside_laser(const QPointF &body, float body_dist);
     bool clear_path_to_point(const QPointF &p, const QPolygonF &laser_poly);
     const int ROBOT_LENGTH = 400;
     QGraphicsPolygonItem *robot_polygon;
@@ -144,6 +144,7 @@ private:
     L1_Person l1_person;
     void move_tablet(const DetectRes &detected);
     void move_base(const DetectRes &detected);
+    enum class State_Base{FORWARD, TURN, BORDER};
 
     // Level 2
     QTimer timer_l2;
@@ -207,6 +208,7 @@ private:
     inline QPointF toQPointF(const Eigen::Vector2f &p);
     inline Eigen::Vector2f toEigen2f(const QPointF &p);
 
+    float min_laser_distance(float min, float max);
 };
 
 #endif
