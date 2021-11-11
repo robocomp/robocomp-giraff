@@ -466,14 +466,14 @@ void SpecificWorker::goto_target()
 //                break;
 //            }
             float lateral_distance = min_laser_distance(ldata.size()/2+20, ldata.size());
-            if (lateral_distance < 400)
+            if (lateral_distance < 300)
                 rot = 1;
-            else if (lateral_distance > 500)
+            else if (lateral_distance > 400)
                 rot = -1;
             else
                 rot = 0.0;
             float dist_factor = std::clamp(dist / 1000.0, 0.0, 1.0);
-            advance = robot.max_advance_speed * dist_factor /** exp(-rot * rot * 2)*/;
+            advance = robot.max_advance_speed * dist_factor /** gaussian(rot)*/;
             break;
         }
     }
@@ -486,6 +486,13 @@ void SpecificWorker::goto_target()
         robot.current_adv_speed = advance;
     }
     catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+}
+float SpecificWorker::gaussian(float x)
+{
+    const double xset = 0.7;
+    const double yset = 0.8;
+    const double s = xset*xset/log(yset);
+    return exp(-x*x/s);
 }
 ////////////////////////////////////////////////////////////////////
 SpecificWorker::DetectRes SpecificWorker::read_image()

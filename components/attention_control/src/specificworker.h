@@ -44,6 +44,7 @@
 #include <Eigen/Dense>
 #include <QPolygonF>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
+#include "dynamic_window.h"
 
 
 class SpecificWorker : public GenericWorker
@@ -96,6 +97,9 @@ private:
     QPolygonF laser_poly;
     void draw_laser(const QPolygonF &poly);
     RoboCompFullPoseEstimation::FullPoseEuler r_state;
+
+    // Dynamic Window
+    Dynamic_Window dwa;
 
     // camera
     //using DetectRes = std::tuple<std::optional<std::tuple<QRect, int>>, std::optional<std::tuple<QRect, int>>>;
@@ -221,6 +225,8 @@ private:
     float min_laser_distance(float min, float max);
 
     void goto_target();
+
+    float gaussian(float x);
 };
 
 #endif
