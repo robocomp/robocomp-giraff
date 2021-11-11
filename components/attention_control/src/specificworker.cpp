@@ -659,31 +659,7 @@ bool SpecificWorker::person_outside_laser(const QPointF &body, float body_dist)
     float bpx = (body.x()-camera.cols/2.0) * bpy / camera.focal_x;
 
     if(not clear_path_to_point(QPointF(bpx, bpy), laser_poly))
-    {
-//        const float A=0.4, B=0.5, C=0.5, D=0.6;
-//        std::vector<std::tuple<float, float, float>> scores;
-//        for (const auto &l: ldata)
-//        {
-//            float x= l.dist * sin(l.angle); float y= l.dist * cos(l.angle);
-//            if (clear_path_to_point(QPointF(x,y), laser_poly))
-//           {
-//                float inv_dist_to_robot;
-//                if (l.dist > 0) inv_dist_to_robot = 1.0 / l.dist; else inv_dist_to_robot = std::numeric_limits<float>::max();
-//                float angle_to_robot = l.angle;
-//                float angle_to_previous = fabs(angle_ant - l.angle);
-//                float dist_to_person = (Eigen::Vector2f(bpx, bpy) - Eigen::Vector2f(x,y)).norm();
-//                float score = A * inv_dist_to_robot + B * angle_to_robot + C * angle_to_previous + D * dist_to_person;
-//                scores.push_back(std::make_tuple(score, l.dist, l.angle));
-//                // BUSCAR UNA CONDICION QUE EXCLUYA angulos entre el robot y la persona
-//            }
-//        }
-//        if( auto min = std::ranges::min_element(scores, [](auto a, auto b) { return std::get<0>(a) < std::get<0>(b); }); min != scores.end())
-//        {
-//            angle_ant = std::get<2>(*min);
-//            return std::make_tuple(true, std::get<1>(*min), std::get<2>(*min));
-//        }
-    return true;
-    }
+         return true;
     return false;
 }
 bool SpecificWorker::clear_path_to_point(const QPointF &goal, const QPolygonF &laser_poly)
