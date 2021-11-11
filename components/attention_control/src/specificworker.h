@@ -62,6 +62,7 @@ public slots:
     void compute_bill();
     int startup_check();
 	void initialize(int period);
+    void new_target_slot(QPointF);
 
 private:
     bool startup_check_flag;
@@ -71,20 +72,29 @@ private:
     AbstractGraphicViewer *viewer;
 
     //robot
+    struct Target
+    {
+        bool active = false;
+        QPointF pos;
+        Eigen::Vector2f to_eigen() const {return Eigen::Vector2f(pos.x(), pos.y());}
+    };
+    Target target;
     struct Robot
     {
         float current_rot_speed = 0;
         float current_adv_speed = 0;
         float length = 400;
+        float max_advance_speed = 800;
     };
     Robot robot;
     RoboCompLaser::TLaserData ldata;
-    bool person_outside_laser(const QPointF &body, float body_dist);
-    bool clear_path_to_point(const QPointF &p, const QPolygonF &laser_poly);
+    bool person_outside_laser(const QPointF &body_center_r, float body_dist);
+    bool clear_path_to_point(const QPointF &goal_r, const QPolygonF &laser_poly);
     const int ROBOT_LENGTH = 400;
     QGraphicsPolygonItem *robot_polygon;
     QGraphicsRectItem *laser_in_robot_polygon;
-    void draw_laser(const RoboCompLaser::TLaserData &ldata);
+    QPolygonF laser_poly;
+    void draw_laser(const QPolygonF &poly);
     RoboCompFullPoseEstimation::FullPoseEuler r_state;
 
     // camera
@@ -144,7 +154,7 @@ private:
     L1_Person l1_person;
     void move_tablet(const DetectRes &detected);
     void move_base(const DetectRes &detected);
-    enum class State_Base{FORWARD, TURN, BORDER};
+    enum class State_Base{FORWARD, TURN, BORDER, IDLE};
 
     // Level 2
     QTimer timer_l2;
@@ -209,6 +219,8 @@ private:
     inline Eigen::Vector2f toEigen2f(const QPointF &p);
 
     float min_laser_distance(float min, float max);
+
+    void goto_target();
 };
 
 #endif

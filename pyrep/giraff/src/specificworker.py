@@ -184,6 +184,9 @@ class SpecificWorker(GenericWorker):
             for x, y, z in self.grouper(data[1], 3):                      # extract non-intersecting groups of 3
                 self.ldata_write.append(RoboCompLaser.TData(-np.arctan2(y, x), np.linalg.norm([x, y])*1000.0))
 
+            del self.ldata_write[-7:]
+            del self.ldata_write[:7]
+
             # if self.ldata_write[0] == 0:
             #    self.ldata_write[0] = 200  # half robot width
             # del self.ldata_write[-3:]
