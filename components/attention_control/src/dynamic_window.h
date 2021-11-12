@@ -21,11 +21,10 @@ class Dynamic_Window
     public:
         Dynamic_Window();
         using Result = std::tuple<float, float, float, float, float>;
-        Result compute(const Eigen::Vector2f &target_w,
-                                    const QPolygonF &laser_poly,
-                                    const Eigen::Vector3f &robot_pos,
-                                    const Eigen::Vector3f &robot_vel,
-                                    QGraphicsScene *scene = nullptr);
+        Result compute(const Eigen::Vector2f &target_r,const QPolygonF &laser_poly,
+                       const Eigen::Vector3f &robot_pos,
+                       const Eigen::Vector3f &robot_vel,
+                       QGraphicsScene *scene = nullptr);
 
     private:
         std::vector<Result> compute_predictions(float current_adv, float current_rot, const QPolygonF &laser_poly);
@@ -37,8 +36,14 @@ class Dynamic_Window
         inline QPointF to_qpointf(const Eigen::Vector2f &p) const {return QPointF(p.x(), p.y());}
         void draw(const Eigen::Vector3f &robot, const std::vector <Result> &puntos, const std::optional<Result> &best, QGraphicsScene *scene);
 
-        const float SEMI_WIDTH = 250; // el semiancho del robot METER EN INICIALIZACION
-        QPolygonF polygon_robot;
+        QPolygonF polygon_robot; // to check if the point is reachable
+        struct Constants
+        {
+            const float robot_semi_width = 330;   // robot semi size
+            const float step_along_arc = 60;      // advance step along arc
+            const float time_ahead = 1.5;         // time ahead ahead
+        };
+        Constants constants;
 };
 
 #endif //ATTENTION_CONTROL_DYNAMIC_WINDOW_H

@@ -82,36 +82,36 @@ void SpecificWorker::initialize(int period)
     connect(&timer_l3, SIGNAL(timeout()), this, SLOT(compute_L3()));
     connect(&timer_bill, SIGNAL(timeout()), this, SLOT(compute_bill()));
     this->Period = 100;
-    int Period_L1 = 80;
-    int Period_L2 = 150;
-    int Period_L3 = 220;
+    int Period_L1 = 100;
+    int Period_L2 = 200;
+    int Period_L3 = 300;
     int Period_Bill = 1000;
     if(this->startup_check_flag)
         this->startup_check();
     else
     {
         timer.start(Period);
-        //timer_l1.start(Period_L1);
-        //timer_l2.start(Period_L2);
-        //timer_l3.start(Period_L3);
-        //timer_bill.start(Period_Bill);
+        timer_l1.start(Period_L1);
+        timer_l2.start(Period_L2);
+        timer_l3.start(Period_L3);
+        timer_bill.start(Period_Bill);
     }
 
     // target
     connect(viewer, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
 
     // send Bill to robot
-//    try
-//    {
-//        auto r_state = fullposeestimation_proxy->getFullPoseEuler();
-//        auto pose = billcoppelia_proxy->getPose();
-//        QLineF line(pose.x, pose.y, r_state.x, r_state.y);
-//        float percent = (line.length() - 600)/line.length();
-//        QPointF p = line.pointAt(percent);
-//        qInfo() << __FUNCTION__ << pose.x << pose.y << line << percent;
-//        billcoppelia_proxy->setTarget(p.x(), p.y());
-//    }
-//    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;};
+    try
+    {
+        auto r_state = fullposeestimation_proxy->getFullPoseEuler();
+        auto pose = billcoppelia_proxy->getPose();
+        QLineF line(pose.x, pose.y, r_state.x, r_state.y);
+        float percent = (line.length() - 600)/line.length();
+        QPointF p = line.pointAt(percent);
+        qInfo() << __FUNCTION__ << pose.x << pose.y << line << percent;
+        billcoppelia_proxy->setTarget(p.x(), p.y());
+    }
+    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;};
 }
 
 ////////////////////////////////////////////////////
@@ -231,7 +231,7 @@ void SpecificWorker::compute_L2()
             }
             break;
         case L2_State::PERSON:
-            if(this->l1_person.dyn_state < 0.7)
+            if(this->l1_person.dyn_state < 0.2)
             {
                 // delete person. Maybe push into memory
                 qInfo() << __FUNCTION__ << "L2 change to EXPECTNG";
@@ -306,7 +306,7 @@ void SpecificWorker::compute_L3()
                 l3_state = L3_State::FOLLOWING;
                 return;
             }
-            if(std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now() - searching_initial_time).count() > 10)
+            if(std::chrono::duration_cast<chrono::seconds>(std::chrono::system_clock::now() - searching_initial_time).count() > 20)
             {
                 l3_state = L3_State::WAITING;
             }
@@ -385,41 +385,33 @@ void SpecificWorker::compute()
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 
     // test code to avoid obstacles
-    if(target.active)
-    {
-        if(from_world_to_robot(target.to_eigen()).norm()  < 100)
-        {
-            target.active = false;
-            differentialrobot_proxy->setSpeedBase(0, 0);
-            viewer->scene.removeItem(target.draw); delete target.draw;
-            return;
-        }
-        auto [x,y,adv,rot,a] = dwa.compute(target.to_eigen(), laser_poly,
-                                  Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
-                                  Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);
-
-        try
-        {
-            const float MAX_ADVANCE = 800;
-            const float rgain = 1;
-            float rotation = rgain*rot;
-            float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
-            float advance = MAX_ADVANCE * dist_break * gaussian(rotation);
-
-            //qInfo() << __FUNCTION__ << "Send command:" << adv << -rot;
-            differentialrobot_proxy->setSpeedBase(advance, rgain*rot);
-        }
-        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
-    }
+//    if(target.active)
+//    {
+//        if(from_world_to_robot(target.to_eigen()).norm()  < 100)
+//        {
+//            target.active = false;
+//            differentialrobot_proxy->setSpeedBase(0, 0);
+//            viewer->scene.removeItem(target.draw); delete target.draw;
+//            return;
+//        }
+//        auto [x,y,adv,rot,a] = dwa.compute(target.to_eigen(), laser_poly,
+//                                  Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
+//                                  Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);
+//
+//        try
+//        {
+//            const float MAX_ADVANCE = 800;
+//            const float rgain = 1;
+//            float rotation = rgain*rot;
+//            float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
+//            float advance = MAX_ADVANCE * dist_break * gaussian(rotation);
+//
+//            //qInfo() << __FUNCTION__ << "Send command:" << adv << -rot;
+//            differentialrobot_proxy->setSpeedBase(advance, rgain*rot);
+//        }
+//        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+//    }
 };
-
-float SpecificWorker::gaussian(float x)
-{
-    const double xset = 0.5;
-    const double yset = 0.5;
-    const double s = -xset*xset/log(yset);
-    return exp(-x*x/s);
-}
 ////////////////////////////////////////////////////////////////////
 SpecificWorker::DetectRes SpecificWorker::read_image()
 {
@@ -585,24 +577,32 @@ void SpecificWorker::move_tablet(const DetectRes &detected)
 }
 void SpecificWorker::move_base(const DetectRes &detected)
 {
-    // rotate base
     float advance = 0.0;
     float rot = 0.0;
     const float MIN_PERSON_DISTANCE = 700;
     const auto &[body_o, face_o] = detected;
-    static State_Base state = State_Base::FORWARD;
 
     if(body_o.has_value())
     {
         auto &[body_x_error, _, body_dist, center] = body_o.value();
         if(l1_person.current_action == Actions::FOLLOW)
         {
+            // body must be backprojected to XYZ camera coordinate system
 
+            float bpy = body_dist;
+            float bpx = (center.x() - camera.cols / 2.0) * bpy / camera.focal_x;
+            auto[x, y, adv, rotation, a] = dwa.compute(Eigen::Vector2f(bpx, bpy), laser_poly,
+                                                       Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
+                                                       Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);
+
+            rot = rotation;
+            if(body_dist < MIN_PERSON_DISTANCE) rot = 0;
+            float dist_break = std::clamp((body_dist-MIN_PERSON_DISTANCE) / 1200.0, 0.0, 1.0);
+            advance = constants.max_advance_speed * dist_break * gaussian(rot);
+            //qInfo() << __FUNCTION__ << "after dwa:" << advance << rot;
         }
         else
             rot = -(2.f / 100) * body_x_error;
-//        if(body_dist > 0 and body_dist < 400)
-//            advance = -(400.0 / 400.0) * body_dist;
 
     }
     else if(face_o.has_value())
@@ -614,7 +614,7 @@ void SpecificWorker::move_base(const DetectRes &detected)
     }
     else  //no body or face
     {
-        if(not (l1_person.current_action == Actions::FOLLOW))
+        //if(not (l1_person.current_action == Actions::FOLLOW))
         {
             qInfo() << __FUNCTION__ << "Searching in L1";
             if (robot.current_rot_speed >= 0)
@@ -629,10 +629,10 @@ void SpecificWorker::move_base(const DetectRes &detected)
     {
         try
         {
-            const float gain = 0.5;
+            //const float gain = 0.5;
             qInfo() << __FUNCTION__ << "Send command:" << advance << rot;
-            differentialrobot_proxy->setSpeedBase(advance, gain * rot);
-            robot.current_rot_speed = gain*rot;
+            differentialrobot_proxy->setSpeedBase(advance, rot);
+            robot.current_rot_speed = rot;
             robot.current_adv_speed = advance;
         }
         catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
@@ -671,9 +671,9 @@ bool SpecificWorker::clear_path_to_point(const QPointF &goal_r, const QPolygonF 
     float limit = (this->robot.length)/(goal_re).norm();
     for(auto l: iter::range(0.0, 1.0-limit, 1.0/parts))
     {
-        p = toQPointF(robot*(1-l) + goal_re*l);
-        q = toQPointF((robot+rside)*(1-l) + (goal_re+rside)*l);
-        r = toQPointF((robot+lside)*(1-l) + (goal_re+lside)*l);
+        p = to_qpointf(robot * (1 - l) + goal_re * l);
+        q = to_qpointf((robot + rside) * (1 - l) + (goal_re + rside) * l);
+        r = to_qpointf((robot + lside) * (1 - l) + (goal_re + lside) * l);
         if( not laser_poly.containsPoint(p, Qt::OddEvenFill) or
             not laser_poly.containsPoint(q, Qt::OddEvenFill) or
             not laser_poly.containsPoint(r, Qt::OddEvenFill))
@@ -685,9 +685,11 @@ bool SpecificWorker::clear_path_to_point(const QPointF &goal_r, const QPolygonF 
     }
 
     // draw
-    QLineF line_center(toQPointF(from_robot_to_world(robot)), toQPointF(from_robot_to_world(Eigen::Vector2f(p.x(),p.y()))));
-    QLineF line_right(toQPointF(from_robot_to_world(robot+rside)), toQPointF(from_robot_to_world(Eigen::Vector2f(q.x(),q.y()))));
-    QLineF line_left(toQPointF(from_robot_to_world(robot+lside)), toQPointF(from_robot_to_world(Eigen::Vector2f(r.x(),q.y()))));
+    QLineF line_center(to_qpointf(from_robot_to_world(robot)), to_qpointf(from_robot_to_world(Eigen::Vector2f(p.x(), p.y()))));
+    QLineF line_right(to_qpointf(from_robot_to_world(robot
+    +rside)), to_qpointf(from_robot_to_world(Eigen::Vector2f(q.x(), q.y()))));
+    QLineF line_left(to_qpointf(from_robot_to_world(robot
+    +lside)), to_qpointf(from_robot_to_world(Eigen::Vector2f(r.x(), q.y()))));
     static QGraphicsItem *graphics_line_center = nullptr;
     static QGraphicsItem *graphics_line_right = nullptr;
     static QGraphicsItem *graphics_line_left = nullptr;
@@ -816,11 +818,17 @@ Eigen::Vector2f SpecificWorker::from_world_to_robot(const Eigen::Vector2f &p)
     matrix << cos(r_state.rz) , -sin(r_state.rz) , sin(r_state.rz) , cos(r_state.rz);
     return (matrix.transpose() * (p - Eigen::Vector2f(r_state.x, r_state.y)));
 }
-QPointF SpecificWorker::toQPointF(const Eigen::Vector2f &p)
+QPointF SpecificWorker::to_qpointf(const Eigen::Vector2f &p)
 { return QPointF(p.x(),p.y());};
-Eigen::Vector2f SpecificWorker::toEigen2f(const QPointF &p)
+Eigen::Vector2f SpecificWorker::to_eigen(const QPointF &p)
 { return Eigen::Vector2f(p.x(),p.y());};
-
+float SpecificWorker::gaussian(float x)
+{
+    const double xset = 0.5;
+    const double yset = 0.5;
+    const double s = -xset*xset/log(yset);
+    return exp(-x*x/s);
+}
 ///////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::new_target_slot(QPointF t)
 {
@@ -837,45 +845,6 @@ int SpecificWorker::startup_check()
     QTimer::singleShot(200, qApp, SLOT(quit()));
     return 0;
 }
-
-/**************************************/
-// From the RoboCompCameraRGBDSimple you can call this methods:
-// this->camerargbdsimple_proxy->getAll(...)
-// this->camerargbdsimple_proxy->getDepth(...)
-// this->camerargbdsimple_proxy->getImage(...)
-
-/**************************************/
-// From the RoboCompCameraRGBDSimple you can use this types:
-// RoboCompCameraRGBDSimple::TImage
-// RoboCompCameraRGBDSimple::TDepth
-// RoboCompCameraRGBDSimple::TRGBD
-
-/**************************************/
-// From the RoboCompDifferentialRobot you can call this methods:
-// this->differentialrobot_proxy->correctOdometer(...)
-// this->differentialrobot_proxy->getBasePose(...)
-// this->differentialrobot_proxy->getBaseState(...)
-// this->differentialrobot_proxy->resetOdometer(...)
-// this->differentialrobot_proxy->setOdometer(...)
-// this->differentialrobot_proxy->setOdometerPose(...)
-// this->differentialrobot_proxy->setSpeedBase(...)
-// this->differentialrobot_proxy->stopBase(...)
-
-/**************************************/
-// From the RoboCompDifferentialRobot you can use this types:
-// RoboCompDifferentialRobot::TMechParams
-
-/**************************************/
-// From the RoboCompEmotionalMotor you can call this methods:
-// this->emotionalmotor_proxy->expressAnger(...)
-// this->emotionalmotor_proxy->expressDisgust(...)
-// this->emotionalmotor_proxy->expressFear(...)
-// this->emotionalmotor_proxy->expressJoy(...)
-// this->emotionalmotor_proxy->expressSadness(...)
-// this->emotionalmotor_proxy->expressSurprise(...)
-
-
-
 
 /////// HOG
 

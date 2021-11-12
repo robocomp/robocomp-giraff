@@ -75,6 +75,11 @@ private:
     AbstractGraphicViewer *viewer;
 
     //robot
+    struct Constants
+    {
+        const float max_advance_speed = 800;
+    };
+    Constants constants;
     struct Target
     {
         bool active = false;
@@ -222,9 +227,8 @@ private:
     // aux
     Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p);
     Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
-    inline QPointF toQPointF(const Eigen::Vector2f &p);
-    inline Eigen::Vector2f toEigen2f(const QPointF &p);
-
+    inline QPointF to_qpointf(const Eigen::Vector2f &p);
+    inline Eigen::Vector2f to_eigen(const QPointF &p);
     float min_laser_distance(float min, float max);
     float gaussian(float x);
 };

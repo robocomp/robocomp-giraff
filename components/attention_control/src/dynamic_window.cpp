@@ -8,11 +8,13 @@
 
 Dynamic_Window::Dynamic_Window()
 {
-    polygon_robot <<  QPointF(-SEMI_WIDTH, SEMI_WIDTH) << QPointF(SEMI_WIDTH, SEMI_WIDTH) <<
-                      QPointF(SEMI_WIDTH, -SEMI_WIDTH) << QPointF(-SEMI_WIDTH, -SEMI_WIDTH);
+    polygon_robot <<  QPointF(-constants.robot_semi_width, constants.robot_semi_width) <<
+                      QPointF(constants.robot_semi_width, constants.robot_semi_width) <<
+                      QPointF(constants.robot_semi_width, -constants.robot_semi_width) <<
+                      QPointF(-constants.robot_semi_width, -constants.robot_semi_width);
 }
 
-Dynamic_Window::Result Dynamic_Window::compute(const Eigen::Vector2f &target_w,
+Dynamic_Window::Result Dynamic_Window::compute(const Eigen::Vector2f &target_r,
                                                             const QPolygonF &laser_poly,
                                                             const Eigen::Vector3f &robot_pos,
                                                             const Eigen::Vector3f &robot_vel,
@@ -28,7 +30,6 @@ Dynamic_Window::Result Dynamic_Window::compute(const Eigen::Vector2f &target_w,
     auto point_list = compute_predictions(current_adv, current_rot, laser_poly);
 
     // compute best value
-    Eigen::Vector2f target_r = from_world_to_robot(target_w, robot_pos);
     auto best_choice = compute_optimus(point_list, target_r, robot_pos, previous_turn);
 
     if(scene != nullptr)
@@ -38,7 +39,6 @@ Dynamic_Window::Result Dynamic_Window::compute(const Eigen::Vector2f &target_w,
     {
         auto[x, y, v, w, alpha]= best_choice.value();  // x,y coordinates of best point, v,w velocities to reach that point, alpha robot's angle at that point
         previous_turn = w;
-        auto va = std::min(v / 5, 1000.f);
         return best_choice.value();
     }
     else
@@ -48,9 +48,7 @@ Dynamic_Window::Result Dynamic_Window::compute(const Eigen::Vector2f &target_w,
 std::vector<Dynamic_Window::Result> Dynamic_Window::compute_predictions(float current_adv, float current_rot, const QPolygonF &laser_poly)
 {
     std::vector<Result> list_points;
-    const float semiwidth = 60;  // advance step along arc
-    //Calculamos las posiciones futuras del robot y se insertan en un vector.
-    float dt = 1.5; // 1 second ahead
+
     for (float v = -100; v <= 800; v += 100) //advance
         for (float w = -2; w <= 2; w += 0.2) //rotation
         {
@@ -58,24 +56,23 @@ std::vector<Dynamic_Window::Result> Dynamic_Window::compute_predictions(float cu
             float new_rot = -current_rot + w;
             if (fabs(w) > 0.001)  // avoid division by zero to compute the radius
             {
-                // Nuevo punto posible
                 float r = new_adv / new_rot; // radio de giro ubicado en el eje x del robot
-                float arc_length = new_rot * dt * r;
-                for (float t = semiwidth; t < arc_length; t += semiwidth)
+                float arc_length = new_rot * constants.time_ahead * r;
+                for (float t = constants.step_along_arc; t < arc_length; t += constants.step_along_arc)
                 {
-                    float x = r - r * cos(t / r); float y= r * sin(t / r);
+                    float x = r - r * cos(t / r); float y= r * sin(t / r);  // circle parametric coordinates
                     auto point = std::make_tuple(x, y, new_adv, new_rot, t / r);
-                    if(sqrt(x*x + y*y)> SEMI_WIDTH and not point_on_obstacle(point, laser_poly)) // skip points in the robot
+                    if(sqrt(x*x + y*y)> constants.robot_semi_width and not point_on_obstacle(point, laser_poly)) // skip points in the robot
                         list_points.emplace_back(std::move(point));
                 }
             }
             else // para evitar la división por cero en el cálculo de r
             {
-                for(float t = semiwidth; t < new_adv*dt; t+=semiwidth)
+                for(float t = constants.step_along_arc; t < new_adv * constants.time_ahead; t+=constants.step_along_arc)
                 {
-                    auto point = std::make_tuple(0.f, t, new_adv, new_rot, new_rot * dt);
-                    if (t > SEMI_WIDTH and not point_on_obstacle(point, laser_poly))
-                        list_points.emplace_back(std::make_tuple(0.f, t, new_adv, new_rot, new_rot * dt));
+                    auto point = std::make_tuple(0.f, t, new_adv, new_rot, new_rot * constants.time_ahead);
+                    if (t > constants.robot_semi_width and not point_on_obstacle(point, laser_poly))
+                        list_points.emplace_back(std::make_tuple(0.f, t, new_adv, new_rot, new_rot * constants.time_ahead));
                 }
             }
         }
@@ -97,18 +94,15 @@ bool Dynamic_Window::point_on_obstacle(const Result &point, const QPolygonF &las
 std::optional<Dynamic_Window::Result> Dynamic_Window::compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &tr,
                                                                       const Eigen::Vector3f &robot, float previous_turn)
 {
-    const float A=1, B=1, C=0, D=10;
+    const float A=1, B=0;  // CHANGE
     int k=0;
     std::vector<std::tuple<float, Result>> values(points.size());
     for(auto &&[k, point] : iter::enumerate(points))
     {
         auto [x, y, adv, giro, ang] = point;
-        //std::cout << __FUNCTION__ << " " << x << " " << y << " " << adv<< " " << giro << " " << ang << std::endl;
         float dist_to_target = (Eigen::Vector2f(x, y) - tr).norm();
         float dist_to_previous_turn =  fabs(-giro - previous_turn);
-        //float dist_from_robot = 1/sqrt(pow(rx-x,2)+pow(ry-y,2));
-        //float clearance_to_obstacle = 1/grid.dist_to_nearest_obstacle(x, y);
-        values[k] = std::make_tuple(B*dist_to_target + C*dist_to_previous_turn, point);
+        values[k] = std::make_tuple(A*dist_to_target + B*dist_to_previous_turn, point);
     }
     auto min = std::ranges::min_element(values, [](auto &a, auto &b){ return std::get<0>(a) < std::get<0>(b);});
     if(min != values.end())
@@ -134,9 +128,8 @@ Eigen::Vector2f Dynamic_Window::from_world_to_robot(const Eigen::Vector2f &p, co
 
 void Dynamic_Window::draw(const Eigen::Vector3f &robot, const std::vector <Result> &puntos,  const std::optional<Result> &best, QGraphicsScene *scene)
 {
-    // draw future. Draw and arch going out from the robot
-    // remove existing arcspwd
     static std::vector<QGraphicsEllipseItem *> arcs_vector;
+    // remove current arcs
     for (auto arc: arcs_vector)
         scene->removeItem(arc);
     arcs_vector.clear();
