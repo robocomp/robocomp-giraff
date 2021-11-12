@@ -3,168 +3,118 @@
 //
 
 #include "dynamic_window.h"
+#include <QtCore>
+#include <cppitertools/enumerate.hpp>
 
 Dynamic_Window::Dynamic_Window()
-{}
-
-std::tuple<float, float, float> Dynamic_Window::compute(const Eigen::Vector2f &target,
-                                                        const std::vector<std::tuple<float, float>> &ldata,
-                                                        const Eigen::Vector3f &robot_pos,
-                                                        const Eigen::Vector3f &robot_vel)
 {
-    // posiciones originales del robot
-    float current_adv = robot_vel[1]; // Advance V
-    float current_rot = robot_vel[2];  // Rotation W
-    float robot_angle = robot_pos[2];
+    polygon_robot <<  QPointF(-SEMI_WIDTH, SEMI_WIDTH) << QPointF(SEMI_WIDTH, SEMI_WIDTH) <<
+                      QPointF(SEMI_WIDTH, -SEMI_WIDTH) << QPointF(-SEMI_WIDTH, -SEMI_WIDTH);
+}
+
+Dynamic_Window::Result Dynamic_Window::compute(const Eigen::Vector2f &target_w,
+                                                            const QPolygonF &laser_poly,
+                                                            const Eigen::Vector3f &robot_pos,
+                                                            const Eigen::Vector3f &robot_vel,
+                                                            QGraphicsScene *scene)
+{
     static float previous_turn = 0;
+    float robot_angle = robot_pos[2];
+    // advance velocity should come from robot. It is computed here from world referenced velocities
+    float current_adv = -sin(robot_angle)*robot_vel[0] + cos(robot_angle)*robot_vel[1];
+    float current_rot = robot_vel[2];  // Rotation W
 
-    // calculamos las posiciones futuras del robot y se insertan en un vector.
-    auto vector_arcos = calcularPuntos(current_adv, current_rot);
+    // compute future positions of the robot
+    auto point_list = compute_predictions(current_adv, current_rot, laser_poly);
 
-    // quitamos los puntos futuros que nos llevan a obstaculos
-    auto vector_sin_obs = obstaculos(vector_arcos, robot_angle, ldata);
+    // compute best value
+    Eigen::Vector2f target_r = from_world_to_robot(target_w, robot_pos);
+    auto best_choice = compute_optimus(point_list, target_r, robot_pos, previous_turn);
 
-    // ordenamos el vector de puntos segun la distancia
-    Eigen::Vector2f tr = from_world_to_robot(target, robot_pos);
-    auto best_choice = ordenar(vector_sin_obs, tr.x(), tr.y(), bState.x, bState.z, previous_turn);
+    if(scene != nullptr)
+        draw(robot_pos, point_list, best_choice, scene);
 
     if (best_choice.has_value())
     {
-        auto[x, y, v, w, alpha] = best_choice.value();
-        //std::cout << __FUNCTION__ << " " << x << " " << y << " " << v << " " << w << " " << alpha << std::endl;
+        auto[x, y, v, w, alpha]= best_choice.value();  // x,y coordinates of best point, v,w velocities to reach that point, alpha robot's angle at that point
+        previous_turn = w;
         auto va = std::min(v / 5, 1000.f);
-        try{  omnirobot_proxy->setSpeedBase(0, va, -w); previous_turn = -w;}  // w should come positive
-        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
-        vector_sin_obs.insert(vector_sin_obs.begin(), best_choice.value());
-        return vector_sin_obs;
+        return best_choice.value();
     }
     else
-    {
-        //std::cout << "Vector vacio" << std::endl;
-        return std::vector<std::tuple<float, float, float>>{};
-    }
+        return Result{};
 }
 
-std::vector<std::vector<SpecificWorker::Tupla>> Dynamic_Window::calcularPuntos(float current_adv, float current_rot)
+std::vector<Dynamic_Window::Result> Dynamic_Window::compute_predictions(float current_adv, float current_rot, const QPolygonF &laser_poly)
 {
-    std::vector <Tupla> vectorT;
-    std::vector<std::vector<Tupla>> list_arcs;
-    const float semiwidth = 50;
+    std::vector<Result> list_points;
+    const float semiwidth = 60;  // advance step along arc
     //Calculamos las posiciones futuras del robot y se insertan en un vector.
     float dt = 1.5; // 1 second ahead
-    for (float v = -100; v <= 700; v += 100) //advance
-    {
-        for (float w = -2; w <= 2; w += 0.1) //rotacion
+    for (float v = -100; v <= 800; v += 100) //advance
+        for (float w = -2; w <= 2; w += 0.2) //rotation
         {
-            std::vector<Tupla> list_points;
             float new_adv = current_adv + v;
-            float new_rot = current_rot + w;
-            if (fabs(w) > 0.01)
+            float new_rot = -current_rot + w;
+            if (fabs(w) > 0.001)  // avoid division by zero to compute the radius
             {
                 // Nuevo punto posible
                 float r = new_adv / new_rot; // radio de giro ubicado en el eje x del robot
-                float x = r - r * cos(new_rot * dt); //coordenada futura X
-                float y = r * sin(new_rot * dt); //coordenada futura Z
-                float alp = new_rot * dt; //angulo nuevo del robot
                 float arc_length = new_rot * dt * r;
                 for (float t = semiwidth; t < arc_length; t += semiwidth)
-                    list_points.emplace_back(std::make_tuple(r - r * cos(t / r), r * sin(t / r), new_adv, new_rot, t / r));
+                {
+                    float x = r - r * cos(t / r); float y= r * sin(t / r);
+                    auto point = std::make_tuple(x, y, new_adv, new_rot, t / r);
+                    if(sqrt(x*x + y*y)> SEMI_WIDTH and not point_on_obstacle(point, laser_poly)) // skip points in the robot
+                        list_points.emplace_back(std::move(point));
+                }
             }
             else // para evitar la división por cero en el cálculo de r
             {
-                for(float t = semiwidth; t < v*dt; t+=semiwidth)
-                    list_points.emplace_back(std::make_tuple(0.f, t, new_adv, new_rot, new_rot*dt));
+                for(float t = semiwidth; t < new_adv*dt; t+=semiwidth)
+                {
+                    auto point = std::make_tuple(0.f, t, new_adv, new_rot, new_rot * dt);
+                    if (t > SEMI_WIDTH and not point_on_obstacle(point, laser_poly))
+                        list_points.emplace_back(std::make_tuple(0.f, t, new_adv, new_rot, new_rot * dt));
+                }
             }
-            list_arcs.push_back(list_points);
         }
-    }
-    return list_arcs;
+    return list_points;
+}
+bool Dynamic_Window::point_on_obstacle(const Result &point, const QPolygonF &laser_poly)
+{
+        auto [x, y, adv, giro, ang] = point;
+        auto temp_robot = QTransform().rotate(ang).translate(x,y).map(polygon_robot);
+
+        //si el poligono del laser no contiene un punto del robot, no contiene alguna esquina por tanto pasamos a otro.
+        if( auto res = std::find_if_not(std::begin(temp_robot), std::end(temp_robot),
+                                    [laser_poly](const auto &p){return laser_poly.containsPoint(p, Qt::OddEvenFill);}); res == std::end(temp_robot))
+            return false;
+        else
+            return true;
 }
 
-std::vector <SpecificWorker::Tupla> Dynamic_Window::obstaculos(std::vector<std::vector<Tupla>> vector_arcs,
-                                                               float aph,
-                                                               const std::vector<std::tuple<float, float> &ldata)
+std::optional<Dynamic_Window::Result> Dynamic_Window::compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &tr,
+                                                                      const Eigen::Vector3f &robot, float previous_turn)
 {
-    QPolygonF polygonF_Laser;
-    const float semiancho = 250; // el semiancho del robot
-    std::vector<Tupla> vector_obs;
-
-    // poligono creado con los puntos del laser
-    for (auto &[dist, angle]: ldata)
-        polygonF_Laser << QPointF(dist * sin(angle), dist * cos(angle));
-    // extend laser to include the robot's body
-    //        float size = ROBOT_LENGTH / 1.4;
-    //        polygonF_Laser << QPointF(-size,size) << QPointF(-size,-size) << QPointF(size,-size) << QPointF(size,size);
-
-    for(auto &arc_points : vector_arcs)
-    {
-        for (auto &point : arc_points)
-        {
-            auto [x, y, adv, giro, ang] = point;
-            QPolygonF temp_robot;
-            temp_robot << QPointF(x - semiancho, y + semiancho) << QPointF(x + semiancho, y + semiancho) <<
-                       QPointF(x + semiancho, y - semiancho) << QPointF(x - semiancho, y - semiancho);
-            temp_robot = QTransform().rotate(ang).map(temp_robot);
-
-            //si el poligono del laser no contiene un punto del robot, no contiene alguna esquina por tanto pasamos a otro.
-
-            auto res = std::find_if_not(std::begin(temp_robot), std::end(temp_robot), [polygonF_Laser](const auto &p){return polygonF_Laser.containsPoint(p,Qt::OddEvenFill);});
-            if(res == std::end(temp_robot))  //all inside
-                vector_obs.emplace_back(point);
-            else
-                break;
-        }
-    }
-    return vector_obs;
-}
-
-/**
- * Ordenamos el vector segun distancia a las coordenadas x y z
- * @param vector
- * @param x
- * @param z
- * @return vector ordenado
- */
-std::optional<SpecificWorker::Tupla> Dynamic_Window::ordenar(std::vector<Tupla> vector_points, float tx, float ty, float rx, float ry, float previous_turn)
-{
-    const float A=1, B=0.1, C=10, D=0;
+    const float A=1, B=1, C=0, D=10;
     int k=0;
-    std::vector<std::tuple<float, Tupla>> values;
-    values.resize(vector_points.size());
-    for(auto &point : vector_points)
+    std::vector<std::tuple<float, Result>> values(points.size());
+    for(auto &&[k, point] : iter::enumerate(points))
     {
         auto [x, y, adv, giro, ang] = point;
-        auto va = this->grid.get_value(x,y); auto vb = this->grid.get_value(x,y);
-        if(va.has_value() and vb.has_value())
-        {
-            float nav_function = va.value().dist;
-            float dist_to_target = sqrt(pow(tx-x,2)+pow(ty-y,2));
-            float dist_to_previous_turn =  fabs(-giro - previous_turn);
-            //float dist_from_robot = 1/sqrt(pow(rx-x,2)+pow(ry-y,2));
-            //float clearance_to_obstacle = 1/grid.dist_to_nearest_obstacle(x, y);
-            values[k++] = std::make_tuple(A * nav_function + B* dist_to_target + C*dist_to_previous_turn, point);
-        }
+        //std::cout << __FUNCTION__ << " " << x << " " << y << " " << adv<< " " << giro << " " << ang << std::endl;
+        float dist_to_target = (Eigen::Vector2f(x, y) - tr).norm();
+        float dist_to_previous_turn =  fabs(-giro - previous_turn);
+        //float dist_from_robot = 1/sqrt(pow(rx-x,2)+pow(ry-y,2));
+        //float clearance_to_obstacle = 1/grid.dist_to_nearest_obstacle(x, y);
+        values[k] = std::make_tuple(B*dist_to_target + C*dist_to_previous_turn, point);
     }
     auto min = std::ranges::min_element(values, [](auto &a, auto &b){ return std::get<0>(a) < std::get<0>(b);});
     if(min != values.end())
-        return std::get<Tupla>(*min);
+        return std::get<Result>(*min);
     else
         return {};
-
-//        std::vector<tupla> vdist = vector;
-//        std::sort(vdist.begin(), vdist.end(), [x, z, this](const auto &a, const auto &b)
-//        {
-//            const auto &[ax, ay, ca, cw, aa] = a;
-//            const auto &[bx, by, ba, bw, bb] = b;
-//            //return ((ax - x) * (ax - x) + (ay - z) * (ay - z)) < ((bx - x) * (bx - x) + (by - z) * (by - z));
-//            auto va = this->grid.get_value(ax,ay); auto vb = this->grid.get_value(bx,by);
-//            if(va.has_value() and vb.has_value())
-//                return va.value().dist < vb.value().dist;
-//            else
-//                return false;
-//        });
-//
-//        return vector;
 }
 Eigen::Vector2f Dynamic_Window::from_robot_to_world(const Eigen::Vector2f &p, const Eigen::Vector3f &robot)
 {
@@ -173,10 +123,40 @@ Eigen::Vector2f Dynamic_Window::from_robot_to_world(const Eigen::Vector2f &p, co
     matrix << cos(angle) , -sin(angle) , sin(angle) , cos(angle);
     return (matrix * p) + Eigen::Vector2f(robot.x(), robot.y());
 }
+
 Eigen::Vector2f Dynamic_Window::from_world_to_robot(const Eigen::Vector2f &p, const Eigen::Vector3f &robot)
 {
     Eigen::Matrix2f matrix;
     const float &angle = robot.z();
     matrix << cos(angle) , -sin(angle) , sin(angle) , cos(angle);
     return (matrix.transpose() * (p - Eigen::Vector2f(robot.x(), robot.y())));
+}
+
+void Dynamic_Window::draw(const Eigen::Vector3f &robot, const std::vector <Result> &puntos,  const std::optional<Result> &best, QGraphicsScene *scene)
+{
+    // draw future. Draw and arch going out from the robot
+    // remove existing arcspwd
+    static std::vector<QGraphicsEllipseItem *> arcs_vector;
+    for (auto arc: arcs_vector)
+        scene->removeItem(arc);
+    arcs_vector.clear();
+
+    QColor col("Blue");
+    for (auto &[x, y, vx, wx, a] : puntos)
+    {
+        //QPointF centro = robot_polygon_draw->mapToScene(x, y);
+        QPointF centro = to_qpointf(from_robot_to_world(Eigen::Vector2f(x, y), robot));
+        auto arc = scene->addEllipse(centro.x(), centro.y(), 50, 50, QPen(col, 10));
+        arc->setZValue(30);
+        arcs_vector.push_back(arc);
+    }
+
+    if(best.has_value())
+    {
+        auto &[x, y, _, __, ___] = best.value();
+        QPointF selected = to_qpointf(from_robot_to_world(Eigen::Vector2f(x, y), robot));
+        auto arc = scene->addEllipse(selected.x(), selected.y(), 180, 180, QPen(Qt::black), QBrush(Qt::black));
+        arc->setZValue(30);
+        arcs_vector.push_back(arc);
+    }
 }

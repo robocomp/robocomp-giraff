@@ -369,7 +369,7 @@ void SpecificWorker::compute()
         // negative angles to the left of the robot
         ldata = laser_proxy->getLaserData();
         laser_poly.clear();
-        laser_poly << QPointF(0,0);
+        //laser_poly << QPointF(0,0);
         for(auto &&l : ldata)
             laser_poly << QPointF(l.dist*sin(l.angle), l.dist*cos(l.angle));
         draw_laser( laser_poly );
@@ -385,113 +385,39 @@ void SpecificWorker::compute()
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 
     // test code to avoid obstacles
-    goto_target();
+    if(target.active)
+    {
+        if(from_world_to_robot(target.to_eigen()).norm()  < 100)
+        {
+            target.active = false;
+            differentialrobot_proxy->setSpeedBase(0, 0);
+            viewer->scene.removeItem(target.draw); delete target.draw;
+            return;
+        }
+        auto [x,y,adv,rot,a] = dwa.compute(target.to_eigen(), laser_poly,
+                                  Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
+                                  Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);
+
+        try
+        {
+            const float MAX_ADVANCE = 800;
+            const float rgain = 1;
+            float rotation = rgain*rot;
+            float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
+            float advance = MAX_ADVANCE * dist_break * gaussian(rotation);
+
+            //qInfo() << __FUNCTION__ << "Send command:" << adv << -rot;
+            differentialrobot_proxy->setSpeedBase(advance, rgain*rot);
+        }
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
 };
 
-void SpecificWorker::goto_target()
-{
-    static State_Base state = State_Base::IDLE;
-    float advance = 0.0, rot = 0.0;
-
-    auto tr = from_world_to_robot(target.to_eigen());
-    auto dist = tr.norm();
-    auto beta = atan2(tr.x(),tr.y());
-    clear_path_to_point(QPointF(tr.x(), tr.y()), laser_poly);
-
-    switch (state)
-    {
-        case State_Base::IDLE:
-            if(target.active)
-                state = State_Base::FORWARD;
-            break;
-        case State_Base::FORWARD:
-        {
-            qInfo() << __FUNCTION__ << "FORWARD";
-            if(dist<100)
-            {
-                advance = 0; rot = 0;
-                state = State_Base::IDLE;
-                break;
-            }
-            if (min_laser_distance(ldata.size() / 2 - 10, ldata.size() / 2 + 10) < 800 and
-                not clear_path_to_point(QPointF(tr.x(), tr.y()), laser_poly))
-            {
-                state = State_Base::TURN;
-                advance = advance / 3;
-                qInfo() << __FUNCTION__ << "cambio TURN";
-                break;
-            }
-            // ----------------------------
-            //rot = -(2.f / 100) * body_x_error;
-            rot = beta;
-            if (dist < 100)
-                advance = 0.0;
-            else
-            {
-                float dist_factor = std::clamp(dist / 1000.0, 0.0, 1.0);
-                advance = robot.max_advance_speed * dist_factor * exp(-rot * rot * 2);
-            }
-            break;
-        }
-        case State_Base::TURN:
-        {
-            float dist_to_obs = min_laser_distance(ldata.size() / 2 - 10, ldata.size() / 2 + 10);
-            qInfo() << __FUNCTION__ << "TURN: dist" << dist_to_obs;
-            if (dist_to_obs > 1000)
-            {
-                state = State_Base::BORDER;
-                qInfo() << __FUNCTION__ << " cambio BORDER";
-                break;
-            }
-            rot = 0.8;
-//            float dist_factor = std::clamp(dist / 1000.0, 0.0, 1.0);
-//            advance = robot.max_advance_speed * dist_factor * exp(-rot * rot * 2);
-            advance = 0.0;
-            cout << ":::::::::::: TURN, rot: " << rot << " advance: " << advance << endl;
-            break;
-        }
-        case State_Base::BORDER:
-        {
-            qInfo() << __FUNCTION__ << "BORDER";
-            if (clear_path_to_point(QPointF(tr.x(), tr.y()), laser_poly))
-            {
-                state = State_Base::FORWARD;
-                qInfo() << __FUNCTION__ << "cambio FORWARD";
-                break;
-            }
-//            if (min_laser_distance(ldata.size() / 2 - 10, ldata.size() / 2 + 10) < 500)
-//            {
-//                state = State_Base::TURN;
-//                qInfo() << __FUNCTION__ << "cambio TURN";
-//                break;
-//            }
-            float lateral_distance = min_laser_distance(ldata.size()/2+20, ldata.size());
-            if (lateral_distance < 300)
-                rot = 1;
-            else if (lateral_distance > 400)
-                rot = -1;
-            else
-                rot = 0.0;
-            float dist_factor = std::clamp(dist / 1000.0, 0.0, 1.0);
-            advance = robot.max_advance_speed * dist_factor /** gaussian(rot)*/;
-            break;
-        }
-    }
-    try
-    {
-        const float gain = 0.5;
-        qInfo() << __FUNCTION__ << "Send command:" << advance << rot;
-        differentialrobot_proxy->setSpeedBase(advance, gain * rot);
-        robot.current_rot_speed = gain*rot;
-        robot.current_adv_speed = advance;
-    }
-    catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
-}
 float SpecificWorker::gaussian(float x)
 {
-    const double xset = 0.7;
-    const double yset = 0.8;
-    const double s = xset*xset/log(yset);
+    const double xset = 0.5;
+    const double yset = 0.5;
+    const double s = -xset*xset/log(yset);
     return exp(-x*x/s);
 }
 ////////////////////////////////////////////////////////////////////
@@ -671,65 +597,7 @@ void SpecificWorker::move_base(const DetectRes &detected)
         auto &[body_x_error, _, body_dist, center] = body_o.value();
         if(l1_person.current_action == Actions::FOLLOW)
         {
-            switch (state)
-            {
-                case State_Base::FORWARD:
-                    qInfo() << __FUNCTION__ << "FORWARD";
-                    if (min_laser_distance(ldata.size() / 2 - 10, ldata.size() / 2 + 10) < 800 /*and
-                        person_outside_laser(center, body_dist)*/)
-                    {
-                        state = State_Base::TURN;
-                        advance = advance / 3;
-                        qInfo() << __FUNCTION__ << "cambio TURN";
-                        break;
-                    }
-                    // ----------------------------
-                    rot = -(2.f / 100) * body_x_error;
-                    if (fabs(body_dist - MIN_PERSON_DISTANCE) < 100)
-                        advance = 0.0;
-                    if ((body_dist - MIN_PERSON_DISTANCE) < -300)
-                        advance = std::clamp(body_dist - MIN_PERSON_DISTANCE, -200.f, 0.f);
-                    else
-                        advance = robot.max_advance_speed * (body_dist - MIN_PERSON_DISTANCE) * (1 / 1000.f) *
-                                  exp(-rot * rot * 2);
-                    break;
-                case State_Base::TURN:
-                    {
-                        float dist_to_obs = min_laser_distance(ldata.size() / 2 - 10, ldata.size() / 2 + 10);
-                        qInfo() << __FUNCTION__ << "TURN: dist" << dist_to_obs;
-                        if (dist_to_obs > 1000)
-                        {
-                            state = State_Base::BORDER;
-                            qInfo() << __FUNCTION__ << " cambio BORDER";
-                        }
-                        rot = 0.8;
-                        advance = robot.max_advance_speed * (dist_to_obs) * (1 / 1000.f) * exp(-rot * rot * 2);
-                        cout << ":::::::::::: TURN, rot: " << rot << " advance: " << advance << endl;
-                        break;
-                    }
-                case State_Base::BORDER:
-                    qInfo() << __FUNCTION__ << "BORDER";
-                    if(not person_outside_laser(center, body_dist))
-                    {
-                        state = State_Base::FORWARD;
-                        qInfo() << __FUNCTION__ << "cambio FORWARD";
-                        break;
-                    }
-                    if( min_laser_distance(ldata.size()/2-10, ldata.size()/2+10) < 500)
-                    {
-                        state = State_Base::TURN;
-                        qInfo() << __FUNCTION__ << "cambio TURN";
-                        break;
-                    }
-                    if( min_laser_distance(ldata.size()-50, ldata.size()-10) < 200)
-                        rot = +0.4;
-                    else if ( min_laser_distance(ldata.size()-50, ldata.size()-10) > 250)
-                        rot = -0.4;
-                    else
-                        rot = 0.0;
-                    advance = robot.max_advance_speed * (body_dist-MIN_PERSON_DISTANCE)*(1/1000.f) * exp(-rot*rot*2);
-                    break;
-            }
+
         }
         else
             rot = -(2.f / 100) * body_x_error;
@@ -959,6 +827,7 @@ void SpecificWorker::new_target_slot(QPointF t)
     qInfo() << __FUNCTION__ << " Received new target at " << t;
     target.pos = t;
     target.active = true;
+    target.draw = viewer->scene.addEllipse(t.x(), t.y(), 180, 180, QPen(Qt::magenta), QBrush(Qt::magenta));
 }
 
 ////////////////////////////////////////////////////////////////////////////////////

@@ -43,6 +43,8 @@
 #include <chrono>
 #include <Eigen/Dense>
 #include <QPolygonF>
+#include <QTransform>
+#include <QGraphicsEllipseItem>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
 #include "dynamic_window.h"
 
@@ -78,6 +80,7 @@ private:
         bool active = false;
         QPointF pos;
         Eigen::Vector2f to_eigen() const {return Eigen::Vector2f(pos.x(), pos.y());}
+        QGraphicsEllipseItem *draw = nullptr;
     };
     Target target;
     struct Robot
@@ -223,9 +226,6 @@ private:
     inline Eigen::Vector2f toEigen2f(const QPointF &p);
 
     float min_laser_distance(float min, float max);
-
-    void goto_target();
-
     float gaussian(float x);
 };
 
