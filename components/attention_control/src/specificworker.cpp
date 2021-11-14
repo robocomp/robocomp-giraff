@@ -19,7 +19,8 @@
 #include "specificworker.h"
 #include <cppitertools/enumerate.hpp>
 #include <cppitertools/range.hpp>
-
+#include <cppitertools/sliding_window.hpp>
+#include <cppitertools/slice.hpp>
 /**
 * \brief Default constructor
 */
@@ -75,9 +76,14 @@ void SpecificWorker::initialize(int period)
     laser_in_robot_polygon = new QGraphicsRectItem(-10, 10, 20, 20, robot_polygon);
     laser_in_robot_polygon->setPos(0, 190);     // move this to abstract
 
+    // grid
+    grid.initialize(dimensions, robot.tile_size, &viewer->scene, false);
+    qInfo() << __FUNCTION__ << "Grid initialized to " << dimensions;
+
     // state machines
     connect(&timer, SIGNAL(timeout()), this, SLOT(compute()));
     connect(&timer_l1, SIGNAL(timeout()), this, SLOT(compute_L1()));
+    //connect(&timer_l1_room, SIGNAL(timeout()), this, SLOT(compute_L1_room()));
     connect(&timer_l2, SIGNAL(timeout()), this, SLOT(compute_L2()));
     connect(&timer_l3, SIGNAL(timeout()), this, SLOT(compute_L3()));
     connect(&timer_bill, SIGNAL(timeout()), this, SLOT(compute_bill()));
@@ -91,27 +97,27 @@ void SpecificWorker::initialize(int period)
     else
     {
         timer.start(Period);
-        timer_l1.start(Period_L1);
-        timer_l2.start(Period_L2);
-        timer_l3.start(Period_L3);
-        timer_bill.start(Period_Bill);
+        //timer_l1.start(Period_L1);
+        //timer_l2.start(Period_L2);
+        //timer_l3.start(Period_L3);
+        //timer_bill.start(Period_Bill);
     }
 
     // target
     connect(viewer, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
 
     // send Bill to robot
-    try
-    {
-        auto r_state = fullposeestimation_proxy->getFullPoseEuler();
-        auto pose = billcoppelia_proxy->getPose();
-        QLineF line(pose.x, pose.y, r_state.x, r_state.y);
-        float percent = (line.length() - 600)/line.length();
-        QPointF p = line.pointAt(percent);
-        qInfo() << __FUNCTION__ << pose.x << pose.y << line << percent;
-        billcoppelia_proxy->setTarget(p.x(), p.y());
-    }
-    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;};
+//    try
+//    {
+//        auto r_state = fullposeestimation_proxy->getFullPoseEuler();
+//        auto pose = billcoppelia_proxy->getPose();
+//        QLineF line(pose.x, pose.y, r_state.x, r_state.y);
+//        float percent = (line.length() - 600)/line.length();
+//        QPointF p = line.pointAt(percent);
+//        qInfo() << __FUNCTION__ << pose.x << pose.y << line << percent;
+//        billcoppelia_proxy->setTarget(p.x(), p.y());
+//    }
+//    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;};
 }
 
 ////////////////////////////////////////////////////
@@ -120,6 +126,7 @@ void SpecificWorker::initialize(int period)
 
 // FIST LEVEL. read sensors and use classifiers to create dynamic control loops
 // that keep perceived objects (person parts) centered (in focus). Output presence state and pose
+void SpecificWorker::compute_l1_room(){}
 void SpecificWorker::compute_L1()
 {
     const float XMARK = 10;  // number or hits before getting 0.7
@@ -384,34 +391,74 @@ void SpecificWorker::compute()
     }
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 
+    // grid
+    Eigen::Vector2f lw;
+    for(const auto &l : ldata)
+    {
+        if(l.dist > robot.robot_semi_length)
+        {
+            Eigen::Vector2f tip(l.dist*sin(l.angle), l.dist*cos(l.angle));
+            int num_steps = ceil(l.dist/(constants.tile_size/2.0));
+            for(const auto &&step : iter::range(0.0, 1.0-(1.0/num_steps), 1.0/num_steps))
+                grid.add_miss(from_robot_to_world(tip * step));
+            if(l.dist <= constants.max_laser_range)
+                grid.add_hit(from_robot_to_world(tip));
+            else
+                grid.add_miss(from_robot_to_world(tip));
+        }
+    }
+
     // test code to avoid obstacles
-//    if(target.active)
-//    {
-//        if(from_world_to_robot(target.to_eigen()).norm()  < 100)
-//        {
-//            target.active = false;
-//            differentialrobot_proxy->setSpeedBase(0, 0);
-//            viewer->scene.removeItem(target.draw); delete target.draw;
-//            return;
-//        }
-//        auto [x,y,adv,rot,a] = dwa.compute(target.to_eigen(), laser_poly,
-//                                  Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
-//                                  Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);
-//
-//        try
-//        {
-//            const float MAX_ADVANCE = 800;
-//            const float rgain = 1;
-//            float rotation = rgain*rot;
-//            float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
-//            float advance = MAX_ADVANCE * dist_break * gaussian(rotation);
-//
-//            //qInfo() << __FUNCTION__ << "Send command:" << adv << -rot;
-//            differentialrobot_proxy->setSpeedBase(advance, rgain*rot);
-//        }
-//        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
-//    }
+    if(target.active)
+    {
+        if (from_world_to_robot(target.to_eigen()).norm() < 180)
+        {
+            target.active = false;
+            differentialrobot_proxy->setSpeedBase(0, 0);
+            viewer->scene.removeItem(target.draw);
+            delete target.draw;
+            return;
+        }
+        // remove points underneath or behind
+        auto rw = Eigen::Vector2f(r_state.x, r_state.y);
+        path.erase(std::remove_if(path.begin(), path.end(),
+                               [rw, this](auto p){ return (to_eigen(p) - rw).norm() < robot.robot_length*2;}), path.end());
+        if(path.empty()) return;
+        draw_path(path, &viewer->scene);
+        Eigen::Vector2f p = bezier(path);
+
+        auto [x,y,adv,rot,a] = dwa.compute(from_world_to_robot(p), laser_poly,
+                                  Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
+                                  Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);
+
+        try
+        {
+            const float MAX_ADVANCE = 800;
+            const float rgain = 1;
+            float rotation = rgain*rot;
+            float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
+            float advance = MAX_ADVANCE * dist_break * gaussian(rotation);
+
+            //qInfo() << __FUNCTION__ << "Send command:" << adv << -rot;
+            differentialrobot_proxy->setSpeedBase(advance, rgain*rot);
+        }
+        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+    }
 };
+Eigen::Vector2f SpecificWorker::bezier(const std::list<QPointF> &path)
+{
+    std::vector<Bezier::Vec2> points;
+    if(path.size()>=4)
+    {
+        for (auto &&p: iter::slice(path, 0, 4, 1))
+            points.emplace_back(Bezier::Vec2(p.x(), p.y()));
+        qInfo() << __FUNCTION__ << points.size();
+        Bezier::Bezier<3> curve(points);
+        auto res = curve.valueAt(0.5);
+        return Eigen::Vector2f(res.x, res.y);
+    }
+    else return to_eigen(path.front());
+}
 ////////////////////////////////////////////////////////////////////
 SpecificWorker::DetectRes SpecificWorker::read_image()
 {
@@ -421,7 +468,7 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
     try
     {
         top_rgbd = camerargbdsimple_proxy->getAll("camera_top");
-        tablet_rgb = camerasimple_proxy->getImage();
+        //tablet_rgb = camerasimple_proxy->getImage();
     }
     catch (const Ice::Exception &e)
     {
@@ -432,29 +479,16 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
     cv::Mat top_rgb_mat = cv::Mat(top_image.height, top_image.width, CV_8UC3, &top_rgbd.image.image[0]);
     const auto &top_depth = top_rgbd.depth;
     cv::Mat top_depth_mat = cv::Mat(top_depth.height, top_depth.width, CV_32F, &top_rgbd.depth.depth[0]);
-
-    const int width = 300;  // YOLO INPUT
-    const int height = 300;
-
     camera.cols = top_image.width;
     camera.rows = top_image.height;
     camera.focal_x = top_image.focalx;
 
     if (top_image.width != 0 and top_image.height != 0)
     {
-//        cv::Mat img;
-//        if (tablet_rgb.compressed)
-//        {
-//            auto img_uncomp = cv::imdecode(tablet_rgb.image, -1);
-//            img = cv::Mat(tablet_rgb.height, tablet_rgb.width, CV_8UC3, &img_uncomp.data);
-//        }
-//        else
-//            img = cv::Mat(tablet_rgb.height, tablet_rgb.width, CV_8UC3, &tablet_rgb.image[0]);
-
-        // from RGBD camera
-
         cv::Mat n_img;
-        cv::resize(top_rgb_mat, n_img, cv::Size(width, height));
+        const int cpu_width = 300;  // YOLO INPUT
+        const int cpu_height = 300;
+        cv::resize(top_rgb_mat, n_img, cv::Size(cpu_width, cpu_height));
 
         // face
         auto rectangles = face_detector.detect_face_rectangles(n_img);
@@ -492,22 +526,58 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
         }
         else //body
         {
-            // YOLO
-            auto people = yolo_detector(n_img);
+            const int gpu_width = 512;  // YOLO INPUT
+            const int gpu_height = 512;
+            std::vector<cv::Rect> people;
+            if( YOLO_SERVER_AVAILABLE)
+            {
+                try
+                {
+                    RoboCompYoloServer::TImage yolo_rgb;
+                    yolo_rgb.height = top_image.height;
+                    yolo_rgb.width = top_image.width;
+                    yolo_rgb.depth = top_image.depth;
+                    yolo_rgb.image.resize(top_image.image.size());
+                    std::copy(top_image.image.begin(), top_image.image.end(), yolo_rgb.image.begin());
+                    auto objects = yoloserver_proxy->processImage(yolo_rgb);
+                    for(const auto &b : objects)
+                        if(b.name == "person")
+                            people.push_back(cv::Rect(b.left, b.top, b.right - b.left, b.bot - b.top));
+                }
+                catch (const Ice::Exception &e)
+                { std::cout << e.what() << " Error connecting to YoloServer" << std::endl; };
+            }
+            else  //CPU
+            {
+                people = yolo_detector(n_img);
+            }
+            // process boxes
             if (not people.empty())
             {
                 auto r = people.front();
-                cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
-                float x_scale = (float) top_depth_mat.cols / n_img.cols;
-                float y_scale = (float) top_depth_mat.rows / n_img.rows;
+                float x_scale, y_scale;
+
+                if(YOLO_SERVER_AVAILABLE)
+                {
+                    x_scale = (float) top_depth_mat.cols / gpu_width;
+                    y_scale = (float) top_depth_mat.rows / gpu_height;
+                    cv::rectangle(n_img, cv::Rect(r.x*n_img.cols/gpu_width, r.y*n_img.rows/gpu_height, r.width*n_img.cols/gpu_width, r.height*n_img.rows/gpu_height),
+                                  cv::Scalar(0, 0, 255), 3);
+                }
+                else
+                {
+                    x_scale = (float) top_depth_mat.cols / n_img.cols;
+                    y_scale = (float) top_depth_mat.rows / n_img.rows;
+                    cv::rectangle(n_img, r, cv::Scalar(0, 0, 255), 3);
+                }
                 QRectF rect = QRectF(x_scale * r.x, y_scale * r.y, x_scale * r.width, y_scale * r.height);
                 if (x_scale * r.x + x_scale * r.width > top_depth_mat.cols) rect.setWidth(top_depth_mat.cols - x_scale * r.x - 1);
                 if (y_scale * r.y + y_scale * r.height > top_depth_mat.rows) rect.setHeight(top_depth_mat.rows - y_scale * r.y - 1);
                 try
                 {
                     cv::Mat roi = top_depth_mat(cv::Rect((int) rect.x(), (int) rect.y(), (int) rect.width(), (int) rect.height()));
-                    float k=-1;
-                    if(roi.cols > 0 and roi.rows >0)
+                    float k = -1;
+                    if (roi.cols > 0 and roi.rows > 0)
                     {
                         double minVal;
                         double maxVal;
@@ -516,24 +586,24 @@ SpecificWorker::DetectRes SpecificWorker::read_image()
                         cv::minMaxLoc(roi, &minVal, &maxVal, &minLoc, &maxLoc);
                         k = minVal * 1000; //mm
                     }
-                    std::get<0>(ret) = {(top_depth_mat.cols/2.0) - rect.center().x(), (top_depth_mat.rows/2.0) - rect.center().y(), k, rect.center()};
+                    std::get<0>(ret) = {(top_depth_mat.cols / 2.0) - rect.center().x(), (top_depth_mat.rows / 2.0) - rect.center().y(), k, rect.center()};
                 }
-                catch(const std::exception &e)
+                catch (const std::exception &e)
                 {
                     std::cout << e.what() << std::endl;
-                    qInfo() << __FUNCTION__ << "body " << (int)rect.x() << (int)rect.y() << (int)rect.width() << (int)rect.height();
+                    qInfo() << __FUNCTION__ << "body " << (int) rect.x() << (int) rect.y() << (int) rect.width() << (int) rect.height();
                 };
             }
         }
         // show image
         cv::cvtColor(n_img, n_img, cv::COLOR_BGR2RGB);
-        cv::imshow("Camera tablet", n_img);
+        cv::imshow("Camera top", n_img);
         cv::waitKey(1);
         return ret;
     }
     else
     {
-        qWarning() << "Empty tablet image";
+        qWarning() << "Empty image from robot";
         return ret;
     }
 }
@@ -593,22 +663,24 @@ void SpecificWorker::move_base(const DetectRes &detected)
             float bpx = (center.x() - camera.cols / 2.0) * bpy / camera.focal_x;
             auto[x, y, adv, rotation, a] = dwa.compute(Eigen::Vector2f(bpx, bpy), laser_poly,
                                                        Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
-                                                       Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);
-
+                                                       Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);  //if nulptr, no draw
             rot = rotation;
-            if(body_dist < MIN_PERSON_DISTANCE) rot = 0;
             float dist_break = std::clamp((body_dist-MIN_PERSON_DISTANCE) / 1200.0, 0.0, 1.0);
             advance = constants.max_advance_speed * dist_break * gaussian(rot);
-            //qInfo() << __FUNCTION__ << "after dwa:" << advance << rot;
+            if(body_dist < MIN_PERSON_DISTANCE)
+                advance = -200;
         }
         else
             rot = -(2.f / 100) * body_x_error;
 
+        robot.current_rot_speed = rot;
+        robot.current_adv_speed = advance;
     }
     else if(face_o.has_value())
     {
         auto &[face_x_error, _, face_dist, __] = face_o.value();
         rot = -(2.f / 100) * face_x_error;
+        robot.current_rot_speed = rot;
 //        if(face_dist > 0 and face_dist < 400)
 //            advance = -(400.0 / 400.0) * face_dist;
     }
@@ -637,79 +709,6 @@ void SpecificWorker::move_base(const DetectRes &detected)
         }
         catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
     }
-}
-float SpecificWorker::min_laser_distance(float min, float max)
-{
-    auto res = std::min_element(ldata.begin()+min, ldata.begin()+max, [](auto a, auto b){ return a.dist < b.dist;});
-    cout<< __FUNCTION__ << " " << res->dist<< endl;
-    return (*res).dist;
-}
-bool SpecificWorker::person_outside_laser(const QPointF &body_center_r, float body_dist) //body in robot CS
-{
-    // body must be backprojected to XYZ camera coordinate system
-    float bpy = body_dist;
-    float bpx = (body_center_r.x()-camera.cols/2.0) * bpy / camera.focal_x;
-
-    if(not clear_path_to_point(QPointF(bpx, bpy), laser_poly))
-         return true;
-    return false;
-}
-bool SpecificWorker::clear_path_to_point(const QPointF &goal_r, const QPolygonF &laser_poly)
-{
-    // create tube lines
-    Eigen::Vector2f goal_re(goal_r.x(), goal_r.y());
-    Eigen::Vector2f robot(0.0,0.0);
-    // number of parts the target vector is divided into
-    float parts = (goal_re).norm()/(this->robot.length/4);
-    Eigen::Vector2f rside(260, 200);
-    Eigen::Vector2f lside(-260, 200);
-    if(parts < 1) return true;
-
-    bool res = true;
-    QPointF p, q, r;
-    // reduce length by size of person
-    float limit = (this->robot.length)/(goal_re).norm();
-    for(auto l: iter::range(0.0, 1.0-limit, 1.0/parts))
-    {
-        p = to_qpointf(robot * (1 - l) + goal_re * l);
-        q = to_qpointf((robot + rside) * (1 - l) + (goal_re + rside) * l);
-        r = to_qpointf((robot + lside) * (1 - l) + (goal_re + lside) * l);
-        if( not laser_poly.containsPoint(p, Qt::OddEvenFill) or
-            not laser_poly.containsPoint(q, Qt::OddEvenFill) or
-            not laser_poly.containsPoint(r, Qt::OddEvenFill))
-        {
-            //qInfo() << __FUNCTION__<< goal << p << q << r;
-            res = false;
-            break;
-        }
-    }
-
-    // draw
-    QLineF line_center(to_qpointf(from_robot_to_world(robot)), to_qpointf(from_robot_to_world(Eigen::Vector2f(p.x(), p.y()))));
-    QLineF line_right(to_qpointf(from_robot_to_world(robot
-    +rside)), to_qpointf(from_robot_to_world(Eigen::Vector2f(q.x(), q.y()))));
-    QLineF line_left(to_qpointf(from_robot_to_world(robot
-    +lside)), to_qpointf(from_robot_to_world(Eigen::Vector2f(r.x(), q.y()))));
-    static QGraphicsItem *graphics_line_center = nullptr;
-    static QGraphicsItem *graphics_line_right = nullptr;
-    static QGraphicsItem *graphics_line_left = nullptr;
-    static QGraphicsItem *graphics_target = nullptr;
-    if (graphics_line_center != nullptr)
-        viewer->scene.removeItem(graphics_line_center);
-    if (graphics_line_right != nullptr)
-        viewer->scene.removeItem(graphics_line_right);
-    if (graphics_line_left != nullptr)
-        viewer->scene.removeItem(graphics_line_left);
-    if (graphics_target != nullptr)
-        viewer->scene.removeItem(graphics_target);
-    graphics_line_center = viewer->scene.addLine(line_center, QPen(QColor("Blue"), 30));
-    graphics_line_right = viewer->scene.addLine(line_right, QPen(QColor("Orange"), 30));
-    graphics_line_left = viewer->scene.addLine(line_left, QPen(QColor("Magenta"), 30));
-    graphics_target = viewer->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("Blue")), QBrush(QColor("Blue")));
-    auto goal_w = from_robot_to_world(goal_re);
-    graphics_target->setPos(goal_w.x(), goal_w.y());
-
-    return res;
 }
 void SpecificWorker::move_eyes(std::optional<std::tuple<int,int,int>> face_o)
 {
@@ -795,7 +794,7 @@ std::vector<cv::String> SpecificWorker::get_outputs_names(const cv::dnn::Net &ne
     }
     return names;
 }
-void SpecificWorker::draw_laser(const QPolygonF &poly)
+void SpecificWorker::draw_laser(QPolygonF poly)  // a copy so we can add the point including the robot
 {
     static QGraphicsItem *laser_polygon = nullptr;
     if (laser_polygon != nullptr)
@@ -803,6 +802,7 @@ void SpecificWorker::draw_laser(const QPolygonF &poly)
 
     QColor color("LightGreen");
     color.setAlpha(40);
+    poly << QPoint(0.f,0.f);
     laser_polygon = viewer->scene.addPolygon(laser_in_robot_polygon->mapToScene(poly), QPen(QColor("DarkGreen"), 30), QBrush(color));
     laser_polygon->setZValue(3);
 }
@@ -825,7 +825,7 @@ Eigen::Vector2f SpecificWorker::to_eigen(const QPointF &p)
 float SpecificWorker::gaussian(float x)
 {
     const double xset = 0.5;
-    const double yset = 0.5;
+    const double yset = 0.4;
     const double s = -xset*xset/log(yset);
     return exp(-x*x/s);
 }
@@ -836,8 +836,46 @@ void SpecificWorker::new_target_slot(QPointF t)
     target.pos = t;
     target.active = true;
     target.draw = viewer->scene.addEllipse(t.x(), t.y(), 180, 180, QPen(Qt::magenta), QBrush(Qt::magenta));
+    // path planner
+    this->path = grid.computePath(QPointF(r_state.x, r_state.y), target.pos);
+    draw_path(path, &viewer->scene);
 }
 
+
+void SpecificWorker::draw_path(std::list<QPointF> &path, QGraphicsScene* viewer_2d)
+{
+    static std::vector<QGraphicsLineItem *> scene_road_points;
+    qDebug() << __FUNCTION__ << " Path size " << path.size();
+    /// Preconditions
+    if (path.size() == 0)
+        return;
+
+    //clear previous points
+    for (QGraphicsLineItem* item : scene_road_points)
+    {
+        viewer_2d->removeItem(item);
+        delete item;
+    }
+    scene_road_points.clear();
+
+    /// Draw all points
+    QGraphicsLineItem *line1, *line2;
+    QColor color("blue");
+    for(auto &&p_pair : iter::sliding_window(path, 2))
+    {
+        if(p_pair.size() < 2)
+            continue;
+        Eigen::Vector2d a_point(p_pair[0].x(), p_pair[0].y());
+        Eigen::Vector2d b_point(p_pair[1].x(), p_pair[1].y());
+        Eigen::Vector2d dir = a_point - b_point;
+        Eigen::ParametrizedLine segment = Eigen::ParametrizedLine<double, 2>::Through(a_point, b_point);
+        QLineF qsegment(QPointF(a_point.x(), a_point.y()), QPointF(b_point.x(), b_point.y()));
+        line1 = viewer_2d->addLine(qsegment, QPen(QBrush(color), 20));
+
+        line1->setZValue(200);
+        scene_road_points.push_back(line1);
+    }
+}
 ////////////////////////////////////////////////////////////////////////////////////
 int SpecificWorker::startup_check()
 {
@@ -845,64 +883,6 @@ int SpecificWorker::startup_check()
     QTimer::singleShot(200, qApp, SLOT(quit()));
     return 0;
 }
-
-/////// HOG
-
-// body
-// vector<cv::Rect> found;
-// vector<double> weights;
-// cv::Mat n_img_bw;
-// cv::cvtColor(n_img, n_img_bw, cv::COLOR_BGR2GRAY);
-// hog.detectMultiScale(n_img_bw, found, weights);
-
-
-/**************************************/
-// From the RoboCompCameraSimple you can call this methods:
-// this->camerasimple_proxy->getImage(...)
-
-/**************************************/
-// From the RoboCompCameraSimple you can use this types:
-// RoboCompCameraSimple::TImage
-
-/**************************************/
-// From the RoboCompDifferentialRobot you can call this methods:
-// this->differentialrobot_proxy->correctOdometer(...)
-// this->differentialrobot_proxy->getBasePose(...)
-// this->differentialrobot_proxy->getBaseState(...)
-// this->differentialrobot_proxy->resetOdometer(...)
-// this->differentialrobot_proxy->setOdometer(...)
-// this->differentialrobot_proxy->setOdometerPose(...)
-// this->differentialrobot_proxy->setSpeedBase(...)
-// this->differentialrobot_proxy->stopBase(...)
-
-/**************************************/
-// From the RoboCompDifferentialRobot you can use this types:
-// RoboCompDifferentialRobot::TMechParams
-
-/**************************************/
-// From the RoboCompEmotionalMotor you can call this methods:
-// this->emotionalmotor_proxy->expressAnger(...)
-// this->emotionalmotor_proxy->expressDisgust(...)
-// this->emotionalmotor_proxy->expressFear(...)
-// this->emotionalmotor_proxy->expressJoy(...)
-// this->emotionalmotor_proxy->expressSadness(...)
-// this->emotionalmotor_proxy->expressSurprise(...)
-
-/**************************************/
-// From the RoboCompJointMotorSimple you can call this methods:
-// this->jointmotorsimple_proxy->getMotorParams(...)
-// this->jointmotorsimple_proxy->getMotorState(...)
-// this->jointmotorsimple_proxy->setPosition(...)
-// this->jointmotorsimple_proxy->setVelocity(...)
-// this->jointmotorsimple_proxy->setZeroPos(...)
-
-/**************************************/
-// From the RoboCompJointMotorSimple you can use this types:
-// RoboCompJointMotorSimple::MotorState
-// RoboCompJointMotorSimple::MotorParams
-// RoboCompJointMotorSimple::MotorGoalPosition
-// RoboCompJointMotorSimple::MotorGoalVelocity
-
 
 
 
@@ -919,3 +899,32 @@ int SpecificWorker::startup_check()
 //                bool success = facemark->fit(n_img,faces,landmarks);
 //                if(success)
 //                    qInfo() << __FUNCTION__ << "Landmarks" << landmarks.size();
+
+
+// test code to avoid obstacles
+//    if(target.active)
+//    {
+//        if(from_world_to_robot(target.to_eigen()).norm()  < 100)
+//        {
+//            target.active = false;
+//            differentialrobot_proxy->setSpeedBase(0, 0);
+//            viewer->scene.removeItem(target.draw); delete target.draw;
+//            return;
+//        }
+//        auto [x,y,adv,rot,a] = dwa.compute(target.to_eigen(), laser_poly,
+//                                  Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
+//                                  Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz), &viewer->scene);
+//
+//        try
+//        {
+//            const float MAX_ADVANCE = 800;
+//            const float rgain = 1;
+//            float rotation = rgain*rot;
+//            float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
+//            float advance = MAX_ADVANCE * dist_break * gaussian(rotation);
+//
+//            //qInfo() << __FUNCTION__ << "Send command:" << adv << -rot;
+//            differentialrobot_proxy->setSpeedBase(advance, rgain*rot);
+//        }
+//        catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
+//    }

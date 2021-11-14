@@ -30,10 +30,9 @@
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include "FaceDetector.h"
-#include "BodyDetector.h"
 #include <opencv2/objdetect.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/dnn.hpp>
+//#include <opencv2/dnn.hpp>
 #include <opencv2/face.hpp>
 #include <sstream>
 #include <iostream>
@@ -47,6 +46,8 @@
 #include <QGraphicsEllipseItem>
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
 #include "dynamic_window.h"
+#include <grid2d/grid.h>
+#include "/home/pbustos/software/bezier/include/bezier.h"
 
 
 class SpecificWorker : public GenericWorker
@@ -60,6 +61,7 @@ public:
 public slots:
 	void compute();
     void compute_L1();
+    void compute_l1_room();
     void compute_L2();
     void compute_L3();
     void compute_bill();
@@ -78,8 +80,12 @@ private:
     struct Constants
     {
         const float max_advance_speed = 800;
+        const float tile_size = 200;
+        const float max_laser_range = 4000;
     };
     Constants constants;
+    bool YOLO_SERVER_AVAILABLE = true;
+
     struct Target
     {
         bool active = false;
@@ -92,19 +98,26 @@ private:
     {
         float current_rot_speed = 0;
         float current_adv_speed = 0;
-        float length = 400;
+        float robot_length = 450;
+        const float robot_semi_length = robot_length/2.0;
         float max_advance_speed = 800;
+        float tile_size = 100;
     };
     Robot robot;
     RoboCompLaser::TLaserData ldata;
-    bool person_outside_laser(const QPointF &body_center_r, float body_dist);
-    bool clear_path_to_point(const QPointF &goal_r, const QPolygonF &laser_poly);
     const int ROBOT_LENGTH = 400;
     QGraphicsPolygonItem *robot_polygon;
     QGraphicsRectItem *laser_in_robot_polygon;
     QPolygonF laser_poly;
-    void draw_laser(const QPolygonF &poly);
+    void draw_laser(const QPolygonF poly);
     RoboCompFullPoseEstimation::FullPoseEuler r_state;
+
+    // grid
+    Grid grid;
+    void draw_path(list<QPointF> &path, QGraphicsScene *viewer_2d);
+    std::list<QPointF> path;
+    Eigen::Vector2f bezier(const list<QPointF> &path);
+
 
     // Dynamic Window
     Dynamic_Window dwa;
@@ -131,20 +144,17 @@ private:
     vector<cv::String> get_outputs_names(const cv::dnn::Net &net);
     vector<cv::Rect> yolo_detector(cv::Mat &frame);
 
-    // OPenCV Face
-    cv::CascadeClassifier faceDetector;
-    cv::Ptr<cv::face::Facemark> facemark;
-
     enum class Parts {NONE, FACE, BODY};
     enum class Actions { FOLLOW, WAIT };
 
     // Level 1
+        // room
+        QTimer timer_l1_room;
+
+        // person
     QTimer timer_l1;
     enum class L1_State { SEARCHING, BODY_DETECTED, FACE_DETECTED, EYES_DETECTED, HANDS_DETECTED };
     L1_State l1_state = L1_State::SEARCHING;
-    std::map<L1_State, QString> l1_map{{L1_State::SEARCHING, "SEARCHING"},
-                                       {L1_State::BODY_DETECTED, "BODY_DETECTED"},
-                                       {L1_State::FACE_DETECTED, "FACE_DETECTED"}};
     struct L1_Person  // a light representation of an instantaneous person
     {
         Eigen::Vector2f pos;
@@ -166,7 +176,6 @@ private:
     L1_Person l1_person;
     void move_tablet(const DetectRes &detected);
     void move_base(const DetectRes &detected);
-    enum class State_Base{FORWARD, TURN, BORDER, IDLE};
 
     // Level 2
     QTimer timer_l2;
@@ -229,8 +238,8 @@ private:
     Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
     inline QPointF to_qpointf(const Eigen::Vector2f &p);
     inline Eigen::Vector2f to_eigen(const QPointF &p);
-    float min_laser_distance(float min, float max);
     float gaussian(float x);
+
 };
 
 #endif

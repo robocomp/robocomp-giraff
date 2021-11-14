@@ -28,7 +28,7 @@ class Dynamic_Window
 
     private:
         std::vector<Result> compute_predictions(float current_adv, float current_rot, const QPolygonF &laser_poly);
-        bool point_on_obstacle(const Result &point, const QPolygonF &laser_poly);
+        bool point_reachable_by_robot(const Result &point, const QPolygonF &laser_poly);
         std::optional<Result> compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &target,
                                       const Eigen::Vector3f &robot, float previous_turn);
         Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p, const Eigen::Vector3f &robot);
@@ -39,9 +39,9 @@ class Dynamic_Window
         QPolygonF polygon_robot; // to check if the point is reachable
         struct Constants
         {
-            const float robot_semi_width = 330;   // robot semi size
-            const float step_along_arc = 60;      // advance step along arc
-            const float time_ahead = 1.5;         // time ahead ahead
+            const float robot_semi_width = 400;   // robot semi size
+            const float step_along_arc = 100;      // advance step along arc
+            const float time_ahead = 1.2;         // time ahead ahead
         };
         Constants constants;
 };

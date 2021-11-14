@@ -31,6 +31,7 @@ GenericWorker::GenericWorker(TuplePrx tprx) : Ui_guiDlg()
 	fullposeestimation_proxy = std::get<5>(tprx);
 	jointmotorsimple_proxy = std::get<6>(tprx);
 	laser_proxy = std::get<7>(tprx);
+	yoloserver_proxy = std::get<8>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 

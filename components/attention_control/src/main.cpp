@@ -138,6 +138,7 @@ int ::attention_control::run(int argc, char* argv[])
 	RoboCompFullPoseEstimation::FullPoseEstimationPrxPtr fullposeestimation_proxy;
 	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
 	RoboCompLaser::LaserPrxPtr laser_proxy;
+	RoboCompYoloServer::YoloServerPrxPtr yoloserver_proxy;
 
 	string proxy, tmp;
 	initialize();
@@ -270,7 +271,23 @@ int ::attention_control::run(int argc, char* argv[])
 	rInfo("LaserProxy initialized Ok!");
 
 
-	tprx = std::make_tuple(billcoppelia_proxy,camerargbdsimple_proxy,camerasimple_proxy,differentialrobot_proxy,emotionalmotor_proxy,fullposeestimation_proxy,jointmotorsimple_proxy,laser_proxy);
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "YoloServerProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy YoloServerProxy\n";
+		}
+		yoloserver_proxy = Ice::uncheckedCast<RoboCompYoloServer::YoloServerPrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy YoloServer: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("YoloServerProxy initialized Ok!");
+
+
+	tprx = std::make_tuple(billcoppelia_proxy,camerargbdsimple_proxy,camerasimple_proxy,differentialrobot_proxy,emotionalmotor_proxy,fullposeestimation_proxy,jointmotorsimple_proxy,laser_proxy,yoloserver_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx, startup_check_flag);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());

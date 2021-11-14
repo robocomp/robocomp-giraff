@@ -5,6 +5,7 @@
 #include "dynamic_window.h"
 #include <QtCore>
 #include <cppitertools/enumerate.hpp>
+#include <cppitertools/range.hpp>
 
 Dynamic_Window::Dynamic_Window()
 {
@@ -62,7 +63,7 @@ std::vector<Dynamic_Window::Result> Dynamic_Window::compute_predictions(float cu
                 {
                     float x = r - r * cos(t / r); float y= r * sin(t / r);  // circle parametric coordinates
                     auto point = std::make_tuple(x, y, new_adv, new_rot, t / r);
-                    if(sqrt(x*x + y*y)> constants.robot_semi_width and not point_on_obstacle(point, laser_poly)) // skip points in the robot
+                    if(sqrt(x*x + y*y)> constants.robot_semi_width and point_reachable_by_robot(point, laser_poly)) // skip points in the robot
                         list_points.emplace_back(std::move(point));
                 }
             }
@@ -71,37 +72,38 @@ std::vector<Dynamic_Window::Result> Dynamic_Window::compute_predictions(float cu
                 for(float t = constants.step_along_arc; t < new_adv * constants.time_ahead; t+=constants.step_along_arc)
                 {
                     auto point = std::make_tuple(0.f, t, new_adv, new_rot, new_rot * constants.time_ahead);
-                    if (t > constants.robot_semi_width and not point_on_obstacle(point, laser_poly))
+                    if (t > constants.robot_semi_width and point_reachable_by_robot(point, laser_poly))
                         list_points.emplace_back(std::make_tuple(0.f, t, new_adv, new_rot, new_rot * constants.time_ahead));
                 }
             }
         }
     return list_points;
 }
-bool Dynamic_Window::point_on_obstacle(const Result &point, const QPolygonF &laser_poly)
+bool Dynamic_Window::point_reachable_by_robot(const Result &point, const QPolygonF &laser_poly)
 {
-        auto [x, y, adv, giro, ang] = point;
-        auto temp_robot = QTransform().rotate(ang).translate(x,y).map(polygon_robot);
-
-        //si el poligono del laser no contiene un punto del robot, no contiene alguna esquina por tanto pasamos a otro.
-        if( auto res = std::find_if_not(std::begin(temp_robot), std::end(temp_robot),
-                                    [laser_poly](const auto &p){return laser_poly.containsPoint(p, Qt::OddEvenFill);}); res == std::end(temp_robot))
+    auto [x, y, adv, giro, ang] = point;
+    float parts = Eigen::Vector2f(x,y).norm()/(constants.robot_semi_width/2);
+    for(const auto &l: iter::range(0.0, 1.0, 1.0/parts))
+    {
+        auto temp_robot = QTransform().rotate(ang).translate(x, y).map(polygon_robot);  // compute incremental rotation
+        if (auto res = std::find_if_not(std::begin(temp_robot), std::end(temp_robot),
+                                        [laser_poly](const auto &p) { return laser_poly.containsPoint(p, Qt::OddEvenFill); }); res != std::end(temp_robot))
             return false;
-        else
-            return true;
+    }
+    return true;
 }
 
 std::optional<Dynamic_Window::Result> Dynamic_Window::compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &tr,
                                                                       const Eigen::Vector3f &robot, float previous_turn)
 {
-    const float A=1, B=0;  // CHANGE
+    const float A=1, B=10;  // CHANGE
     int k=0;
     std::vector<std::tuple<float, Result>> values(points.size());
     for(auto &&[k, point] : iter::enumerate(points))
     {
         auto [x, y, adv, giro, ang] = point;
         float dist_to_target = (Eigen::Vector2f(x, y) - tr).norm();
-        float dist_to_previous_turn =  fabs(-giro - previous_turn);
+        float dist_to_previous_turn =  fabs(giro - previous_turn);
         values[k] = std::make_tuple(A*dist_to_target + B*dist_to_previous_turn, point);
     }
     auto min = std::ranges::min_element(values, [](auto &a, auto &b){ return std::get<0>(a) < std::get<0>(b);});

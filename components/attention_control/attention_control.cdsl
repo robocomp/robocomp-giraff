@@ -6,13 +6,13 @@ import "CameraRGBDSimple.idsl";
 import "BillCoppelia.idsl";
 import "Laser.idsl";
 import "FullPoseEstimation.idsl";
-
+import "YoloServer.idsl";
 
 Component attention_control
 {
     Communications
     {
-        requires DifferentialRobot, CameraRGBDSimple, EmotionalMotor, JointMotorSimple, CameraSimple, BillCoppelia, Laser, FullPoseEstimation;
+        requires DifferentialRobot, CameraRGBDSimple, EmotionalMotor, JointMotorSimple, CameraSimple, BillCoppelia, Laser, FullPoseEstimation, YoloServer;
     };
     language Cpp11;
     gui Qt(QWidget);
