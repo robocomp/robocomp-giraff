@@ -1,6 +1,10 @@
 # attention_control
 Intro to component here
 
+Yoo need to install this file
+
+https://github.com/oysteinmyrmo/bezier
+
 
 ## Configuration parameters
 As any other component, *attention_control* needs a configuration file to start. In

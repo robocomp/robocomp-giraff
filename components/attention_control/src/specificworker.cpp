@@ -445,6 +445,7 @@ void SpecificWorker::compute()
         catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
     }
 };
+// Downloaded from https://github.com/oysteinmyrmo/bezier
 Eigen::Vector2f SpecificWorker::bezier(const std::list<QPointF> &path)
 {
     std::vector<Bezier::Vec2> points;
