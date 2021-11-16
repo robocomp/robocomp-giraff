@@ -79,16 +79,38 @@ std::vector<Dynamic_Window::Result> Dynamic_Window::compute_predictions(float cu
         }
     return list_points;
 }
+//bool Dynamic_Window::point_reachable_by_robot(const Result &point, const QPolygonF &laser_poly)
+//{
+//    auto [x, y, adv, giro, ang] = point;
+//    float parts = Eigen::Vector2f(x,y).norm()/(constants.robot_semi_width/2);
+//    for(const auto &l: iter::range(0.0, 1.0, 1.0/parts))
+//    {
+//        auto temp_robot = QTransform().rotate(ang).translate(x, y).map(polygon_robot);  // compute incremental rotation
+//        if (auto res = std::find_if_not(std::begin(temp_robot), std::end(temp_robot),
+//                                        [laser_poly](const auto &p) { return laser_poly.containsPoint(p, Qt::OddEvenFill); }); res != std::end(temp_robot))
+//            return false;
+//    }
+//    return true;
+//}
+
 bool Dynamic_Window::point_reachable_by_robot(const Result &point, const QPolygonF &laser_poly)
 {
     auto [x, y, adv, giro, ang] = point;
-    float parts = Eigen::Vector2f(x,y).norm()/(constants.robot_semi_width/2);
+    Eigen::Vector2f robot_r(0.0,0.0);
+    Eigen::Vector2f goal_r(x, y);
+    float parts = Eigen::Vector2f(x,y).norm()/(constants.robot_semi_width/6.0);
+    Eigen::Vector2f rside(220, 100);
+    Eigen::Vector2f lside(-220, 100);
+    QPointF p,q,r;
     for(const auto &l: iter::range(0.0, 1.0, 1.0/parts))
     {
-        auto temp_robot = QTransform().rotate(ang).translate(x, y).map(polygon_robot);  // compute incremental rotation
-        if (auto res = std::find_if_not(std::begin(temp_robot), std::end(temp_robot),
-                                        [laser_poly](const auto &p) { return laser_poly.containsPoint(p, Qt::OddEvenFill); }); res != std::end(temp_robot))
-            return false;
+        p = to_qpointf(robot_r*(1-l) + goal_r*l);
+        q = to_qpointf((robot_r+rside)*(1-l) + (goal_r+rside)*l);
+        r = to_qpointf((robot_r+lside)*(1-l) + (goal_r+lside)*l);
+        if( not laser_poly.containsPoint(p, Qt::OddEvenFill) or
+            not laser_poly.containsPoint(q, Qt::OddEvenFill) or
+            not laser_poly.containsPoint(r, Qt::OddEvenFill))
+        return false;
     }
     return true;
 }

@@ -80,7 +80,7 @@ private:
     struct Constants
     {
         const float max_advance_speed = 800;
-        const float tile_size = 200;
+        const float tile_size = 50;
         const float max_laser_range = 4000;
     };
     Constants constants;
