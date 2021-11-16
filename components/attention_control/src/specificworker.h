@@ -47,7 +47,7 @@
 #include <abstract_graphic_viewer/abstract_graphic_viewer.h>
 #include "dynamic_window.h"
 #include <grid2d/grid.h>
-#include "/home/pbustos/software/bezier/include/bezier.h"
+#include "/home/robocomp/software/bezier/include/bezier.h"
 
 
 class SpecificWorker : public GenericWorker

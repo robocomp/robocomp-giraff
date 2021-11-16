@@ -398,9 +398,23 @@ void SpecificWorker::compute()
         if(l.dist > robot.robot_semi_length)
         {
             Eigen::Vector2f tip(l.dist*sin(l.angle), l.dist*cos(l.angle));
+            Eigen::Vector2f p = from_robot_to_world(tip);
+            int target_kx = (p.x() - grid.dim.left()) / grid.TILE_SIZE;
+            int target_kz = (p.y() - grid.dim.bottom()) / grid.TILE_SIZE;
+            int last_kx = -1000000;
+            int last_kz = -1000000;
+
             int num_steps = ceil(l.dist/(constants.tile_size/2.0));
-            for(const auto &&step : iter::range(0.0, 1.0-(1.0/num_steps), 1.0/num_steps))
-                grid.add_miss(from_robot_to_world(tip * step));
+            for(const auto &&step : iter::range(0.0, 1.0-(2.0/num_steps), 1.0/num_steps))
+            {
+                Eigen::Vector2f p = from_robot_to_world(tip*step);
+                int kx = (p.x() - grid.dim.left()) / grid.TILE_SIZE;
+                int kz = (p.y() - grid.dim.bottom()) / grid.TILE_SIZE;
+                if(kx != last_kx and kx != target_kx and kz != last_kz and kz != target_kz)
+                    grid.add_miss(from_robot_to_world(tip * step));
+                last_kx = kx;
+                last_kz = kz;
+            }
             if(l.dist <= constants.max_laser_range)
                 grid.add_hit(from_robot_to_world(tip));
             else
@@ -445,6 +459,8 @@ void SpecificWorker::compute()
         catch (const Ice::Exception &e) { std::cout << e.what() << std::endl; }
     }
 };
+
+
 // Downloaded from https://github.com/oysteinmyrmo/bezier
 Eigen::Vector2f SpecificWorker::bezier(const std::list<QPointF> &path)
 {
