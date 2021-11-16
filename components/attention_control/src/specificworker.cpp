@@ -405,7 +405,7 @@ void SpecificWorker::compute()
             int last_kz = -1000000;
 
             int num_steps = ceil(l.dist/(constants.tile_size/2.0));
-            for(const auto &&step : iter::range(0.0, 1.0-(2.0/num_steps), 1.0/num_steps))
+            for(const auto &&step : iter::range(0.0, 1.0-(1.0/num_steps), 1.0/num_steps))
             {
                 Eigen::Vector2f p = from_robot_to_world(tip*step);
                 int kx = (p.x() - grid.dim.left()) / grid.TILE_SIZE;
@@ -417,8 +417,8 @@ void SpecificWorker::compute()
             }
             if(l.dist <= constants.max_laser_range)
                 grid.add_hit(from_robot_to_world(tip));
-            else
-                grid.add_miss(from_robot_to_world(tip));
+            // else
+            //     grid.add_miss(from_robot_to_world(tip));
         }
     }
 
