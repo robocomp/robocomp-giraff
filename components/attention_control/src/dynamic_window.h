@@ -40,8 +40,8 @@ class Dynamic_Window
         struct Constants
         {
             const float robot_semi_width = 400;   // robot semi size
-            const float step_along_arc = 100;      // advance step along arc
-            const float time_ahead = 1.2;         // time ahead ahead
+            const float step_along_arc = 200;      // advance step along arc
+            const float time_ahead = 1.4;         // time ahead ahead
         };
         Constants constants;
 };
