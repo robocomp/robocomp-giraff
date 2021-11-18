@@ -99,8 +99,8 @@ bool Dynamic_Window::point_reachable_by_robot(const Result &point, const QPolygo
     Eigen::Vector2f robot_r(0.0,0.0);
     Eigen::Vector2f goal_r(x, y);
     float parts = Eigen::Vector2f(x,y).norm()/(constants.robot_semi_width/6.0);
-    Eigen::Vector2f rside(220, 100);
-    Eigen::Vector2f lside(-220, 100);
+    Eigen::Vector2f rside(260, 100);
+    Eigen::Vector2f lside(-260, 100);
     QPointF p,q,r;
     for(const auto &l: iter::range(0.0, 1.0, 1.0/parts))
     {
@@ -118,7 +118,7 @@ bool Dynamic_Window::point_reachable_by_robot(const Result &point, const QPolygo
 std::optional<Dynamic_Window::Result> Dynamic_Window::compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &tr,
                                                                       const Eigen::Vector3f &robot, float previous_turn)
 {
-    const float A=1, B=10;  // CHANGE
+    const float A=1, B=5;  // CHANGE
     int k=0;
     std::vector<std::tuple<float, Result>> values(points.size());
     for(auto &&[k, point] : iter::enumerate(points))

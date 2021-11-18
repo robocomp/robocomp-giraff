@@ -448,7 +448,7 @@ void SpecificWorker::compute()
         try
         {
             const float MAX_ADVANCE = 800;
-            const float rgain = 1;
+            const float rgain = 0.8;
             float rotation = rgain*rot;
             float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
             float advance = MAX_ADVANCE * dist_break * gaussian(rotation);
