@@ -1,0 +1,16 @@
+import "GiraffJetson.idsl";
+import "CameraRGBDSimple.idsl";
+import "CameraRGBDSimplePub.idsl";
+
+
+Component communicator
+{
+    Communications
+    {
+        requires CameraRGBDSimple;
+        publishes CameraRGBDSimplePub;
+        implements GiraffJetson;
+    };
+    language python;
+};
+

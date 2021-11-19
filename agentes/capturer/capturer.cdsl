@@ -1,0 +1,14 @@
+import "GiraffJetson.idsl";
+import "CameraRGBDSimple.idsl";
+
+
+Component capturer
+{
+    Communications
+    {
+        requires GiraffJetson, CameraRGBDSimple;
+    };
+    language python;
+    options dsr;
+};
+
