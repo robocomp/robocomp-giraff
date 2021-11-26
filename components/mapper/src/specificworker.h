@@ -118,7 +118,7 @@ private:
         Eigen::Vector2f get_external_midpoint() const
         {
             Eigen::ParametrizedLine<float, 2> r =  Eigen::ParametrizedLine<float, 2>(get_midpoint(), (p1-p2).unitOrthogonal());
-            qInfo() << __FUNCTION__ << r.pointAt(800.0).x() << r.pointAt(800.0).y();
+            //qInfo() << __FUNCTION__ << r.pointAt(800.0).x() << r.pointAt(800.0).y();
             return r.pointAt(1000.0);
         };
         std::optional<int> connecting_room(int inside_room) const
@@ -131,9 +131,10 @@ private:
             else
                 return {};
         };
-
+        void operator=(const Door &d){ p1 = d.p1; p2=d.p2; to_rooms=d.to_rooms;};
     };
-    std::vector<Door> doors, selected_doors;
+    std::vector<Door> doors;
+    Door selected_door;
 
     // thanks to https://github.com/CheckBoxStudio/IoU
     struct Room

@@ -103,7 +103,7 @@ void SpecificWorker::compute()
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 
     static float initial_angle;
-    static int current_room = 0;
+    static int current_room = 0, last_room = -1;
     static Eigen::Vector2f center_room_w;
 
     switch (state)
@@ -186,7 +186,7 @@ void SpecificWorker::compute()
             // create list of occuppied points
             RoboCompRoomDetection::ListOfPoints points;
             for (const auto &[key, val]: std::ranges::filter_view(grid, [](auto a) { return not a.second.free; }))
-                points.emplace_back(RoboCompRoomDetection::Corner{(int) key.x, (int) key.z});
+                points.emplace_back(RoboCompRoomDetection::Corner{key.x, key.z});
 
             RoboCompRoomDetection::ListOfPoints sampled_points;
             auto gen = std::mt19937{std::random_device{}()};
@@ -227,41 +227,48 @@ void SpecificWorker::compute()
 
             // Choose door
             std::vector<Door> target_doors;
-            for(const auto &d : doors)
-                for(const auto &to_r : d.to_rooms)
-                    if(to_r == current_room)
-                        target_doors.push_back(d);
+            for(const auto &d: doors)
+                if(d.to_rooms.find(current_room) != d.to_rooms.end() and d.to_rooms.find(last_room) == d.to_rooms.end())
+                    target_doors.push_back(d);
 
-            this->selected_doors.clear();
-            std::ranges::sample(target_doors, std::back_inserter(this->selected_doors), 1, gen);
-            if(not this->selected_doors.empty())
+            std::vector<Door> selected_doors;
+            std::ranges::sample(target_doors, std::back_inserter(selected_doors), 1, gen);
+            if(not selected_doors.empty())
             {
-                qInfo() << __FUNCTION__ << "Room selected " << *selected_doors.front().to_rooms.begin();
+                this->selected_door = selected_doors.front();
+                qInfo() << __FUNCTION__ << "Room selected " << *selected_door.to_rooms.begin();
                 state = State::GOTO_DOOR;
             }
             else
-            {
                 qWarning() << __FUNCTION__ << " No available door to goto. Returning to IDLE";
-                state = State::IDLE;
-            }
             break;
         }
         case State::GOTO_DOOR:
         {
-            qInfo() << __FUNCTION__ << "GOTO_DOOR";
+            qInfo() << __FUNCTION__ << "GOTO_DOOR" << " room:" << current_room ;
             // pick a point 1 meter ahead of center of door position
-            auto tr = from_world_to_robot(selected_doors.front().get_external_midpoint());
+            auto tr = from_world_to_robot(selected_door.get_external_midpoint());
             float dist = tr.norm();
-            if(dist < 100)
+            if(dist < 100)  // at target
             {
                 try
                 { differentialrobot_proxy->setSpeedBase(0, 0); }
                 catch (const Ice::Exception &e)
                 { std::cout << e.what() << std::endl; }
-                if( auto to_room_o = selected_doors.front().connecting_room(current_room); to_room_o.has_value())
+                if( auto to_room_o = this->selected_door.connecting_room(current_room); to_room_o.has_value())
+                {
+                    // getting into a known room
+                    qInfo() << __FUNCTION__ << "GETTING INTO A KNOWN ROOM";
+                    last_room = current_room;
                     current_room = to_room_o.value();
+                    std::terminate();
+                }
                 else  //new room
+                {
                     current_room = rooms.size();
+                    // clean all cells
+                    grid.set_all_to_free();
+                }
                 qInfo() << __FUNCTION__ << "Leaving GOTO_DOOR, into room " << current_room;
                 // center point for new room
                 float x = ldata.size()/2;
@@ -299,7 +306,7 @@ void SpecificWorker::compute()
         }
         case State::GOTO_ROOM_CENTER:
         {
-            qInfo() << __FUNCTION__ << "GOTO_ROOM_CENTER";
+            qInfo() << __FUNCTION__ << "GOTO_ROOM_CENTER. Room:" << current_room;
             // if at room center goto INIT_TURN
             auto tr = from_world_to_robot(center_room_w);
             float dist = tr.norm();
@@ -309,7 +316,7 @@ void SpecificWorker::compute()
                 { differentialrobot_proxy->setSpeedBase(0, 0); }
                 catch (const Ice::Exception &e)
                 { std::cout << e.what() << std::endl; }
-                //state = State::INIT_TURN;
+                state = State::INIT_TURN;
                 qInfo() << "LLEGO -------------------------";
                 break;
             }
