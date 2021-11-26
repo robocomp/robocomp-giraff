@@ -372,7 +372,7 @@ class SpecificWorker(GenericWorker):
 
         if self.speed_robot:
             self.convert_base_speed_to_motors_speed(self.speed_robot[0], self.speed_robot[1])
-            #print("Velocities sent to robot:", self.speed_robot)
+            print("Velocities sent to robot:", self.speed_robot)
             self.speed_robot = None
 
     ###########################################
