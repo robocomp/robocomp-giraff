@@ -115,22 +115,17 @@ void SpecificWorker::compute()
 
         case State::INIT_TURN:
             initial_angle = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
-            try
-            { differentialrobot_proxy->setSpeedBase(0.0, 0.3); }
-            catch (const Ice::Exception &e)
-            { std::cout << e.what() << std::endl; }
+            move_robot(0, 0.5);
             state = State::TURN;
             break;
 
         case State::TURN:
         {
+            qInfo() << "TURN";
             float current = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
             if (fabs(current - initial_angle) < (M_PI + 0.1) and fabs(current - initial_angle) > (M_PI - 0.1))
             {
-                try
-                { differentialrobot_proxy->setSpeedBase(0.0, 0.0); }
-                catch (const Ice::Exception &e)
-                { std::cout << e.what() << std::endl; }
+                move_robot(0,0);
                 state = State::ESTIMATE;
             }
             // search for corners
@@ -144,22 +139,16 @@ void SpecificWorker::compute()
             std::vector<Eigen::Vector2f> peaks;
             for (const auto &&[k, der]: iter::enumerate(derivatives))
             {
-                if (der > 1000)
-                {
-                    const auto &l = ldata.at(k - 1);
-                    peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
-                } else if (der < -1000)
-                {
-                    const auto &l = ldata.at(k);
-                    peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
-                }
+                RoboCompLaser::TData l;
+                if (der > 1000) l = ldata.at(k - 1);
+                else if (der < -1000) l = ldata.at(k);
+                peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
             }
-            qInfo() << __FUNCTION__ << "peaks " << peaks.size();
+            qInfo() << "  peaks " << peaks.size();
 
             // pairwise comparison of peaks to filter in doors
             for (auto &&c: iter::combinations_with_replacement(peaks, 2))
             {
-                qInfo() << __FUNCTION__ << "dist " << (c[0] - c[1]).norm();
                 if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 600)
                 {
                     Door d{c[0], c[1]};
@@ -168,21 +157,13 @@ void SpecificWorker::compute()
                         doors.emplace_back(d);
                 }
             }
-
-            // draw
-            qInfo() << __FUNCTION__ << "---------- doors" << doors.size();
-            static std::vector<QGraphicsItem *> door_lines;
-            for (auto dp: door_lines) viewer->scene.removeItem(dp);
-            door_lines.clear();
-            for (const auto r: doors)
-            {
-                door_lines.push_back(viewer->scene.addLine(r.p1.x(), r.p1.y(), r.p2.x(), r.p2.y(), QPen(QColor("Magenta"), 50)));
-                door_lines.back()->setZValue(200);
-            }
+            qInfo() <<  "   doors" << doors.size();
+            draw_doors(doors, &viewer->scene);
             break;
         }
         case State::ESTIMATE:
         {
+            qInfo() << "ESTIMATE";
             // create list of occuppied points
             RoboCompRoomDetection::ListOfPoints points;
             for (const auto &[key, val]: std::ranges::filter_view(grid, [](auto a) { return not a.second.free; }))
@@ -190,23 +171,21 @@ void SpecificWorker::compute()
 
             RoboCompRoomDetection::ListOfPoints sampled_points;
             auto gen = std::mt19937{std::random_device{}()};
-            std::ranges::sample(points, std::back_inserter(sampled_points), points.size() / 3, gen);
+            std::ranges::sample(points, std::back_inserter(sampled_points), std::clamp((double)points.size(), points.size() / 4.0, 300.0), gen);
 
-            qInfo() << __FUNCTION__ << "ESTIMATING...";
+            qInfo() << __FUNCTION__ << "    proxy working...";
             RoboCompRoomDetection::Rooms detected_rooms;
             try
             { detected_rooms = roomdetection_proxy->detectRoom(sampled_points); }
             catch (const Ice::Exception &e)
             { std::cout << e.what() << std::endl; }
-            qInfo() << __FUNCTION__ << "Number of rooms: " << detected_rooms.size();
+            qInfo() << __FUNCTION__ << "    number of detected rooms: " << detected_rooms.size();
 
-            // pick the largest one (bigger area)
+            // pick the largest one (biggest area)
             std::vector<IOU::Quad> rects;
-            for (const auto &r: detected_rooms)
+            for (const auto &r: detected_rooms)   // build a IOU::Quad vector
                 rects.emplace_back(IOU::Quad(IOU::Point(r[0].x, r[0].y), IOU::Point(r[1].x, r[1].y),
                                              IOU::Point(r[2].x, r[2].y), IOU::Point(r[3].x, r[3].y)));
-
-
             auto max = std::ranges::max_element(rects, [](auto a, auto b) { return a.area() < b.area(); });
             if(max == rects.end()) break;  // no rooms found
 
@@ -334,76 +313,31 @@ void SpecificWorker::compute()
     }
 }
 
-///////////////////////////////////////////////////////////////////////
+////////////////////////////////// AUX /////////////////////////////////////
+void SpecificWorker::draw_doors(const std::vector<Door> &local_doors, QGraphicsScene *scene)
+{
+    static std::vector<QGraphicsItem *> door_lines;  // to remove graph objects
+    for (auto dp: door_lines) scene->removeItem(dp);
+    door_lines.clear();
+    for (const auto r: local_doors)
+    {
+        door_lines.push_back(scene->addLine(r.p1.x(), r.p1.y(), r.p2.x(), r.p2.y(), QPen(QColor("Magenta"), 50)));
+        door_lines.back()->setZValue(200);
+    }
+}
+void SpecificWorker::move_robot(float adv, float rot)
+{
+    try
+    { differentialrobot_proxy->setSpeedBase(adv, rot); }
+    catch (const Ice::Exception &e)
+    { std::cout << e.what() << std::endl; }
+}
 float SpecificWorker::gaussian(float x)
 {
     const double xset = 0.5;
     const double yset = 0.4;
     const double s = -xset*xset/log(yset);
     return exp(-x*x/s);
-}
-void SpecificWorker::check_free_path_to_target( const RoboCompLaser::TLaserData &ldata,
-                                                const Eigen::Vector2f &goal)
-{
-    // lambda to convert from Eigen to QPointF
-    auto toQPointF = [](const Eigen::Vector2f &p){ return QPointF(p.x(),p.y());};
-
-    // create polyggon
-    QPolygonF pol;
-    pol << QPointF(0,0);
-    for(const auto &l: ldata)
-        pol << QPointF(l.dist*sin(l.angle), l.dist*cos(l.angle));
-
-    // create tube lines
-    auto goal_r = from_world_to_robot(goal);
-    Eigen::Vector2f robot(0.0,0.0);
-    // number of parts the target vector is divided into
-    float parts = (goal_r).norm()/(ROBOT_LENGTH/4);
-    Eigen::Vector2f rside(220, 200);
-    Eigen::Vector2f lside(-220, 200);
-    if(parts < 1) return;
-
-    QPointF p,q, r;
-    for(auto l: iter::range(0.0, 1.0, 1.0/parts))
-    {
-        p = toQPointF(robot*(1-l) + goal_r*l);
-        q = toQPointF((robot+rside)*(1-l) + (goal_r+rside)*l);
-        r = toQPointF((robot+lside)*(1-l) + (goal_r+lside)*l);
-        if( not pol.containsPoint(p, Qt::OddEvenFill) or
-            not pol.containsPoint(q, Qt::OddEvenFill) or
-            not pol.containsPoint(r, Qt::OddEvenFill))
-            break;
-    }
-
-    // draw
-    QLineF line_center(toQPointF(from_robot_to_world(robot)), toQPointF(from_robot_to_world(Eigen::Vector2f(p.x(),p.y()))));
-    QLineF line_right(toQPointF(from_robot_to_world(robot+rside)), toQPointF(from_robot_to_world(Eigen::Vector2f(q.x(),q.y()))));
-    QLineF line_left(toQPointF(from_robot_to_world(robot+lside)), toQPointF(from_robot_to_world(Eigen::Vector2f(r.x(),q.y()))));
-    static QGraphicsItem *graphics_line_center = nullptr;
-    static QGraphicsItem *graphics_line_right = nullptr;
-    static QGraphicsItem *graphics_line_left = nullptr;
-    static QGraphicsItem *graphics_target = nullptr;
-    if (graphics_line_center != nullptr)
-        viewer->scene.removeItem(graphics_line_center);
-    if (graphics_line_right != nullptr)
-        viewer->scene.removeItem(graphics_line_right);
-    if (graphics_line_left != nullptr)
-        viewer->scene.removeItem(graphics_line_left);
-    if (graphics_target != nullptr)
-        viewer->scene.removeItem(graphics_target);
-    graphics_line_center = viewer->scene.addLine(line_center, QPen(QColor("Blue"), 30));
-    graphics_line_right = viewer->scene.addLine(line_right, QPen(QColor("Orange"), 30));
-    graphics_line_left = viewer->scene.addLine(line_left, QPen(QColor("Magenta"), 30));
-    graphics_target = viewer->scene.addEllipse(-100, -100, 200, 200, QPen(QColor("Blue")), QBrush(QColor("Blue")));
-    graphics_target->setPos(goal.x(), goal.y());
-}
-void SpecificWorker::fit_rectangle()
-{
-    // create the SX expresión
-    // create the opt problem
-    // solve
-    // draw the rectangle
-
 }
 void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
 {

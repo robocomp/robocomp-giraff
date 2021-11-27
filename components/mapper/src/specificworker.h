@@ -73,6 +73,7 @@ private:
     void draw_laser(const RoboCompLaser::TLaserData &ldata);
     RoboCompFullPoseEstimation::FullPoseEuler r_state;
     float gaussian(float x);
+    void move_robot(float adv, float rot);
 
     // state machine
     enum class State {IDLE, INIT_TURN, TURN, ESTIMATE, GOTO_DOOR, GOTO_ROOM_CENTER};
@@ -135,6 +136,7 @@ private:
     };
     std::vector<Door> doors;
     Door selected_door;
+    void draw_doors(const vector<Door> &local_doors, QGraphicsScene *scene);
 
     // thanks to https://github.com/CheckBoxStudio/IoU
     struct Room
@@ -160,6 +162,7 @@ private:
 
     // Dynanimc Window
     Dynamic_Window dw;
+
 };
 
 #endif
