@@ -110,6 +110,7 @@ private:
     struct Door
     {
         Eigen::Vector2f p1,p2;
+        int id;
         std::set<int> to_rooms;
         const float diff = 400;
         float width() const {return (p1-p2).norm();}
@@ -135,7 +136,7 @@ private:
         void operator=(const Door &d){ p1 = d.p1; p2=d.p2; to_rooms=d.to_rooms;};
     };
     std::vector<Door> doors;
-    Door selected_door;
+    int current_door;
     void draw_doors(const vector<Door> &local_doors, QGraphicsScene *scene);
 
     // thanks to https://github.com/CheckBoxStudio/IoU

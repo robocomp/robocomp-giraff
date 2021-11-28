@@ -128,6 +128,7 @@ void SpecificWorker::compute()
                 move_robot(0,0);
                 state = State::ESTIMATE;
             }
+            move_robot(0, 0.5);
             // search for corners
             // compute derivative wrt distance
             std::vector<float> derivatives(ldata.size());
@@ -151,7 +152,7 @@ void SpecificWorker::compute()
             {
                 if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 600)
                 {
-                    Door d{c[0], c[1]};
+                    Door d{c[0], c[1], doors.size()};
                     d.to_rooms.insert(current_room);
                     if (auto r = std::find_if(doors.begin(), doors.end(), [d](auto a) { return d == a; }); r == doors.end())
                         doors.emplace_back(d);
@@ -163,7 +164,7 @@ void SpecificWorker::compute()
         }
         case State::ESTIMATE:
         {
-            qInfo() << "ESTIMATE";
+            qInfo() << "ESTIMATE: room ->" << current_room << last_room;
             // create list of occuppied points
             RoboCompRoomDetection::ListOfPoints points;
             for (const auto &[key, val]: std::ranges::filter_view(grid, [](auto a) { return not a.second.free; }))
@@ -205,36 +206,36 @@ void SpecificWorker::compute()
             v->setZValue(100);
 
             // Choose door
-            std::vector<Door> target_doors;
-            for(const auto &d: doors)
+            current_door = -1;
+            for(const auto &[k, d] : doors | iter::enumerate)
                 if(d.to_rooms.find(current_room) != d.to_rooms.end() and d.to_rooms.find(last_room) == d.to_rooms.end())
-                    target_doors.push_back(d);
-
-            std::vector<Door> selected_doors;
-            std::ranges::sample(target_doors, std::back_inserter(selected_doors), 1, gen);
-            if(not selected_doors.empty())
+                {
+                    current_door = k;
+                    qInfo() << "   Current door " << doors[k].id;
+                    break;
+                }
+            if( current_door<0 )
             {
-                this->selected_door = selected_doors.front();
-                qInfo() << __FUNCTION__ << "Room selected " << *selected_door.to_rooms.begin();
-                state = State::GOTO_DOOR;
-            }
-            else
                 qWarning() << __FUNCTION__ << " No available door to goto. Returning to IDLE";
+                std::terminate();
+            }
+
+            state = State::GOTO_DOOR;
             break;
         }
         case State::GOTO_DOOR:
         {
-            qInfo() << __FUNCTION__ << "GOTO_DOOR" << " room:" << current_room ;
+            qInfo() << __FUNCTION__ << "GOTO_DOOR" << " room:" << current_room  << last_room;
             // pick a point 1 meter ahead of center of door position
-            auto tr = from_world_to_robot(selected_door.get_external_midpoint());
+            auto tr = from_world_to_robot(doors[current_door].get_external_midpoint());
             float dist = tr.norm();
-            if(dist < 100)  // at target
+            if(dist < 150)  // at target
             {
                 try
                 { differentialrobot_proxy->setSpeedBase(0, 0); }
                 catch (const Ice::Exception &e)
                 { std::cout << e.what() << std::endl; }
-                if( auto to_room_o = this->selected_door.connecting_room(current_room); to_room_o.has_value())
+                if( auto to_room_o = this->doors[current_door].connecting_room(current_room); to_room_o.has_value())
                 {
                     // getting into a known room
                     qInfo() << __FUNCTION__ << "GETTING INTO A KNOWN ROOM";
@@ -244,7 +245,9 @@ void SpecificWorker::compute()
                 }
                 else  //new room
                 {
+                    last_room = current_room;
                     current_room = rooms.size();
+                    doors[current_door].to_rooms.insert(current_room);
                     // clean all cells
                     grid.set_all_to_free();
                 }
@@ -285,7 +288,7 @@ void SpecificWorker::compute()
         }
         case State::GOTO_ROOM_CENTER:
         {
-            qInfo() << __FUNCTION__ << "GOTO_ROOM_CENTER. Room:" << current_room;
+            qInfo() << __FUNCTION__ << "GOTO_ROOM_CENTER. Room:" << current_room << last_room;
             // if at room center goto INIT_TURN
             auto tr = from_world_to_robot(center_room_w);
             float dist = tr.norm();
