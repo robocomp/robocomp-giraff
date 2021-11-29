@@ -1,5 +1,0 @@
-/home/robo02/robocomp/components/robocomp-giraff/agentes/communicator/CMakeFiles/rebuild_cache.dir
-/home/robo02/robocomp/components/robocomp-giraff/agentes/communicator/CMakeFiles/edit_cache.dir
-/home/robo02/robocomp/components/robocomp-giraff/agentes/communicator/src/CMakeFiles/rebuild_cache.dir
-/home/robo02/robocomp/components/robocomp-giraff/agentes/communicator/src/CMakeFiles/edit_cache.dir
-/home/robo02/robocomp/components/robocomp-giraff/agentes/communicator/src/CMakeFiles/ICES__home_robo02_robocomp_components_robocomp-giraff_agentes_communicator_src.dir
