@@ -1,0 +1,14 @@
+import "HumanCameraBody.idsl";
+import "CameraRGBDSimple.idsl";
+
+Component human_capturer
+{
+    Communications
+    {
+        requires HumanCameraBody, CameraRGBDSimple;
+    };
+    language Cpp11;
+    gui Qt(QMainWindow);
+    options dsr;
+};
+
