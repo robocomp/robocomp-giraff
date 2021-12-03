@@ -29,7 +29,13 @@ except KeyError:
     ROBOCOMP = '/opt/robocomp'
 
 Ice.loadSlice("-I ./src/ --all ./src/CommonBehavior.ice")
+Ice.loadSlice("-I ./src/ --all ./src/CameraRGBDSimple.ice")
+Ice.loadSlice("-I ./src/ --all ./src/CameraRGBDSimplePub.ice")
+Ice.loadSlice("-I ./src/ --all ./src/HumanCameraBody.ice")
+Ice.loadSlice("-I ./src/ --all ./src/HumanCameraBodyPub.ice")
 import RoboCompCommonBehavior
+import RoboCompCameraRGBDSimple
+import RoboCompHumanCameraBody
 
 
 
