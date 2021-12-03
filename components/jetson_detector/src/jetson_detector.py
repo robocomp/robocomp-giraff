@@ -55,6 +55,15 @@
 #
 #
 
+import os, sys
+try:
+    new_path = os.path.dirname(os.path.dirname(sys.argv[0]))
+    os.chdir(new_path)
+    print(new_path)
+except:
+    print("Ruta absoluta no detectada, usando ruta por defecto")
+
+
 import argparse
 # Ctrl+c handling
 import signal
