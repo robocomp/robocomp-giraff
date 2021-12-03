@@ -1,3 +1,7 @@
 components/jetson_detector/*.pth
 components/jetson_detector/*.json
 components/jetson_detector/*.sh
+components/jetson_detector/*.ice
+components/jetson_detector/
+components/jetson_detector/src/pyrealsense2
+components/jetson_detector/src/__pycache__

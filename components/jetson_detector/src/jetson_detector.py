@@ -20,7 +20,7 @@
 #    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-# \mainpage RoboComp::jetson_detector
+# \mainpage RoboComp::communicator
 #
 # \section intro_sec Introduction
 #
@@ -48,7 +48,7 @@
 #
 # \subsection execution_ssec Execution
 #
-# Just: "${PATH_TO_BINARY}/jetson_detector --Ice.Config=${PATH_TO_CONFIG_FILE}"
+# Just: "${PATH_TO_BINARY}/communicator --Ice.Config=${PATH_TO_CONFIG_FILE}"
 #
 # \subsection running_ssec Once running
 #
@@ -63,7 +63,6 @@ try:
 except:
     print("Ruta absoluta no detectada, usando ruta por defecto")
 
-
 import argparse
 # Ctrl+c handling
 import signal
@@ -76,11 +75,11 @@ from specificworker import *
 
 #SIGNALS handler
 def sigint_handler(*args):
-    QtCore.QCoreApplication.quit()
+    print("signal handler")
+    exit()
 
 
 if __name__ == '__main__':
-    app = QtCore.QCoreApplication(sys.argv)
     parser = argparse.ArgumentParser()
     parser.add_argument('iceconfigfile', nargs='?', type=str, default='etc/config')
     parser.add_argument('--startup-check', action='store_true')
@@ -97,5 +96,5 @@ if __name__ == '__main__':
 
     interface_manager.set_default_hanlder(worker)
     signal.signal(signal.SIGINT, sigint_handler)
-    app.exec_()
+    worker.compute()
     interface_manager.destroy()
