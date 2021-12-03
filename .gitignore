@@ -1,0 +1,3 @@
+components/jetson_detector/*.pth
+components/jetson_detector/*.json
+components/jetson_detector/*.sh
