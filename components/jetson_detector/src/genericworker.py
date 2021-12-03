@@ -37,12 +37,7 @@ import RoboCompCommonBehavior
 import RoboCompCameraRGBDSimple
 import RoboCompHumanCameraBody
 
-
-
-
 class GenericWorker():
-
-    
 
     def __init__(self, mprx):
         super(GenericWorker, self).__init__()
@@ -50,10 +45,6 @@ class GenericWorker():
         self.camerargbdsimplepub_proxy = mprx["CameraRGBDSimplePub"]
         self.humancamerabodypub_proxy = mprx["HumanCameraBodyPub"]
 
-        
-
-
-    
     def killYourSelf(self):
         pass
 

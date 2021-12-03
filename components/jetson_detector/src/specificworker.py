@@ -46,10 +46,6 @@ sys.path.append('/usr/local/lib/python3.6/pyrealsense2')
 import pyrealsense2.pyrealsense2 as rs
 device = torch.device('cuda')
 
-
-
-
-
 # Parametros
 PMcR = [i for i in range(111, 231+1)] # Print Multicolor Range
 
@@ -58,13 +54,6 @@ B = fg(250)
 A = fg(14)
 N = fg(208)
 G = fg(244)
-
-
-
-
-
-
-
 
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
@@ -80,7 +69,6 @@ class SpecificWorker(GenericWorker):
         self.INPUT_HEIGHT = 480
         self.draw = True
         self.rotate = True
-        
 
         # Vars para luego
         self.pipeline = None
@@ -99,7 +87,6 @@ class SpecificWorker(GenericWorker):
         self.skeleton_points = []
         self.skeleton_white = []
 
-
         # Tiempos
         self.t1 = None
         self.t2 = None
@@ -112,7 +99,6 @@ class SpecificWorker(GenericWorker):
     def setParams(self, params):
         return True
 
-
     def compute(self):
         
         #random_color = fg(CColor(PMcR))
@@ -121,9 +107,6 @@ class SpecificWorker(GenericWorker):
         
         # Inicializamos la red y los elementos necesarios para mas adelante
         self.initializePilar()
-        
-        
-
 
         random_color = fg(CColor(PMcR))
         print(random_color+"=======================  " +fg(15)+  "Compute: While"  +random_color+ "  =======================" + G)

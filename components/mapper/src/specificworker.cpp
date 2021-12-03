@@ -141,16 +141,24 @@ void SpecificWorker::compute()
             for (const auto &&[k, der]: iter::enumerate(derivatives))
             {
                 RoboCompLaser::TData l;
-                if (der > 1000) l = ldata.at(k - 1);
-                else if (der < -1000) l = ldata.at(k);
-                peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
+                if (der > 800)
+                {
+                    l = ldata.at(k - 1);
+                    peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
+                }
+                else if (der < -800)
+                {
+                    l = ldata.at(k);
+                    peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
+                }
             }
             qInfo() << "  peaks " << peaks.size();
 
             // pairwise comparison of peaks to filter in doors
             for (auto &&c: iter::combinations_with_replacement(peaks, 2))
             {
-                if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 600)
+                if ((c[0] - c[1]).norm() < 1100 and
+                    (c[0] - c[1]).norm() > 600)
                 {
                     Door d{c[0], c[1], doors.size()};
                     d.to_rooms.insert(current_room);
@@ -261,11 +269,12 @@ void SpecificWorker::compute()
                 Eigen::Vector2f center_r ( (der-izq)/2, (-800 + laser_center)/2);
                 center_room_w = from_robot_to_world( center_r);
                 // draw
-                auto dest = viewer->scene.addEllipse(center_room_w.x()-100, center_room_w.y()-100, 200, 200, QPen(QColor("Magenta"), 50));
-                dest->setZValue(200);
+                //auto dest = viewer->scene.addEllipse(center_room_w.x()-100, center_room_w.y()-100, 200, 200, QPen(QColor("Magenta"), 50));
+                //dest->setZValue(200);
 
                 qInfo() << __FUNCTION__ << "Center point " << center_room_w.x() << center_room_w.y();
-                state = State::GOTO_ROOM_CENTER;
+                //state = State::GOTO_ROOM_CENTER;
+                state = State::INIT_TURN;
                 break;
             }
             // call dynamic window

@@ -121,7 +121,7 @@ private:
         {
             Eigen::ParametrizedLine<float, 2> r =  Eigen::ParametrizedLine<float, 2>(get_midpoint(), (p1-p2).unitOrthogonal());
             //qInfo() << __FUNCTION__ << r.pointAt(800.0).x() << r.pointAt(800.0).y();
-            return r.pointAt(1000.0);
+            return r.pointAt(1300.0);
         };
         std::optional<int> connecting_room(int inside_room) const
         {
