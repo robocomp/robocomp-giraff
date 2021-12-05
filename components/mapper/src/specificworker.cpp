@@ -21,6 +21,8 @@
 #include <cppitertools/sliding_window.hpp>
 #include <cppitertools/enumerate.hpp>
 #include <cppitertools/combinations_with_replacement.hpp>
+#include <cppitertools/filter.hpp>
+#include <cppitertools/filterfalse.hpp>
 #include <cppitertools/zip.hpp>
 #include <cppitertools/zip_longest.hpp>
 #include <numeric>
@@ -51,22 +53,18 @@ void SpecificWorker::initialize(int period)
 	std::cout << "Initialize worker" << std::endl;
 
     this->dimensions = QRectF(-5100, -2600, 10200, 5200);
-    viewer = new AbstractGraphicViewer(this, this->dimensions);
-    this->resize(900,450);
-    robot_polygon = viewer->add_robot(ROBOT_LENGTH);
+    viewer_robot = new AbstractGraphicViewer(this->frame_robot, this->dimensions);
+    robot_polygon = viewer_robot->add_robot(ROBOT_LENGTH);
     laser_in_robot_polygon = new QGraphicsRectItem(-10, 10, 20, 20, robot_polygon);
     laser_in_robot_polygon->setPos(0, 190);     // move this to abstract
-    try
-    {
-        RoboCompGenericBase::TBaseState bState;
-        differentialrobot_proxy->getBaseState(bState);
-    }
-    catch(const Ice::Exception &e) { std::cout << e.what() << std::endl;}
 
-    connect(viewer, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
+    viewer_graph = new AbstractGraphicViewer(this->frame_graph, this->dimensions);
+    this->resize(1200,450);
+
+    connect(viewer_robot, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
 
     // grid
-    grid.initialize(dimensions, TILE_SIZE, &viewer->scene, false);
+    grid.initialize(dimensions, TILE_SIZE, &viewer_robot->scene, false);
     qInfo() << __FUNCTION__ << "Grid initialized to " << this->dimensions;
 
             ////////////////////////////////////////////////////
@@ -93,7 +91,6 @@ void SpecificWorker::compute()
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 
     //laser
-    RoboCompLaser::TLaserData ldata;
     try
     {
         ldata = laser_proxy->getLaserData();
@@ -102,229 +99,332 @@ void SpecificWorker::compute()
     }
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 
-    static float initial_angle;
-    static int current_room = 0, last_room = -1;
-    static Eigen::Vector2f center_room_w;
-
     switch (state)
     {
+        case State::INIT:
+            qInfo() << __FUNCTION__ << "INIT";
+            data_state.current_room = 0; // first initial room
+            state = State::EXPLORING;
+            break;
+        case State::EXPLORING:
+            //qInfo() << __FUNCTION__ << "EXPLORING";
+            data_state = exploring(data_state);
+            if(data_state.no_rooms_found)
+            {
+                qInfo() << __FUNCTION__ << "No rooms found. going to IDLE";
+                state = State::IDLE;
+                break;
+            }
+            if (data_state.room_detected)
+            {
+                auto[next_door, next_room] = choose_exit_door(data_state);
+                qInfo() << __FUNCTION__ << "    choose exit door" << next_door << " and room" << next_room;
+                if (next_door != -1)
+                {
+                    data_state.current_door = next_door;
+                    data_state.next_room = next_room;
+                    data_state.last_room = data_state.current_room;
+                    state = State::CHANGING_ROOM;
+                } else
+                {
+                    qInfo() << __FUNCTION__ << "No doors found";
+                    state = State::IDLE;
+                }
+            }
+            break;
+        case State::VISITING:
+        {
+            qInfo() << __FUNCTION__ << "VISITING";
+            auto[next_door, next_room] = choose_exit_door(data_state);
+            qInfo() << __FUNCTION__ << "    choose exit door" << next_door << " and room" << next_room;
+            if (next_door != -1)
+            {
+                data_state.current_door = next_door;
+                data_state.next_room = next_room;
+                data_state.last_room = data_state.current_room;
+                state = State::CHANGING_ROOM;
+            } else
+            {
+                qInfo() << __FUNCTION__ << "No doors found";
+                state = State::IDLE;
+            }
+            break;
+        }
+        case State::CHANGING_ROOM:
+            qInfo() << __FUNCTION__ << "CHANGING_ROOM";
+            data_state = changing_room(data_state);
+            if(data_state.at_target_room)
+            {
+                data_state.at_target_room = false;
+                data_state.last_room = data_state.current_room;
+                data_state.next_room = -1;
+                data_state.room_detected = false;
+                grid.set_all_to_free();
+                if(data_state.next_room == -1)  //new room
+                {
+                    doors.at(data_state.current_door).to_rooms.insert(data_state.current_room);
+                    data_state.current_room = (int)rooms.size(); // new room number
+                    doors.at(data_state.current_door).to_rooms.insert(data_state.current_room);
+                    state = State::EXPLORING;
+                }
+                else
+                {
+                    // grid.compute_occupied_from_rectangle();
+                    state = State::VISITING;
+                    data_state.current_room = data_state.next_room; // new room number
+                }
+                data_state.current_door = -1;
+            }
+            break;
         case State::IDLE:
             qInfo() << __FUNCTION__ << "IDLE";
-            state = State::INIT_TURN;
+            move_robot(0.0,0.0);
+            std::terminate();
             break;
+    }
+    for(auto &r : rooms)
+        r.print();
+    for(auto &d : doors)
+        d.print();
+    data_state.print();
+    qInfo() << __FUNCTION__ << "---------------------------";
 
-        case State::INIT_TURN:
+}
+
+////////////////////////////////////////////////////////////////////////////
+SpecificWorker::Data_State SpecificWorker::exploring(const Data_State &data_state)
+{
+    static float initial_angle;
+    static int count = 0;
+    Data_State new_data_state = data_state;
+    static ExploreState explore_state = ExploreState::INIT_TURN;
+    switch (explore_state)
+    {
+        case ExploreState::INIT_TURN:
             initial_angle = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
             move_robot(0, 0.5);
-            state = State::TURN;
+            explore_state = ExploreState::TURN;
             break;
 
-        case State::TURN:
+        case ExploreState::TURN:
         {
-            qInfo() << "TURN";
+            //qInfo() << "TURN";
+            // check if turn is finished
             float current = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
             if (fabs(current - initial_angle) < (M_PI + 0.1) and fabs(current - initial_angle) > (M_PI - 0.1))
             {
-                move_robot(0,0);
-                state = State::ESTIMATE;
-            }
-            move_robot(0, 0.5);
-            // search for corners
-            // compute derivative wrt distance
-            std::vector<float> derivatives(ldata.size());
-            derivatives[0] = 0;
-            for (const auto &&[k, l]: iter::sliding_window(ldata, 2) | iter::enumerate)
-                derivatives[k + 1] = l[1].dist - l[0].dist;
-
-            // filter derivatives greater than a threshold
-            std::vector<Eigen::Vector2f> peaks;
-            for (const auto &&[k, der]: iter::enumerate(derivatives))
-            {
-                RoboCompLaser::TData l;
-                if (der > 800)
-                {
-                    l = ldata.at(k - 1);
-                    peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
-                }
-                else if (der < -800)
-                {
-                    l = ldata.at(k);
-                    peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
-                }
-            }
-            qInfo() << "  peaks " << peaks.size();
-
-            // pairwise comparison of peaks to filter in doors
-            for (auto &&c: iter::combinations_with_replacement(peaks, 2))
-            {
-                if ((c[0] - c[1]).norm() < 1100 and
-                    (c[0] - c[1]).norm() > 600)
-                {
-                    Door d{c[0], c[1], doors.size()};
-                    d.to_rooms.insert(current_room);
-                    if (auto r = std::find_if(doors.begin(), doors.end(), [d](auto a) { return d == a; }); r == doors.end())
-                        doors.emplace_back(d);
-                }
-            }
-            qInfo() <<  "   doors" << doors.size();
-            draw_doors(doors, &viewer->scene);
-            break;
-        }
-        case State::ESTIMATE:
-        {
-            qInfo() << "ESTIMATE: room ->" << current_room << last_room;
-            // create list of occuppied points
-            RoboCompRoomDetection::ListOfPoints points;
-            for (const auto &[key, val]: std::ranges::filter_view(grid, [](auto a) { return not a.second.free; }))
-                points.emplace_back(RoboCompRoomDetection::Corner{key.x, key.z});
-
-            RoboCompRoomDetection::ListOfPoints sampled_points;
-            auto gen = std::mt19937{std::random_device{}()};
-            std::ranges::sample(points, std::back_inserter(sampled_points), std::clamp((double)points.size(), points.size() / 4.0, 300.0), gen);
-
-            qInfo() << __FUNCTION__ << "    proxy working...";
-            RoboCompRoomDetection::Rooms detected_rooms;
-            try
-            { detected_rooms = roomdetection_proxy->detectRoom(sampled_points); }
-            catch (const Ice::Exception &e)
-            { std::cout << e.what() << std::endl; }
-            qInfo() << __FUNCTION__ << "    number of detected rooms: " << detected_rooms.size();
-
-            // pick the largest one (biggest area)
-            std::vector<IOU::Quad> rects;
-            for (const auto &r: detected_rooms)   // build a IOU::Quad vector
-                rects.emplace_back(IOU::Quad(IOU::Point(r[0].x, r[0].y), IOU::Point(r[1].x, r[1].y),
-                                             IOU::Point(r[2].x, r[2].y), IOU::Point(r[3].x, r[3].y)));
-            auto max = std::ranges::max_element(rects, [](auto a, auto b) { return a.area() < b.area(); });
-            if(max == rects.end()) break;  // no rooms found
-
-            // additional checks to make sure the rect explains most of the points around the robot.
-            Room room(*max, current_room);
-            if (auto r = std::find_if(rooms.begin(), rooms.end(), [room](auto a) { return room == a; }); r == rooms.end())
-                rooms.push_back(room);
-
-            // complete door info about room connection. We need the list of doors visible from here
-            // adjust door to room's wall
-
-            // draw
-            QPolygonF poly;
-            for (auto p: room.points)
-                poly << QPointF(p.x, p.y);
-            auto v = viewer->scene.addPolygon(poly, QPen(QColor("Blue"), 90));
-            v->setZValue(100);
-
-            // Choose door
-            current_door = -1;
-            for(const auto &[k, d] : doors | iter::enumerate)
-                if(d.to_rooms.find(current_room) != d.to_rooms.end() and d.to_rooms.find(last_room) == d.to_rooms.end())
-                {
-                    current_door = k;
-                    qInfo() << "   Current door " << doors[k].id;
-                    break;
-                }
-            if( current_door<0 )
-            {
-                qWarning() << __FUNCTION__ << " No available door to goto. Returning to IDLE";
-                std::terminate();
-            }
-
-            state = State::GOTO_DOOR;
-            break;
-        }
-        case State::GOTO_DOOR:
-        {
-            qInfo() << __FUNCTION__ << "GOTO_DOOR" << " room:" << current_room  << last_room;
-            // pick a point 1 meter ahead of center of door position
-            auto tr = from_world_to_robot(doors[current_door].get_external_midpoint());
-            float dist = tr.norm();
-            if(dist < 150)  // at target
-            {
-                try
-                { differentialrobot_proxy->setSpeedBase(0, 0); }
-                catch (const Ice::Exception &e)
-                { std::cout << e.what() << std::endl; }
-                if( auto to_room_o = this->doors[current_door].connecting_room(current_room); to_room_o.has_value())
-                {
-                    // getting into a known room
-                    qInfo() << __FUNCTION__ << "GETTING INTO A KNOWN ROOM";
-                    last_room = current_room;
-                    current_room = to_room_o.value();
-                    std::terminate();
-                }
-                else  //new room
-                {
-                    last_room = current_room;
-                    current_room = rooms.size();
-                    doors[current_door].to_rooms.insert(current_room);
-                    // clean all cells
-                    grid.set_all_to_free();
-                }
-                qInfo() << __FUNCTION__ << "Leaving GOTO_DOOR, into room " << current_room;
-                // center point for new room
-                float x = ldata.size()/2;
-                float d = x/4;
-                float laser_center = ldata[x].dist;
-                float izq = ldata[d].dist;
-                float der = ldata[ldata.size()-d].dist;
-                Eigen::Vector2f center_r ( (der-izq)/2, (-800 + laser_center)/2);
-                center_room_w = from_robot_to_world( center_r);
-                // draw
-                //auto dest = viewer->scene.addEllipse(center_room_w.x()-100, center_room_w.y()-100, 200, 200, QPen(QColor("Magenta"), 50));
-                //dest->setZValue(200);
-
-                qInfo() << __FUNCTION__ << "Center point " << center_room_w.x() << center_room_w.y();
-                //state = State::GOTO_ROOM_CENTER;
-                state = State::INIT_TURN;
+                move_robot(0, 0);
+                explore_state = ExploreState::ESTIMATE;
+                count = 0;
                 break;
             }
-            // call dynamic window
-            QPolygonF laser_poly;
-            for(auto &&l : ldata)
-                laser_poly << QPointF(l.dist*sin(l.angle), l.dist*cos(l.angle));
-            auto [_, __, adv, rot, ___] = dw.compute(tr, laser_poly,
-                                                       Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
-                                                       Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz),
-                                                       &viewer->scene);
-            const float rgain = 0.8;
-            float rotation = rgain*rot;
-            float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
-            float advance = constants.max_advance_speed * dist_break * gaussian(rotation);
-            try
-            { differentialrobot_proxy->setSpeedBase(advance, rotation); }
-            catch (const Ice::Exception &e)
-            { std::cout << e.what() << std::endl; }
+            else  // keep turning
+            {
+                detect_doors(data_state);
+                draw_doors(doors, &viewer_robot->scene);
+            }
             break;
         }
-        case State::GOTO_ROOM_CENTER:
+        case ExploreState::ESTIMATE:
         {
-            qInfo() << __FUNCTION__ << "GOTO_ROOM_CENTER. Room:" << current_room << last_room;
-            // if at room center goto INIT_TURN
-            auto tr = from_world_to_robot(center_room_w);
-            float dist = tr.norm();
-            if(dist < 80)
+            //qInfo() << "ESTIMATE: room ->" << current_room << last_room;
+            auto res_data = estimate_rooms(data_state);
+            if(not res_data.room_detected )
             {
-                try
-                { differentialrobot_proxy->setSpeedBase(0, 0); }
-                catch (const Ice::Exception &e)
-                { std::cout << e.what() << std::endl; }
-                state = State::INIT_TURN;
-                qInfo() << "LLEGO -------------------------";
-                break;
+                qInfo() << __FUNCTION__ << count << "th try";
+                if (count++ > 5)
+                {
+                    new_data_state.no_rooms_found = true;
+                    explore_state = ExploreState::INIT_TURN;    // so next time we start by turning
+                }
             }
-            float beta = 0.0;
-            if(dist>80)
-                beta = atan2(tr.x(), tr.y());
-            float adv_break = std::clamp(constants.max_advance_speed/1000.0, 0.0, 1.0);
-            float adv = constants.max_advance_speed * adv_break * gaussian(beta);
-            try
-            { differentialrobot_proxy->setSpeedBase(adv, beta); }
-            catch (const Ice::Exception &e)
-            { std::cout << e.what() << std::endl; }
+            else
+            {
+                    new_data_state.room_detected = true;
+                    explore_state = ExploreState::INIT_TURN;    // so next time we start by turning
+            }
+
+            // if(new_data_state.room_detected == false) try_again up to N times with different samplings
             break;
         }
     }
+    return new_data_state;
 }
+void SpecificWorker::detect_doors(const Data_State &data_state)
+{
+    move_robot(0, 0.5);
+    // search for corners. Compute derivative wrt distance
+    std::vector<float> derivatives(ldata.size());
+    derivatives[0] = 0;
+    for (const auto &&[k, l]: iter::sliding_window(ldata, 2) | iter::enumerate)
+        derivatives[k + 1] = l[1].dist - l[0].dist;
 
+    // filter derivatives greater than a threshold
+    std::vector<Eigen::Vector2f> peaks;
+    for (const auto &&[k, der]: iter::enumerate(derivatives))
+    {
+        RoboCompLaser::TData l;
+        if (der > 800)
+        {
+            l = ldata.at(k - 1);
+            peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
+        }
+        else if (der < -800)
+        {
+            l = ldata.at(k);
+            peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
+        }
+    }
+    qInfo() << "  peaks " << peaks.size();
+
+    // pairwise comparison of peaks to filter in doors
+    for (auto &&c: iter::combinations_with_replacement(peaks, 2))
+    {
+        if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 600)
+        {
+            Door d{c[0], c[1], (int)doors.size()};
+            d.to_rooms.insert(data_state.current_room);
+            if (auto r = std::find_if(doors.begin(), doors.end(), [d](auto a) { return d == a; }); r == doors.end())
+                doors.emplace_back(d);
+        }
+    }
+    qInfo() << "  doors computed" << doors.size();
+}
+SpecificWorker::Data_State SpecificWorker::estimate_rooms(const Data_State &data_state)
+{
+    Data_State new_data_state = data_state;
+    // create list of occuppied points
+    RoboCompRoomDetection::ListOfPoints points;
+    for (const auto &[key, val]: std::ranges::filter_view(grid, [](auto a) { return not a.second.free; }))
+        points.emplace_back(RoboCompRoomDetection::Corner{(float)key.x, (float)key.z});
+
+    // filter out points beyond doors
+    RoboCompRoomDetection::ListOfPoints inside_points;
+    for (const auto &c : points)
+        for(const auto &d : doors | iter::filter([r = data_state.current_room](auto d){return d.connects_to_room(r);}))
+        {
+            auto p_r = from_world_to_robot(Eigen::Vector2f(c.x, c.y));
+            auto mid_r = from_robot_to_world(d.get_midpoint());
+            auto focal = mid_r.norm();
+            if( not( (p_r.norm() > focal*1.3)) )// and fabs(focal * p_r.x() / p_r.y()) < d.width()))
+                inside_points.push_back(c);
+//            else
+//                qInfo() << __FUNCTION__ << "discarded " << c.x << c.y;
+        }
+
+    // sample size()/4 points from detected corners
+    RoboCompRoomDetection::ListOfPoints sampled_points;
+    auto gen = std::mt19937{std::random_device{}()};
+    std::ranges::sample(inside_points, std::back_inserter(sampled_points), std::clamp((double)inside_points.size(), inside_points.size() / 4.0, 300.0), gen);
+
+    qInfo() << __FUNCTION__ << "    proxy working...";
+    RoboCompRoomDetection::Rooms detected_rooms;
+    try
+    { detected_rooms = roomdetection_proxy->detectRoom(sampled_points); }
+    catch (const Ice::Exception &e)
+    { std::cout << e.what() << std::endl; }
+    qInfo() << __FUNCTION__ << "    number of detected rooms by proxy: " << detected_rooms.size();
+
+    // pick the one with the largest area)
+    std::vector<IOU::Quad> rects;
+    for (const auto &r: detected_rooms)   // build a IOU::Quad vector
+        rects.emplace_back(IOU::Quad(IOU::Point(r[0].x, r[0].y), IOU::Point(r[1].x, r[1].y),
+                                     IOU::Point(r[2].x, r[2].y), IOU::Point(r[3].x, r[3].y)));
+    auto max = std::ranges::max_element(rects, [](auto a, auto b) { return a.area() < b.area(); });
+    if(max == rects.end())
+    {
+        qInfo() << __FUNCTION__ << "No rooms found. Stopping";
+        new_data_state.room_detected = false;
+        return new_data_state;
+    }
+    else
+        new_data_state.room_detected = true;
+
+    // insert the new room only if it does not exit yet
+    Room room(*max, data_state.current_room);
+    if (auto r = std::find_if(rooms.begin(), rooms.end(), [room](auto a) { return room == a; }); r == rooms.end())
+        rooms.push_back(room);
+
+    // complete door info about room connection. We need the list of doors visible from here
+    // adjust door to room's wall
+
+    // draw
+    try{ rooms.at(data_state.current_room).draw(&viewer_robot->scene);} catch(const std::exception &e){ std::cout << e.what() << std::endl;};
+    draw_node(data_state.current_room);
+
+    return new_data_state;
+}
+SpecificWorker::State SpecificWorker::visiting(State &state){ return state;}
+SpecificWorker::Data_State SpecificWorker::changing_room(const Data_State &data_state)
+{
+    Data_State new_data_state = data_state;
+    qInfo() << __FUNCTION__ << " going to room " << data_state.next_room << " from: "
+            << data_state.current_room << "through: " << data_state.current_door;
+
+    // pick a point 1 meter ahead of center of door position
+    Door door;
+    try{ door = doors.at(data_state.current_door); } catch(std::exception &e){ std::cout << e.what() << std::endl;};
+    auto mid_point = door.get_external_midpoint();
+
+    // draw
+    auto dest = viewer_robot->scene.addEllipse(0, 0, 200, 200, QPen(QColor("Magenta"), 50));
+    dest->setPos(mid_point.x(), mid_point.y()); dest->setZValue(200);
+
+    auto tr = from_world_to_robot(mid_point);
+    float dist = tr.norm();
+    if(dist < 150)  // at target
+    {
+        qInfo() << __FUNCTION__ << "    Robot reached target room" << data_state.next_room;
+        move_robot(0,0);
+        new_data_state.at_target_room = true;
+    }
+    else  // continue to room
+    {
+        // call dynamic window
+        QPolygonF laser_poly;
+        for(auto &&l : ldata)
+            laser_poly << QPointF(l.dist*sin(l.angle), l.dist*cos(l.angle));
+        auto [_, __, adv, rot, ___] = dw.compute(tr, laser_poly,
+                                                 Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
+                                                 Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz),
+                                                 &viewer_robot->scene);
+        const float rgain = 0.8;
+        float rotation = rgain*rot;
+        float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
+        float advance = constants.max_advance_speed * dist_break * gaussian(rotation);
+        move_robot(advance, rotation);
+    }
+    return new_data_state;
+}
+std::tuple<int, int> SpecificWorker::choose_exit_door(const Data_State &data_state)
+{
+    // Choose an un-explored destination room
+    int new_door = -1;
+    int new_room = -1;
+    for(const auto &[k, d] : doors | iter::filter([r = data_state.current_room](auto d)
+                    { return d.connects_to_room(r) and d.to_rooms.size()==1;}) | iter::enumerate)
+        {
+            new_door = d.id;
+            new_room = -1;  //unkown
+            qInfo() << "   Door to NEW room selected" << d.id;
+            d.print();
+            break;
+        }
+    if(new_door == -1)  // no door to un-explored room. Pick a random one
+    {
+        std::vector<int> potential_doors;
+        for (const auto &[k, d]: doors | iter::filter([r = data_state.current_room](auto d) { return d.connects_to_room(r); }) | iter::enumerate)
+            potential_doors.push_back(d.id);
+        std::vector<int> selected_doors;
+        auto gen = std::mt19937{std::random_device{}()};
+        std::ranges::sample(potential_doors, std::back_inserter(selected_doors), 1, gen);
+        new_door = selected_doors.front();
+        auto room_res = std::ranges::find_if(doors.at(new_door).to_rooms, [cr = data_state.current_room](auto id){ return id == cr;});
+        new_room = *room_res;
+        qInfo() << "   Door" << new_door << "to KNOWN room selected" << new_room;
+    }
+    return std::make_tuple(new_door, new_room );
+}
 ////////////////////////////////// AUX /////////////////////////////////////
 void SpecificWorker::draw_doors(const std::vector<Door> &local_doors, QGraphicsScene *scene)
 {
@@ -336,6 +436,17 @@ void SpecificWorker::draw_doors(const std::vector<Door> &local_doors, QGraphicsS
         door_lines.push_back(scene->addLine(r.p1.x(), r.p1.y(), r.p2.x(), r.p2.y(), QPen(QColor("Magenta"), 50)));
         door_lines.back()->setZValue(200);
     }
+}
+void SpecificWorker::draw_node(int id)
+{
+    std::mt19937 mt(std::random_device{}());
+    std::uniform_real_distribution<float> dist_x(this->dimensions.left(), this->dimensions.right());
+    std::uniform_real_distribution<float> dist_y(this->dimensions.top(), this->dimensions.bottom());
+    int x = dist_x(mt); int y = dist_y(mt);
+    auto node = viewer_graph->scene.addEllipse(0, 0, 600, 600, QPen(QColor("blue"), 50), QBrush());
+    node->setPos(x,y);
+    auto text = viewer_graph->scene.addText(QString::number(id));
+    text->setPos(x+100, y+100);
 }
 void SpecificWorker::move_robot(float adv, float rot)
 {
@@ -400,7 +511,7 @@ void SpecificWorker::draw_laser(const RoboCompLaser::TLaserData &ldata) // robot
 {
     static QGraphicsItem *laser_polygon = nullptr;
     if (laser_polygon != nullptr)
-        viewer->scene.removeItem(laser_polygon);
+        viewer_robot->scene.removeItem(laser_polygon);
 
     QPolygonF poly;
     poly << QPointF(0,0);
@@ -410,7 +521,7 @@ void SpecificWorker::draw_laser(const RoboCompLaser::TLaserData &ldata) // robot
 
     QColor color("LightGreen");
     color.setAlpha(40);
-    laser_polygon = viewer->scene.addPolygon(laser_in_robot_polygon->mapToScene(poly), QPen(QColor("DarkGreen"), 30), QBrush(color));
+    laser_polygon = viewer_robot->scene.addPolygon(laser_in_robot_polygon->mapToScene(poly), QPen(QColor("DarkGreen"), 30), QBrush(color));
     laser_polygon->setZValue(3);
 }
 void SpecificWorker::new_target_slot(QPointF t)
@@ -454,3 +565,43 @@ int SpecificWorker::startup_check()
 // RoboCompLaser::LaserConfData
 // RoboCompLaser::TData
 
+//case State::GOTO_ROOM_CENTER:
+//{
+//qInfo() << __FUNCTION__ << "GOTO_ROOM_CENTER. Room:" << current_room << last_room;
+//// if at room center goto INIT_TURN
+//auto tr = from_world_to_robot(center_room_w);
+//float dist = tr.norm();
+//if(dist < 80)
+//{
+//try
+//{ differentialrobot_proxy->setSpeedBase(0, 0); }
+//catch (const Ice::Exception &e)
+//{ std::cout << e.what() << std::endl; }
+//state = State::INIT_TURN;
+//qInfo() << "LLEGO -------------------------";
+//break;
+//}
+//float beta = 0.0;
+//if(dist>80)
+//beta = atan2(tr.x(), tr.y());
+//float adv_break = std::clamp(constants.max_advance_speed/1000.0, 0.0, 1.0);
+//float adv = constants.max_advance_speed * adv_break * gaussian(beta);
+//try
+//{ differentialrobot_proxy->setSpeedBase(adv, beta); }
+//catch (const Ice::Exception &e)
+//{ std::cout << e.what() << std::endl; }
+//break;
+//}
+
+// draw
+//auto dest = viewer->scene.addEllipse(center_room_w.x()-100, center_room_w.y()-100, 200, 200, QPen(QColor("Magenta"), 50));
+//dest->setZValue(200);
+
+// center point for new room
+//float x = ldata.size()/2;
+//float d = x/4;
+//float laser_center = ldata[x].dist;
+//float izq = ldata[d].dist;
+//float der = ldata[ldata.size()-d].dist;
+//Eigen::Vector2f center_r ( (der-izq)/2, (-800 + laser_center)/2);
+//center_room_w = from_robot_to_world( center_r);

@@ -52,7 +52,7 @@ public slots:
 
 private:
 	bool startup_check_flag;
-    AbstractGraphicViewer *viewer;
+    AbstractGraphicViewer *viewer_robot, *viewer_graph;
 
     struct Constants
     {
@@ -75,9 +75,41 @@ private:
     float gaussian(float x);
     void move_robot(float adv, float rot);
 
-    // state machine
-    enum class State {IDLE, INIT_TURN, TURN, ESTIMATE, GOTO_DOOR, GOTO_ROOM_CENTER};
-    State state = State::IDLE;
+    // laser
+    RoboCompLaser::TLaserData ldata;
+
+    // state machine main
+    struct Data_State
+    {
+        int current_room = -1;
+        int current_door = -1;
+        int last_room = -1;
+        int next_room = -1;
+        bool room_detected = false;
+        bool at_target_room = false;
+        bool no_rooms_found = false;
+        void print() const
+        {
+            qInfo() << "data_state: ";
+            qInfo() << "    current_room: " << current_room;
+            qInfo() << "    current_door: " << current_door;
+            qInfo() << "    next_room: " << next_room;
+            qInfo() << "    room_detected: " << room_detected;
+            qInfo() << "    at_target_room: " << at_target_room;
+        };
+    };
+    Data_State data_state;
+    enum class State {INIT, EXPLORING, VISITING, CHANGING_ROOM, IDLE};
+    State state = State::INIT;
+    Data_State exploring(const Data_State &data_state);
+    void detect_doors(const Data_State &data_state);
+    Data_State estimate_rooms(const Data_State &data_state);
+    State visiting(State &state);
+    Data_State changing_room(const Data_State &data_state);
+    std::tuple<int,int> choose_exit_door(const Data_State &data_state);
+
+    // state machine explore
+    enum class ExploreState {INIT_TURN, TURN, ESTIMATE};
 
     // laser
     const int MAX_LASER_RANGE = 4000;
@@ -133,10 +165,19 @@ private:
             else
                 return {};
         };
+        bool connects_to_room(int room) const { return to_rooms.contains(room);};
         void operator=(const Door &d){ p1 = d.p1; p2=d.p2; to_rooms=d.to_rooms;};
+        float distance_to_robot(const Eigen::Vector2f &robot) const { return (get_midpoint() - robot).norm(); };
+        void print()
+        {
+            qInfo() << "Door:" << id;
+            qInfo() << "    p1:" << p1.x() << p1.y();
+            qInfo() << "    p2:" << p2.x() << p2.y();
+            for (const auto &r: to_rooms)
+                qInfo() << "    to room -> " << r;
+        }
     };
     std::vector<Door> doors;
-    int current_door;
     void draw_doors(const vector<Door> &local_doors, QGraphicsScene *scene);
 
     // thanks to https://github.com/CheckBoxStudio/IoU
@@ -155,11 +196,22 @@ private:
         {
             quad.beInClockWise();
             quad.getVertList(points);
-//            for(auto p:points)
-//                qInfo() << p.x << p.y;
         };
+        void print()
+        {
+            qInfo() << "Room:" << id;
+        }
+        void draw(QGraphicsScene *scene)
+        {
+            QPolygonF poly;
+            for (auto p: points)
+                poly << QPointF(p.x, p.y);
+            auto v = scene->addPolygon(poly, QPen(QColor("Blue"), 90));
+            v->setZValue(100);
+        }
     };
     std::vector<Room> rooms;
+    void draw_node(int id);
 
     // Dynanimc Window
     Dynamic_Window dw;
