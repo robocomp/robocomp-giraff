@@ -26,7 +26,6 @@
 #include <cppitertools/zip.hpp>
 #include <cppitertools/zip_longest.hpp>
 #include <numeric>
-
 /**
 * \brief Default constructor
 */
@@ -34,20 +33,17 @@ SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorke
 {
 	this->startup_check_flag = startup_check;
 }
-
-/**
+/**-
 * \brief Default destructor
 */
 SpecificWorker::~SpecificWorker()
 {
 	std::cout << "Destroying SpecificWorker" << std::endl;
 }
-
 bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 {
 	return true;
 }
-
 void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
@@ -74,7 +70,6 @@ void SpecificWorker::initialize(int period)
 	else
 		timer.start(Period);
 }
-
 void SpecificWorker::compute()
 {
     static std::random_device rd;
@@ -156,13 +151,10 @@ void SpecificWorker::compute()
             if(data_state.at_target_room)
             {
                 data_state.at_target_room = false;
-                data_state.last_room = data_state.current_room;
-                data_state.next_room = -1;
                 data_state.room_detected = false;
                 grid.set_all_to_free();
                 if(data_state.next_room == -1)  //new room
                 {
-                    doors.at(data_state.current_door).to_rooms.insert(data_state.current_room);
                     data_state.current_room = (int)rooms.size(); // new room number
                     doors.at(data_state.current_door).to_rooms.insert(data_state.current_room);
                     state = State::EXPLORING;
@@ -240,11 +232,9 @@ SpecificWorker::Data_State SpecificWorker::exploring(const Data_State &data_stat
             }
             else
             {
-                    new_data_state.room_detected = true;
+                    new_data_state.room_detected = true;        // change state in higher state machine
                     explore_state = ExploreState::INIT_TURN;    // so next time we start by turning
             }
-
-            // if(new_data_state.room_detected == false) try_again up to N times with different samplings
             break;
         }
     }
@@ -284,8 +274,20 @@ void SpecificWorker::detect_doors(const Data_State &data_state)
         {
             Door d{c[0], c[1], (int)doors.size()};
             d.to_rooms.insert(data_state.current_room);
-            if (auto r = std::find_if(doors.begin(), doors.end(), [d](auto a) { return d == a; }); r == doors.end())
+            std::vector<Door>::iterator hit;
+            if (hit = std::find_if(doors.begin(), doors.end(), [d](auto a) { return d == a; }); hit == doors.end())
+            {
                 doors.emplace_back(d);
+            }
+            else // there is a door equal to the detected door. Check if it connects to other room and does not contain this room
+            {
+                if((*hit).to_rooms.size()==1 and not (*hit).connects_to_room(data_state.current_room))
+                {
+                    (*hit).to_rooms.insert(data_state.current_door);
+                    qInfo() << __FUNCTION__ << "Insert new room " << data_state.current_room << "in door " << (*hit).id;
+                    std::terminate();
+                }
+            }
         }
     }
     qInfo() << "  doors computed" << doors.size();
@@ -361,10 +363,12 @@ SpecificWorker::Data_State SpecificWorker::changing_room(const Data_State &data_
     qInfo() << __FUNCTION__ << " going to room " << data_state.next_room << " from: "
             << data_state.current_room << "through: " << data_state.current_door;
 
-    // pick a point 1 meter ahead of center of door position
+    // pick a point 1 meter ahead of center of door position and in the other room
     Door door;
     try{ door = doors.at(data_state.current_door); } catch(std::exception &e){ std::cout << e.what() << std::endl;};
-    auto mid_point = door.get_external_midpoint();
+    const Room &room = rooms.at(data_state.current_room);
+    auto rx = room.quad.p1 + (room.quad.p3-room.quad.p1)/2;
+    auto mid_point = door.get_external_midpoint(data_state.current_room, Eigen::Vector2f(rx.x, rx.y));
 
     // draw
     auto dest = viewer_robot->scene.addEllipse(0, 0, 200, 200, QPen(QColor("Magenta"), 50));
@@ -419,12 +423,13 @@ std::tuple<int, int> SpecificWorker::choose_exit_door(const Data_State &data_sta
         auto gen = std::mt19937{std::random_device{}()};
         std::ranges::sample(potential_doors, std::back_inserter(selected_doors), 1, gen);
         new_door = selected_doors.front();
-        auto room_res = std::ranges::find_if(doors.at(new_door).to_rooms, [cr = data_state.current_room](auto id){ return id == cr;});
+        auto room_res = std::ranges::find_if(doors.at(new_door).to_rooms, [cr = data_state.current_room](auto id){ return id != cr;});
         new_room = *room_res;
         qInfo() << "   Door" << new_door << "to KNOWN room selected" << new_room;
     }
     return std::make_tuple(new_door, new_room );
 }
+
 ////////////////////////////////// AUX /////////////////////////////////////
 void SpecificWorker::draw_doors(const std::vector<Door> &local_doors, QGraphicsScene *scene)
 {
@@ -440,8 +445,8 @@ void SpecificWorker::draw_doors(const std::vector<Door> &local_doors, QGraphicsS
 void SpecificWorker::draw_node(int id)
 {
     std::mt19937 mt(std::random_device{}());
-    std::uniform_real_distribution<float> dist_x(this->dimensions.left(), this->dimensions.right());
-    std::uniform_real_distribution<float> dist_y(this->dimensions.top(), this->dimensions.bottom());
+    std::uniform_real_distribution<float> dist_x(this->dimensions.left()+500, this->dimensions.right()-500);
+    std::uniform_real_distribution<float> dist_y(this->dimensions.top()-400, this->dimensions.bottom()-400);
     int x = dist_x(mt); int y = dist_y(mt);
     auto node = viewer_graph->scene.addEllipse(0, 0, 600, 600, QPen(QColor("blue"), 50), QBrush());
     node->setPos(x,y);
