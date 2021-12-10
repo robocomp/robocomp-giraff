@@ -34,7 +34,8 @@
 #include "iou.h"
 #include <cppitertools/zip_longest.hpp>
 #include "dynamic_window.h"
-
+#include "graph_rooms.h"
+#include "room_detector_grad_stocastic.h"
 
 class SpecificWorker : public GenericWorker
 {
@@ -121,7 +122,10 @@ private:
 
     void update_map(const RoboCompLaser::TLaserData &ldata);
     Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p);
+    Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
     void fit_rectangle();
+    void check_free_path_to_target(const RoboCompLaser::TLaserData &ldata,
+                                   const Eigen::Vector2f &goal);
 
     // target
     struct Target
@@ -133,82 +137,14 @@ private:
     };
     Target target;
 
-    void check_free_path_to_target(const RoboCompLaser::TLaserData &ldata,
-                                   const Eigen::Vector2f &goal);
-
-    Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
-
-
-
-    // thanks to https://github.com/CheckBoxStudio/IoU
-    struct Room
-    {
-        IOU::Quad quad;
-        int id;
-        IOU::Vertexes points;
-        const float diff = 300;
-        bool operator == (const Room &d)
-        {
-            double iou = IOU::iou(quad, d.quad);
-            return iou > 0.9;
-        }
-        Room(const IOU::Quad &quad_, int id_) : quad(quad_), id(id_)
-        {
-            quad.beInClockWise();
-            quad.getVertList(points);
-        };
-        void print()
-        {
-            qInfo() << "Room:" << id;
-        }
-        void draw(QGraphicsScene *scene)
-        {
-            QPolygonF poly;
-            for (auto p: points)
-                poly << QPointF(p.x, p.y);
-            auto v = scene->addPolygon(poly, QPen(QColor("Blue"), 90));
-            v->setZValue(100);
-        }
-    };
-    std::vector<Room> rooms;
-    void draw_node(int id);
-
-    // doors
-    struct Door
-    {
-        Eigen::Vector2f p1,p2;
-        int id;
-        std::set<int> to_rooms;
-        const float diff = 400;
-        float width() const {return (p1-p2).norm();}
-        bool operator ==(const Door &d) { return ((d.p1-p1).norm() < diff and (d.p2-p2).norm() < diff) or
-                                                 ((d.p1-p2).norm() < diff and (d.p2-p1).norm() < diff);};
-        Eigen::Vector2f get_midpoint() const {return p1 + ((p2-p1)/2.0);};
-        Eigen::Vector2f get_external_midpoint(int room, const Eigen::Vector2f &robot) const
-        {
-            Eigen::ParametrizedLine<float, 2> r1 =  Eigen::ParametrizedLine<float, 2>(get_midpoint(), (p1-p2).unitOrthogonal());
-            Eigen::ParametrizedLine<float, 2> r2 =  Eigen::ParametrizedLine<float, 2>(get_midpoint(), (p2-p1).unitOrthogonal());
-            if ((robot-r1.pointAt(1300)).norm() > (robot-r2.pointAt(1300)).norm()) return r1.pointAt(1300);
-            else return r2.pointAt(1300);
-        };
-        bool connects_to_room(int room) const { return to_rooms.contains(room);};
-        void operator=(const Door &d){ p1 = d.p1; p2=d.p2; to_rooms=d.to_rooms;};
-        float distance_to_robot(const Eigen::Vector2f &robot) const { return (get_midpoint() - robot).norm(); };
-        void print()
-        {
-            qInfo() << "Door:" << id;
-            qInfo() << "    p1:" << p1.x() << p1.y();
-            qInfo() << "    p2:" << p2.x() << p2.y();
-            for (const auto &r: to_rooms)
-                qInfo() << "    to room -> " << r;
-        }
-    };
-    std::vector<Door> doors;
-    void draw_doors(const vector<Door> &local_doors, QGraphicsScene *scene);
-
     // Dynanimc Window
     Dynamic_Window dw;
 
+    // graph
+    Graph_Rooms G;
+
+    // stocastic room detetor
+    Room_Detector_Grad_Stochastic room_detector;
 };
 
 #endif

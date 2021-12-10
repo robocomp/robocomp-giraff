@@ -112,6 +112,11 @@ void SpecificWorker::compute()
             }
             if (data_state.room_detected)
             {
+                // draw
+                try{ G.rooms.at(data_state.current_room).draw(&viewer_robot->scene);} catch(const std::exception &e){ std::cout << e.what() << std::endl;};
+                G.draw_node(data_state.current_room, &viewer_graph->scene);
+                G.draw_edge(data_state.current_door, &viewer_graph->scene);
+
                 auto[next_door, next_room] = choose_exit_door(data_state);
                 qInfo() << __FUNCTION__ << "    choose exit door" << next_door << " and room" << next_room;
                 if (next_door != -1)
@@ -155,8 +160,8 @@ void SpecificWorker::compute()
                 grid.set_all_to_free();
                 if(data_state.next_room == -1)  //new room
                 {
-                    data_state.current_room = (int)rooms.size(); // new room number
-                    doors.at(data_state.current_door).to_rooms.insert(data_state.current_room);
+                    data_state.current_room = (int)G.rooms.size(); // new room number
+                    G.doors.at(data_state.current_door).to_rooms.insert(data_state.current_room);
                     state = State::EXPLORING;
                 }
                 else
@@ -165,18 +170,16 @@ void SpecificWorker::compute()
                     state = State::VISITING;
                     data_state.current_room = data_state.next_room; // new room number
                 }
-                data_state.current_door = -1;
             }
             break;
         case State::IDLE:
             qInfo() << __FUNCTION__ << "IDLE";
             move_robot(0.0,0.0);
-            std::terminate();
             break;
     }
-    for(auto &r : rooms)
+    for(auto &r : G.rooms)
         r.print();
-    for(auto &d : doors)
+    for(auto &d : G.doors)
         d.print();
     data_state.print();
     qInfo() << __FUNCTION__ << "---------------------------";
@@ -213,7 +216,7 @@ SpecificWorker::Data_State SpecificWorker::exploring(const Data_State &data_stat
             else  // keep turning
             {
                 detect_doors(data_state);
-                draw_doors(doors, &viewer_robot->scene);
+                G.draw_doors(G.doors, &viewer_robot->scene);
             }
             break;
         }
@@ -265,32 +268,25 @@ void SpecificWorker::detect_doors(const Data_State &data_state)
             peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
         }
     }
-    qInfo() << "  peaks " << peaks.size();
+    qInfo() << __FUNCTION__  << "  peaks " << peaks.size();
 
     // pairwise comparison of peaks to filter in doors
     for (auto &&c: iter::combinations_with_replacement(peaks, 2))
-    {
         if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 600)
         {
-            Door d{c[0], c[1], (int)doors.size()};
+            Graph_Rooms::Door d{c[0], c[1], (int)G.doors.size()};
             d.to_rooms.insert(data_state.current_room);
-            std::vector<Door>::iterator hit;
-            if (hit = std::find_if(doors.begin(), doors.end(), [d](auto a) { return d == a; }); hit == doors.end())
-            {
-                doors.emplace_back(d);
-            }
+            std::vector<Graph_Rooms::Door>::iterator hit;
+            if (hit = std::find_if(G.doors.begin(), G.doors.end(), [d](auto a) { return d == a; }); hit == G.doors.end())  // new door
+                G.doors.emplace_back(d);
             else // there is a door equal to the detected door. Check if it connects to other room and does not contain this room
-            {
                 if((*hit).to_rooms.size()==1 and not (*hit).connects_to_room(data_state.current_room))
                 {
                     (*hit).to_rooms.insert(data_state.current_door);
                     qInfo() << __FUNCTION__ << "Insert new room " << data_state.current_room << "in door " << (*hit).id;
-                    std::terminate();
                 }
-            }
         }
-    }
-    qInfo() << "  doors computed" << doors.size();
+    qInfo() << "  doors computed" << G.doors.size();
 }
 SpecificWorker::Data_State SpecificWorker::estimate_rooms(const Data_State &data_state)
 {
@@ -303,7 +299,7 @@ SpecificWorker::Data_State SpecificWorker::estimate_rooms(const Data_State &data
     // filter out points beyond doors
     RoboCompRoomDetection::ListOfPoints inside_points;
     for (const auto &c : points)
-        for(const auto &d : doors | iter::filter([r = data_state.current_room](auto d){return d.connects_to_room(r);}))
+        for(const auto &d : G.doors | iter::filter([r = data_state.current_room](auto d){return d.connects_to_room(r);}))
         {
             auto p_r = from_world_to_robot(Eigen::Vector2f(c.x, c.y));
             auto mid_r = from_robot_to_world(d.get_midpoint());
@@ -319,40 +315,46 @@ SpecificWorker::Data_State SpecificWorker::estimate_rooms(const Data_State &data
     auto gen = std::mt19937{std::random_device{}()};
     std::ranges::sample(inside_points, std::back_inserter(sampled_points), std::clamp((double)inside_points.size(), inside_points.size() / 4.0, 300.0), gen);
 
-    qInfo() << __FUNCTION__ << "    proxy working...";
-    RoboCompRoomDetection::Rooms detected_rooms;
-    try
-    { detected_rooms = roomdetection_proxy->detectRoom(sampled_points); }
-    catch (const Ice::Exception &e)
-    { std::cout << e.what() << std::endl; }
-    qInfo() << __FUNCTION__ << "    number of detected rooms by proxy: " << detected_rooms.size();
+//    qInfo() << __FUNCTION__ << "    proxy working...";
+//    RoboCompRoomDetection::Rooms detected_rooms;
+//    try
+//    { detected_rooms = roomdetection_proxy->detectRoom(sampled_points); }
+//    catch (const Ice::Exception &e)
+//    { std::cout << e.what() << std::endl; }
+//    qInfo() << __FUNCTION__ << "    number of detected rooms by proxy: " << detected_rooms.size();
+//
+
+    Eigen::MatrixX3f my_points;
+    my_points.resize(sampled_points.size(), 3);
+    for(auto &&[i, p] : sampled_points | iter::enumerate)
+    {
+        my_points(i, 0) = p.x; my_points(i, 1) = p.y; my_points(i, 2) = 1.0;
+    }
+    QRectF ro = room_detector.compute_room(my_points);
+    IOU::Quad max(IOU::Point(ro.left(), ro.top()), IOU::Point(ro.right(), ro.top()), IOU::Point(ro.right(), ro.bottom()), IOU::Point(ro.left(), ro.bottom()));
 
     // pick the one with the largest area)
-    std::vector<IOU::Quad> rects;
-    for (const auto &r: detected_rooms)   // build a IOU::Quad vector
-        rects.emplace_back(IOU::Quad(IOU::Point(r[0].x, r[0].y), IOU::Point(r[1].x, r[1].y),
-                                     IOU::Point(r[2].x, r[2].y), IOU::Point(r[3].x, r[3].y)));
-    auto max = std::ranges::max_element(rects, [](auto a, auto b) { return a.area() < b.area(); });
-    if(max == rects.end())
-    {
-        qInfo() << __FUNCTION__ << "No rooms found. Stopping";
-        new_data_state.room_detected = false;
-        return new_data_state;
-    }
-    else
-        new_data_state.room_detected = true;
+//    std::vector<IOU::Quad> rects;
+//    for (const auto &r: detected_rooms)   // build a IOU::Quad vector
+//        rects.emplace_back(IOU::Quad(IOU::Point(r[0].x, r[0].y), IOU::Point(r[1].x, r[1].y),
+//                                     IOU::Point(r[2].x, r[2].y), IOU::Point(r[3].x, r[3].y)));
+//    auto max = std::ranges::max_element(rects, [](auto a, auto b) { return a.area() < b.area(); });
+//    if(max == rects.end())
+//    {
+//        qInfo() << __FUNCTION__ << "No rooms found. Stopping";
+//        new_data_state.room_detected = false;
+//        return new_data_state;
+//    }
+//    else
+    new_data_state.room_detected = true;
 
-    // insert the new room only if it does not exit yet
-    Room room(*max, data_state.current_room);
-    if (auto r = std::find_if(rooms.begin(), rooms.end(), [room](auto a) { return room == a; }); r == rooms.end())
-        rooms.push_back(room);
+    // insert the new room only if it does not exist yet
+    Graph_Rooms::Room room(max, data_state.current_room);
+    if (auto r = std::find_if(G.rooms.begin(), G.rooms.end(), [room](auto a) { return room == a; }); r == G.rooms.end())
+        G.rooms.push_back(room);
 
     // complete door info about room connection. We need the list of doors visible from here
     // adjust door to room's wall
-
-    // draw
-    try{ rooms.at(data_state.current_room).draw(&viewer_robot->scene);} catch(const std::exception &e){ std::cout << e.what() << std::endl;};
-    draw_node(data_state.current_room);
 
     return new_data_state;
 }
@@ -364,14 +366,16 @@ SpecificWorker::Data_State SpecificWorker::changing_room(const Data_State &data_
             << data_state.current_room << "through: " << data_state.current_door;
 
     // pick a point 1 meter ahead of center of door position and in the other room
-    Door door;
-    try{ door = doors.at(data_state.current_door); } catch(std::exception &e){ std::cout << e.what() << std::endl;};
-    const Room &room = rooms.at(data_state.current_room);
+    Graph_Rooms::Door door;
+    try{ door = G.doors.at(data_state.current_door); } catch(std::exception &e){ std::cout << e.what() << std::endl;};
+    const Graph_Rooms::Room &room = G.rooms.at(data_state.current_room);
     auto rx = room.quad.p1 + (room.quad.p3-room.quad.p1)/2;
     auto mid_point = door.get_external_midpoint(data_state.current_room, Eigen::Vector2f(rx.x, rx.y));
 
-    // draw
-    auto dest = viewer_robot->scene.addEllipse(0, 0, 200, 200, QPen(QColor("Magenta"), 50));
+    // draw target point
+    static QGraphicsItem* dest= nullptr;
+    if(dest != nullptr) viewer_robot->scene.removeItem(dest);
+    dest = viewer_robot->scene.addEllipse(0, 0, 200, 200, QPen(QColor("Magenta"), 50));
     dest->setPos(mid_point.x(), mid_point.y()); dest->setZValue(200);
 
     auto tr = from_world_to_robot(mid_point);
@@ -405,7 +409,7 @@ std::tuple<int, int> SpecificWorker::choose_exit_door(const Data_State &data_sta
     // Choose an un-explored destination room
     int new_door = -1;
     int new_room = -1;
-    for(const auto &[k, d] : doors | iter::filter([r = data_state.current_room](auto d)
+    for(const auto &[k, d] : G.doors | iter::filter([r = data_state.current_room](auto d)
                     { return d.connects_to_room(r) and d.to_rooms.size()==1;}) | iter::enumerate)
         {
             new_door = d.id;
@@ -417,13 +421,13 @@ std::tuple<int, int> SpecificWorker::choose_exit_door(const Data_State &data_sta
     if(new_door == -1)  // no door to un-explored room. Pick a random one
     {
         std::vector<int> potential_doors;
-        for (const auto &[k, d]: doors | iter::filter([r = data_state.current_room](auto d) { return d.connects_to_room(r); }) | iter::enumerate)
+        for (const auto &[k, d]: G.doors | iter::filter([r = data_state.current_room](auto d) { return d.connects_to_room(r); }) | iter::enumerate)
             potential_doors.push_back(d.id);
         std::vector<int> selected_doors;
         auto gen = std::mt19937{std::random_device{}()};
         std::ranges::sample(potential_doors, std::back_inserter(selected_doors), 1, gen);
         new_door = selected_doors.front();
-        auto room_res = std::ranges::find_if(doors.at(new_door).to_rooms, [cr = data_state.current_room](auto id){ return id != cr;});
+        auto room_res = std::ranges::find_if(G.doors.at(new_door).to_rooms, [cr = data_state.current_room](auto id){ return id != cr;});
         new_room = *room_res;
         qInfo() << "   Door" << new_door << "to KNOWN room selected" << new_room;
     }
@@ -431,28 +435,6 @@ std::tuple<int, int> SpecificWorker::choose_exit_door(const Data_State &data_sta
 }
 
 ////////////////////////////////// AUX /////////////////////////////////////
-void SpecificWorker::draw_doors(const std::vector<Door> &local_doors, QGraphicsScene *scene)
-{
-    static std::vector<QGraphicsItem *> door_lines;  // to remove graph objects
-    for (auto dp: door_lines) scene->removeItem(dp);
-    door_lines.clear();
-    for (const auto r: local_doors)
-    {
-        door_lines.push_back(scene->addLine(r.p1.x(), r.p1.y(), r.p2.x(), r.p2.y(), QPen(QColor("Magenta"), 50)));
-        door_lines.back()->setZValue(200);
-    }
-}
-void SpecificWorker::draw_node(int id)
-{
-    std::mt19937 mt(std::random_device{}());
-    std::uniform_real_distribution<float> dist_x(this->dimensions.left()+500, this->dimensions.right()-500);
-    std::uniform_real_distribution<float> dist_y(this->dimensions.top()-400, this->dimensions.bottom()-400);
-    int x = dist_x(mt); int y = dist_y(mt);
-    auto node = viewer_graph->scene.addEllipse(0, 0, 600, 600, QPen(QColor("blue"), 50), QBrush());
-    node->setPos(x,y);
-    auto text = viewer_graph->scene.addText(QString::number(id));
-    text->setPos(x+100, y+100);
-}
 void SpecificWorker::move_robot(float adv, float rot)
 {
     try
@@ -543,7 +525,6 @@ int SpecificWorker::startup_check()
 	QTimer::singleShot(200, qApp, SLOT(quit()));
 	return 0;
 }
-
 /**************************************/
 // From the RoboCompDifferentialRobot you can call this methods:
 // this->differentialrobot_proxy->correctOdometer(...)
