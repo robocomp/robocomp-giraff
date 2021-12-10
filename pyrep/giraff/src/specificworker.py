@@ -30,6 +30,7 @@ import numpy as np
 import numpy_indexed as npi
 import cv2
 import itertools as it
+from math import *
 
 class TimeControl:
     def __init__(self, period_):
@@ -76,7 +77,15 @@ class SpecificWorker(GenericWorker):
         self.speed_robot = []
         self.speed_robot_ant = []
         self.bState = RoboCompGenericBase.TBaseState()
-
+        
+	# Read existing people
+        self.people = {}
+        if Dummy.exists("Bill"):
+            self.people["Bill"] = Dummy("Bill")
+        for i in range(0,2):
+            name = "Bill#" + str(i)
+            if Dummy.exists(name):
+                self.people[name] = Dummy(name)
         # cameras
         self.cameras_write = {}
         self.cameras_read = {}
@@ -167,6 +176,7 @@ class SpecificWorker(GenericWorker):
             self.read_cameras([self.tablet_camera_name, self.top_camera_name])
             self.read_joystick()
             self.read_robot_pose()
+            self.read_people()
             self.move_robot()
             self.move_tablet()
             tc.wait()
@@ -240,6 +250,33 @@ class SpecificWorker(GenericWorker):
             # except Ice.Exception as e:
             #     print(e)
 
+    ###########################################
+    ### PEOPLE get and publish people position
+    ###########################################
+    def read_people(self):
+        self.people = {}
+        if Dummy.exists("Bill"):
+            self.people["Bill"] = Dummy("Bill")
+        for i in range(0, 2):
+            name = "Bill#" + str(i)
+            if Dummy.exists(name):
+                self.people[name] = Dummy(name)
+        people_data = RoboCompHumanToDSRPub.PeopleData()
+        people_data.timestamp = time.time()
+        people = [] # RoboCompHumanToDSRPub.People()
+        for name, handle in self.people.items():
+            pos = handle.get_position()
+            rot = handle.get_orientation()
+            person = RoboCompHumanToDSRPub.Person(len(people), pos[0] * 1000, pos[1] * 1000, pos[2] * 1000,
+                                                  pi - rot[2] - pi/2,
+                                                  {})
+            people.append(person)
+        try:
+            people_data.peoplelist = people
+            self.humantodsrpub_proxy.newPeopleData(people_data)
+        except Ice.Exception as e:
+            print(e)
+            
     def grouper(self, inputs, n, fillvalue=None):
         iters = [iter(inputs)] * n
         return it.zip_longest(*iters, fillvalue=fillvalue)
@@ -372,7 +409,7 @@ class SpecificWorker(GenericWorker):
 
         if self.speed_robot:
             self.convert_base_speed_to_motors_speed(self.speed_robot[0], self.speed_robot[1])
-            print("Velocities sent to robot:", self.speed_robot)
+            #print("Velocities sent to robot:", self.speed_robot)
             self.speed_robot = None
 
     ###########################################
