@@ -118,7 +118,7 @@ void SpecificWorker::compute()
                 G.draw_edge(data_state.current_door, &viewer_graph->scene);
 
                 auto[next_door, next_room] = choose_exit_door(data_state);
-                qInfo() << __FUNCTION__ << "    choose exit door" << next_door << " and room" << next_room;
+                //qInfo() << __FUNCTION__ << "    choose exit door" << next_door << " and room" << next_room;
                 if (next_door != -1)
                 {
                     data_state.current_door = next_door;
@@ -134,9 +134,9 @@ void SpecificWorker::compute()
             break;
         case State::VISITING:
         {
-            qInfo() << __FUNCTION__ << "VISITING";
+            //qInfo() << __FUNCTION__ << "VISITING";
             auto[next_door, next_room] = choose_exit_door(data_state);
-            qInfo() << __FUNCTION__ << "    choose exit door" << next_door << " and room" << next_room;
+            //qInfo() << __FUNCTION__ << "    choose exit door" << next_door << " and room" << next_room;
             if (next_door != -1)
             {
                 data_state.current_door = next_door;
@@ -151,7 +151,7 @@ void SpecificWorker::compute()
             break;
         }
         case State::CHANGING_ROOM:
-            qInfo() << __FUNCTION__ << "CHANGING_ROOM";
+            //qInfo() << __FUNCTION__ << "CHANGING_ROOM";
             data_state = changing_room(data_state);
             if(data_state.at_target_room)
             {
@@ -177,12 +177,12 @@ void SpecificWorker::compute()
             move_robot(0.0,0.0);
             break;
     }
-    for(auto &r : G.rooms)
-        r.print();
-    for(auto &d : G.doors)
-        d.print();
-    data_state.print();
-    qInfo() << __FUNCTION__ << "---------------------------";
+//    for(auto &r : G.rooms)
+//        r.print();
+//    for(auto &d : G.doors)
+//        d.print();
+//    data_state.print();
+//    qInfo() << __FUNCTION__ << "---------------------------";
 
 }
 
@@ -226,7 +226,7 @@ SpecificWorker::Data_State SpecificWorker::exploring(const Data_State &data_stat
             auto res_data = estimate_rooms(data_state);
             if(not res_data.room_detected )
             {
-                qInfo() << __FUNCTION__ << count << "th try";
+                //qInfo() << __FUNCTION__ << count << "th try";
                 if (count++ > 5)
                 {
                     new_data_state.no_rooms_found = true;
@@ -268,7 +268,7 @@ void SpecificWorker::detect_doors(const Data_State &data_state)
             peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
         }
     }
-    qInfo() << __FUNCTION__  << "  peaks " << peaks.size();
+    //qInfo() << __FUNCTION__  << "  peaks " << peaks.size();
 
     // pairwise comparison of peaks to filter in doors
     for (auto &&c: iter::combinations_with_replacement(peaks, 2))
@@ -283,10 +283,10 @@ void SpecificWorker::detect_doors(const Data_State &data_state)
                 if((*hit).to_rooms.size()==1 and not (*hit).connects_to_room(data_state.current_room))
                 {
                     (*hit).to_rooms.insert(data_state.current_door);
-                    qInfo() << __FUNCTION__ << "Insert new room " << data_state.current_room << "in door " << (*hit).id;
+                    //qInfo() << __FUNCTION__ << "Insert new room " << data_state.current_room << "in door " << (*hit).id;
                 }
         }
-    qInfo() << "  doors computed" << G.doors.size();
+    //qInfo() << "  doors computed" << G.doors.size();
 }
 SpecificWorker::Data_State SpecificWorker::estimate_rooms(const Data_State &data_state)
 {
@@ -297,55 +297,34 @@ SpecificWorker::Data_State SpecificWorker::estimate_rooms(const Data_State &data
         points.emplace_back(RoboCompRoomDetection::Corner{(float)key.x, (float)key.z});
 
     // filter out points beyond doors
-    RoboCompRoomDetection::ListOfPoints inside_points;
-    for (const auto &c : points)
-        for(const auto &d : G.doors | iter::filter([r = data_state.current_room](auto d){return d.connects_to_room(r);}))
-        {
-            auto p_r = from_world_to_robot(Eigen::Vector2f(c.x, c.y));
-            auto mid_r = from_robot_to_world(d.get_midpoint());
-            auto focal = mid_r.norm();
-            if( not( (p_r.norm() > focal*1.3)) )// and fabs(focal * p_r.x() / p_r.y()) < d.width()))
-                inside_points.push_back(c);
-//            else
-//                qInfo() << __FUNCTION__ << "discarded " << c.x << c.y;
-        }
+    RoboCompRoomDetection::ListOfPoints inside_points = points;
+//    for (const auto &c : points)
+//        for(const auto &d : G.doors | iter::filter([r = data_state.current_room](auto d){return d.connects_to_room(r);}))
+//        {
+//            auto p_r = from_world_to_robot(Eigen::Vector2f(c.x, c.y));
+//            auto mid_r = from_robot_to_world(d.get_midpoint());
+//            auto focal = mid_r.norm();
+//            if( not( (p_r.norm() > focal*1.3)) )// and fabs(focal * p_r.x() / p_r.y()) < d.width()))
+//                inside_points.push_back(c);
+////            else
+////                qInfo() << __FUNCTION__ << "discarded " << c.x << c.y;
+//        }
 
     // sample size()/4 points from detected corners
-    RoboCompRoomDetection::ListOfPoints sampled_points;
-    auto gen = std::mt19937{std::random_device{}()};
-    std::ranges::sample(inside_points, std::back_inserter(sampled_points), std::clamp((double)inside_points.size(), inside_points.size() / 4.0, 300.0), gen);
+    RoboCompRoomDetection::ListOfPoints sampled_points = points;
+//    auto gen = std::mt19937{std::random_device{}()};
+//    std::ranges::sample(inside_points, std::back_inserter(sampled_points), std::clamp((double)inside_points.size(), inside_points.size() / 4.0, 400.0), gen);
 
-//    qInfo() << __FUNCTION__ << "    proxy working...";
-//    RoboCompRoomDetection::Rooms detected_rooms;
-//    try
-//    { detected_rooms = roomdetection_proxy->detectRoom(sampled_points); }
-//    catch (const Ice::Exception &e)
-//    { std::cout << e.what() << std::endl; }
-//    qInfo() << __FUNCTION__ << "    number of detected rooms by proxy: " << detected_rooms.size();
-//
-
-    Eigen::MatrixX3f my_points;
+    Eigen::MatrixX3d my_points;
     my_points.resize(sampled_points.size(), 3);
     for(auto &&[i, p] : sampled_points | iter::enumerate)
     {
         my_points(i, 0) = p.x; my_points(i, 1) = p.y; my_points(i, 2) = 1.0;
     }
     QRectF ro = room_detector.compute_room(my_points);
+    qInfo() << __FUNCTION__ << ro;
     IOU::Quad max(IOU::Point(ro.left(), ro.top()), IOU::Point(ro.right(), ro.top()), IOU::Point(ro.right(), ro.bottom()), IOU::Point(ro.left(), ro.bottom()));
-
-    // pick the one with the largest area)
-//    std::vector<IOU::Quad> rects;
-//    for (const auto &r: detected_rooms)   // build a IOU::Quad vector
-//        rects.emplace_back(IOU::Quad(IOU::Point(r[0].x, r[0].y), IOU::Point(r[1].x, r[1].y),
-//                                     IOU::Point(r[2].x, r[2].y), IOU::Point(r[3].x, r[3].y)));
-//    auto max = std::ranges::max_element(rects, [](auto a, auto b) { return a.area() < b.area(); });
-//    if(max == rects.end())
-//    {
-//        qInfo() << __FUNCTION__ << "No rooms found. Stopping";
-//        new_data_state.room_detected = false;
-//        return new_data_state;
-//    }
-//    else
+    //std::terminate();
     new_data_state.room_detected = true;
 
     // insert the new room only if it does not exist yet
@@ -362,8 +341,8 @@ SpecificWorker::State SpecificWorker::visiting(State &state){ return state;}
 SpecificWorker::Data_State SpecificWorker::changing_room(const Data_State &data_state)
 {
     Data_State new_data_state = data_state;
-    qInfo() << __FUNCTION__ << " going to room " << data_state.next_room << " from: "
-            << data_state.current_room << "through: " << data_state.current_door;
+    //qInfo() << __FUNCTION__ << " going to room " << data_state.next_room << " from: "
+            //<< data_state.current_room << "through: " << data_state.current_door;
 
     // pick a point 1 meter ahead of center of door position and in the other room
     Graph_Rooms::Door door;
@@ -382,7 +361,7 @@ SpecificWorker::Data_State SpecificWorker::changing_room(const Data_State &data_
     float dist = tr.norm();
     if(dist < 150)  // at target
     {
-        qInfo() << __FUNCTION__ << "    Robot reached target room" << data_state.next_room;
+        //qInfo() << __FUNCTION__ << "    Robot reached target room" << data_state.next_room;
         move_robot(0,0);
         new_data_state.at_target_room = true;
     }
@@ -395,7 +374,7 @@ SpecificWorker::Data_State SpecificWorker::changing_room(const Data_State &data_
         auto [_, __, adv, rot, ___] = dw.compute(tr, laser_poly,
                                                  Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
                                                  Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz),
-                                                 &viewer_robot->scene);
+                                                 nullptr /*&viewer_robot->scene*/);
         const float rgain = 0.8;
         float rotation = rgain*rot;
         float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
@@ -414,7 +393,7 @@ std::tuple<int, int> SpecificWorker::choose_exit_door(const Data_State &data_sta
         {
             new_door = d.id;
             new_room = -1;  //unkown
-            qInfo() << "   Door to NEW room selected" << d.id;
+            //qInfo() << "   Door to NEW room selected" << d.id;
             d.print();
             break;
         }
@@ -429,7 +408,7 @@ std::tuple<int, int> SpecificWorker::choose_exit_door(const Data_State &data_sta
         new_door = selected_doors.front();
         auto room_res = std::ranges::find_if(G.doors.at(new_door).to_rooms, [cr = data_state.current_room](auto id){ return id != cr;});
         new_room = *room_res;
-        qInfo() << "   Door" << new_door << "to KNOWN room selected" << new_room;
+        //qInfo() << "   Door" << new_door << "to KNOWN room selected" << new_room;
     }
     return std::make_tuple(new_door, new_room );
 }
@@ -591,3 +570,28 @@ int SpecificWorker::startup_check()
 //float der = ldata[ldata.size()-d].dist;
 //Eigen::Vector2f center_r ( (der-izq)/2, (-800 + laser_center)/2);
 //center_room_w = from_robot_to_world( center_r);
+
+
+// pick the one with the largest area)
+//    std::vector<IOU::Quad> rects;
+//    for (const auto &r: detected_rooms)   // build a IOU::Quad vector
+//        rects.emplace_back(IOU::Quad(IOU::Point(r[0].x, r[0].y), IOU::Point(r[1].x, r[1].y),
+//                                     IOU::Point(r[2].x, r[2].y), IOU::Point(r[3].x, r[3].y)));
+//    auto max = std::ranges::max_element(rects, [](auto a, auto b) { return a.area() < b.area(); });
+//    if(max == rects.end())
+//    {
+//        qInfo() << __FUNCTION__ << "No rooms found. Stopping";
+//        new_data_state.room_detected = false;
+//        return new_data_state;
+//    }
+//    else
+
+
+//    qInfo() << __FUNCTION__ << "    proxy working...";
+//    RoboCompRoomDetection::Rooms detected_rooms;
+//    try
+//    { detected_rooms = roomdetection_proxy->detectRoom(sampled_points); }
+//    catch (const Ice::Exception &e)
+//    { std::cout << e.what() << std::endl; }
+//    qInfo() << __FUNCTION__ << "    number of detected rooms by proxy: " << detected_rooms.size();
+//

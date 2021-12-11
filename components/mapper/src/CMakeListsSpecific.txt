@@ -17,7 +17,7 @@ SET ( HEADERS
   $ENV{ROBOCOMP}/classes/grid2d/grid.h
 )
 
-add_definitions(-g -march=native  -fmax-errors=5 )
+add_definitions(-O2 -march=native  -fmax-errors=5 )
 SET (LIBS ${LIBS}  )
 
 
