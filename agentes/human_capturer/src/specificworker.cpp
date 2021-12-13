@@ -17,7 +17,8 @@
  *    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
  */
 #include "specificworker.h"
-
+cv::RNG rng(12345);
+cv::Scalar color = cv::Scalar( rng.uniform(0, 256), rng.uniform(0,256), rng.uniform(0,256));
 /**
 * \brief Default constructor
 */
@@ -117,41 +118,199 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-	//computeCODE
-	//QMutexLocker locker(mutex);
-	//try
-	//{
-	//  camera_proxy->getYImage(0,img, cState, bState);
-	//  memcpy(image_gray.data, &img[0], m_width*m_height*sizeof(uchar));
-	//  searchTags(image_gray);
-	//}
-	//catch(const Ice::Exception &e)
-	//{
-	//  std::cout << "Error reading from Camera" << e << std::endl;
-	//}
-    RoboCompHumanCameraBody::PeopleData people;
-    people = this->humancamerabody_proxy->newPeopleData();
-    cout << "CAMERAID" << people.cameraId << endl;
-    cout << "TIMESTAMP" <<  people.timestamp << endl;
-    cout << "PERSONAS_SIZE: " <<  people.peoplelist.size() << endl;
-
-    for(auto person:people.peoplelist)
+    try
     {
-        cout << endl << endl << "PERSONA " <<  person.id << endl;
-        for(auto join:person.joints)
-        {
-            cout << join.first << endl;
-            cout << join.second.x<< endl;
-            cout << join.second.y<< endl;
-            cout << join.second.z<< endl;
-            cout << join.second.i<< endl;
-            cout << join.second.j<< endl << endl;
+        // Creating white image with dimension 480x640
 
+        cv::Mat black_picture = cv::Mat::zeros(640, 480, CV_8UC3);
+
+        RoboCompHumanCameraBody::PeopleData people_data = this->humancamerabody_proxy->newPeopleData();
+        // RoboCompHumanCameraBody::PeopleData people_data = test_person();
+        RoboCompHumanCameraBody::People people_list = people_data.peoplelist;
+
+        // Reading people list
+
+        for(int i=0;i<people_list.size();i++)
+        {
+            RoboCompHumanCameraBody::Person person = people_list[i];
+            cout << "Person ID: " << person.id << endl;
+            RoboCompHumanCameraBody::TJoints person_tjoints = person.joints;
+            RoboCompHumanCameraBody::TJoints::iterator itr;
+            std::vector<cv::Point> pixel_vector;
+            std::vector<float> depth_vector_x, depth_vector_y, depth_vector_z;
+
+            // Iterating TJoints
+            for(auto item : person_tjoints)
+            {
+                // Appending joint pixels to a vector
+                int screen_x_point = item.second.i;
+                int screen_y_point = item.second.j;
+
+                cv::Point pixel;
+                pixel.x = screen_x_point;
+                pixel.y = screen_y_point;
+                pixel_vector.push_back(pixel);
+
+                float depth_x = item.second.x; depth_vector_x.push_back(depth_x); // x position respecting the world
+                float depth_y = item.second.y; depth_vector_y.push_back(depth_y); // y position respecting the world
+                float depth_z = item.second.z; depth_vector_z.push_back(depth_z); // z position respecting the world
+
+                // float pos_x = std::accumulate(depth_vector_x.begin(), depth_vector_x.end(), decltype(depth_vector_x)::value_type(0)) / size(depth_vector_x);
+                // float pos_y = std::accumulate(depth_vector_y.begin(), depth_vector_y.end(), decltype(depth_vector_y)::value_type(0)) / size(depth_vector_y);
+                // float pos_z = std::accumulate(depth_vector_z.begin(), depth_vector_z.end(), decltype(depth_vector_z)::value_type(0)) / size(depth_vector_z);
+
+                // person.personCoords.push_back(pos_x); person.personCoords.push_back(pos_y); person.personCoords.push_back(pos_z);
+                // person.orientation = calculate_orientation(person);
+            }
+
+            cv::Rect person_box = cv::boundingRect(pixel_vector);
+            cv::rectangle(black_picture, cv::Rect(person_box.x, person_box.y, person_box.width, person_box.height), color, 2);
+            for(int k=0;k<pixel_vector.size();k++)
+            {
+                cv::circle(black_picture, pixel_vector[k],1,color);
+            }
+            cv::imshow("Output", black_picture);
+            cv::waitKey(0);
+        }
+    }
+    catch(const char * str)
+    {
+        cout << "Getting error: " << str << endl;
+    }
+
+
+
+}
+
+int SpecificWorker::increase_lambda_cont(std::int64_t lambda_cont)
+// Increases lambda_cont in 1, to the maximum value and returns the new value. Returns the new lambda_cont value.
+{
+    std::int64_t nlc = lambda_cont + 1;
+    if(nlc < max_lambda_value) {return nlc;}
+    else {return max_lambda_value;}
+}
+
+int SpecificWorker::decrease_lambda_cont(std::int64_t lambda_cont)
+// Decreases lambda_cont in 1, to the minimun value and returns the new value. Returns the new lambda_cont value.
+{
+    std::int64_t nlc = lambda_cont - 1;
+    if(nlc > min_lambda_value) {return nlc;}
+    else {return min_lambda_value;}
+}
+
+double SpecificWorker::distance_3d(cv::Point3d p1, cv::Point3d p2)
+{
+    cv::norm(p1-p2);
+}
+
+cv::Point3d SpecificWorker::dictionary_values_to_3d_point(auto item)
+{
+    cv::Point3d point;
+    float x = item.x;
+    float y = item.y;
+    float z = item.z;
+    point.x = x;
+    point.y = y;
+    point.z = z;
+    return point;
+}
+
+cv::Point3d SpecificWorker::cross_product(cv::Point3d p1, cv::Point3d p2)
+{
+    cv::Point3d point;
+    point.x = p1.y * p2.z - p1.z * p2.y;
+    point.y = p1.z * p2.x - p1.x * p2.z;
+    point.z = p1.x * p2.y - p1.y * p2.x;
+    return point;
+}
+
+float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point vector_2, std::string format)
+{
+    // Returns the angle between two vectors in the 2d plane (v2 respect v1)
+
+    if (format.compare("radians") != 0 || format.compare("degrees") != 0)
+    {
+        cout << "Invalid angle format" << endl;
+        return 0.0;
+    }
+
+    // Getting unitary vectors
+    cv::Point u_vector_1 = vector_1/cv::norm(vector_1);
+    cv::Point u_vector_2 = vector_2/cv::norm(vector_2);
+
+    // Extra vector: u_vector_2 rotated /90 degrees
+    cv::Point u_vector_2_90;
+    u_vector_2_90.x = cos(-M_PI / 2) * u_vector_2.x - sin(-M_PI / 2) * u_vector_2.y;
+    u_vector_2_90.y = sin(-M_PI / 2) * u_vector_2.x + cos(-M_PI / 2) * u_vector_2.y;
+
+    // Dot product of u_vector_1 with u_vector_2 and u_vector_2_90
+    float dp = u_vector_1.x * u_vector_2.x + u_vector_1.y * u_vector_2.y;
+    float dp_90 = u_vector_1.x * u_vector_2_90.x + u_vector_1.y * u_vector_2_90.y;
+
+    // Comprobating if the angle is over 180 degrees and adapting
+    float ret;
+    if(dp_90 < 0){ret = acos(dp);}
+    else{ret = M_PI + (M_PI-acos(dp));}
+
+    // Returning value
+    if (format.compare("radians") == 0) {return ret;}
+    else {return (ret*180/M_PI);}
+}
+
+float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person person)
+{
+    RoboCompHumanCameraBody::TJoints person_tjoints = person.joints;
+    bool left_found, base_found, right_found = false;
+    cv::Point3d base_p, right_p, left_p;
+
+    for(auto item : person_tjoints)
+    {
+        std::string key = item.first;
+
+        // Base point
+
+        if (base_found == false && (key.compare("17") == 0 || key.compare("6") == 0 || key.compare("5") || key.compare("2") || key.compare("1")))
+        {
+            base_found = true;
+            base_p = dictionary_values_to_3d_point(item.second);
+        }
+
+        // Right point
+
+        if (right_found == false && (key.compare("12") == 0 || key.compare("4") == 0))
+        {
+            right_found = true;
+            right_p = dictionary_values_to_3d_point(item.second);
+        }
+
+        // Left point
+
+        if (left_found == false && (key.compare("11") == 0 || key.compare("3") == 0))
+        {
+            left_found = true;
+            left_p = dictionary_values_to_3d_point(item.second);
         }
     }
 
-	
-	
+    if(base_found == false || right_found == false || left_found == false)
+    {
+        cout << "Points not found. Can't calculate orientation." << endl;
+        return 0.0;
+    }
+
+    // Considering "clavícula" as coordinate center. Passing leg points to "clavícula" reference system
+
+    cv::Point3d left_v = left_p - base_p;
+    cv::Point3d right_v = right_p - base_p;
+
+    // Calculating perpendicular vector
+
+    cv::Point3d normal = cross_product(left_v, right_v);
+    cv::Point vector_1, vector_2;
+    vector_1.x = 0;
+    vector_1.y = 1;
+    vector_2.x = normal.x;
+    vector_2.y = normal.z;
 }
 
 int SpecificWorker::startup_check()

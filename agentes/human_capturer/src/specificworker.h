@@ -26,11 +26,12 @@
 
 #ifndef SPECIFICWORKER_H
 #define SPECIFICWORKER_H
-
+#define M_PI 3.14159265358979323846
 #include <genericworker.h>
 #include "dsr/api/dsr_api.h"
 #include "dsr/gui/dsr_gui.h"
 #include <doublebuffer/DoubleBuffer.h>
+#include <opencv2/opencv.hpp>
 
 class SpecificWorker : public GenericWorker
 {
@@ -40,7 +41,8 @@ public:
 	~SpecificWorker();
 	bool setParams(RoboCompCommonBehavior::ParameterList params);
 
-
+    //void CameraRGBDSimplePub_pushRGBD(RoboCompCameraRGBDSimple::TImage im, RoboCompCameraRGBDSimple::TDepth dep);
+    //void HumanCameraBodyPub_newPeopleData(RoboCompHumanCameraBodyPub::PeopleData people);
 
 public slots:
 	void compute();
@@ -70,6 +72,21 @@ private:
 	void del_node_slot(std::uint64_t from){};     
 	bool startup_check_flag;
 
+    // Variables
+
+    int max_lambda_value = 25;
+    int min_lambda_value = -25;
+
+    // Functions
+
+    RoboCompHumanCameraBody::PeopleData test_person();
+    int increase_lambda_cont(std::int64_t lambda_cont);
+    int decrease_lambda_cont(std::int64_t lambda_cont);
+    cv::Point3d dictionary_values_to_3d_point(auto item);
+    cv::Point3d cross_product(cv::Point3d p1, cv::Point3d p2);
+    float get_degrees_between_vectors(cv::Point vector_1, cv::Point vector_2, std::string format);
+    float calculate_orientation(RoboCompHumanCameraBody::Person person);
+    double distance_3d(cv::Point3d p1, cv::Point3d p2);
 };
 
 #endif
