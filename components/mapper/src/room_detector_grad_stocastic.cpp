@@ -10,7 +10,9 @@
 
 QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
 {
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     // initial values  points_raw: 300 x 3
+    qInfo() << "--------------NEW OPTIMIZATION-----------------";
     qInfo() << __FUNCTION__ << "Points:" << points_raw.rows() << points_raw.cols();
     auto center = points_raw.colwise().mean();
     float cx = center.x();  float cy = center.y();
@@ -25,9 +27,12 @@ QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
     int max_std_iter = 5; int i=0;
     double mean_error = std::numeric_limits<double>::max();
     std::tuple<std::vector<double>, double, size_t, Eigen::ArrayXd> res;
-    while(i++<max_std_iter and mean_error>150)
+    double mean_to_leave = 60; // buscar un critero de salida mejor que este.
+    while(i++<max_std_iter and mean_error > mean_to_leave)
     {
-        res = optimize(points_raw, params, deltas, 20000, 100, std_dev.maxCoeff()*2.1);
+        double huber = std_dev.maxCoeff()*3;
+        // double huber = std::numeric_limits<double>::max();
+        res = optimize(points_raw, params, deltas, 20000, mean_to_leave, huber);
         auto &[axis, e, iter, dists] = res;
         mean_error = dists.mean();
         double std_dev_dists = std::sqrt((dists - mean_error).square().sum()/(dists.size()-1));
@@ -35,20 +40,22 @@ QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
         qInfo() << __FUNCTION__ << "mean: " << mean_error;
         qInfo() << __FUNCTION__ << "Std: " << std_dev_dists;
         qInfo() << __FUNCTION__ << "points:" << dists.rows();
-        int outliers = (dists > mean_error).count();
-        qInfo() << __FUNCTION__ << "Outliers: " << outliers;
+        int outliers = (dists > mean_error*2).count();
+        qInfo() << __FUNCTION__ << "outliers: " << outliers;
+        qInfo() << __FUNCTION__ << "iters: " << iter;
         qInfo() << "--------------------------";
     }
     auto &[axis, e, iter, dists] = res;
     const float &rcx = axis[0];  const float &rcy = axis[1];
     const float &rsw = axis[2];  const float &rsh = axis[3];
     qInfo() << __FUNCTION__ << "Final error:" << e;
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    qInfo() << __FUNCTION__ << "Elapsed time (ms):" << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();;
     return QRectF(rcx-rsw, rcy-rsh, rsw*2, rsh*2);
 }
-
 std::tuple<std::vector<double>, double, size_t, Eigen::ArrayXd>
 Room_Detector_Grad_Stochastic::optimize(const Eigen::MatrixX3d &points, const std::vector<double> &params,
-                                        const  std::vector<double> &deltas, unsigned int max_iter, double min_error_to_leave, double huber)
+                                        const  std::vector<double> &deltas, unsigned int max_iter, double mean_error_to_leave, double huber)
 {
     static std::random_device rd;
     static std::mt19937 mt(rd());
@@ -58,26 +65,33 @@ Room_Detector_Grad_Stochastic::optimize(const Eigen::MatrixX3d &points, const st
     std::vector<double> new_params = params;
     float e_ant = std::numeric_limits<double>::max();
     int idx = params_selector(mt);
-    int new_delta = delta_selector(mt);
+    int step_index = delta_selector(mt);
+    double step = deltas.at(step_index);
     std::tuple<double, Eigen::ArrayXXd> res;
     size_t loops = 0;
+    //double gradient = 0.0;
+    std::vector<double> gradients;
     for(auto &&i : iter::range(max_iter))
     {
         //qInfo() << __FUNCTION__ << idx << new_params[0] << " " << new_params[1] << " " << new_params[2] << " " << new_params[3];
-        new_params.at(idx) += new_delta;
+        new_params.at(idx) += step;
         res = error(new_params, points, huber);
         const auto [e, _] = res;
-        if( e < min_error_to_leave )
+        if( e < mean_error_to_leave )
             break;
         if( e >= e_ant)  // time to change param and delta
         {
             idx = params_selector(mt);
-            new_delta = delta_selector(mt);
+            step_index = delta_selector(mt);
+            step = deltas[step_index];
             e_ant = std::numeric_limits<double>::max();
         }
         e_ant = e;
         loops = i;
+        //gradient = (e_ant - e) / step;
+        //gradients.push_back(fabs(gradient));
     }
+    //qInfo() << __FUNCTION__ << std::ranges::max(gradients) << std::ranges::min(gradients);
     return std::make_tuple(new_params, std::get<0>(res), loops, std::get<1>(res));
 }
 std::tuple<double, Eigen::ArrayXd> Room_Detector_Grad_Stochastic::error(const std::vector<double> &params, const Eigen::MatrixX3d &points, double huber)
@@ -112,13 +126,106 @@ std::tuple<double, Eigen::ArrayXd> Room_Detector_Grad_Stochastic::error(const st
     auto abs_dist_norm = abs_dist.array().colwise() / M.array();
 
     // Huber robust estimator
-    //Eigen::ArrayXXd abs_dist_norm_huber = (abs_dist_norm > huber).select(abs_dist_norm.colwise() -
-    //                                                                 Eigen::Array4d(huber/2.0, huber/2.0, huber/2.0, huber/2.0), abs_dist_norm);
-    Eigen::ArrayXXd abs_dist_norm_huber = (abs_dist_norm > huber).select(0.0, abs_dist_norm);
+    Eigen::ArrayXXd abs_dist_norm_huber = (abs_dist_norm > huber).select(abs_dist_norm.colwise() -
+                                                                     Eigen::Array4d(huber/2.0, huber/2.0, huber/2.0, huber/2.0), abs_dist_norm);
+    //Eigen::ArrayXXd abs_dist_norm_huber = (abs_dist_norm > huber).select(0.0, abs_dist_norm);
 
     // sum of minimun values minimun value along columns
-    auto err = abs_dist_norm_huber.colwise().minCoeff().sum();
+    auto err = abs_dist_norm_huber.colwise().minCoeff().mean();
     //qInfo() << __FUNCTION__ << err << abs_dist_norm_huber.rows() << abs_dist_norm_huber.cols();
     //std::cout << type_name<decltype(abs_dist_norm_huber)>() << '\n';;
     return std::make_tuple(err, abs_dist_norm_huber.colwise().minCoeff()); //, abs_dist_norm_huber);
+};
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+QRectF Room_Detector_Grad_Stochastic::minimize_door_distances(Graph_Rooms &G)
+{
+    std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
+    qInfo() << "--------------NEW ROOM-DOOR OPTIMIZATION-----------------";
+    double delta = 1;  // centimeters
+    auto deltas = std::vector<double>{-delta, delta};
+    qInfo() << __FUNCTION__ << "Initial error: " << door_distance_error(G.rooms, G.doors);
+    qInfo() << __FUNCTION__ << "Optimizing...";
+    //int max_std_iter = 5; int i=0;
+    //double mean_error = std::numeric_limits<double>::max();
+    std::tuple<std::vector<Graph_Rooms::Room>, double, size_t> res;
+    double min_error_to_leave = 100; // buscar un critero de salida mejor que este.
+    //while(i++<max_std_iter and mean_error > mean_to_leave)
+    //{
+    res = optimize_door_distance(G.rooms, G.doors, deltas, 50000, min_error_to_leave);
+
+    auto &[new_rooms, e, iter] = res;
+    G.rooms = new_rooms;
+
+    qInfo() << __FUNCTION__ << "final error: " << e;
+    qInfo() << __FUNCTION__ << "iters: " << iter;
+    qInfo() << "--------------------------";
+//}
+    //auto &[axis, e, iter] = res;
+    //const float &rcx = axis[0];  const float &rcy = axis[1];
+    //const float &rsw = axis[2];  const float &rsh = axis[3];
+    qInfo() << __FUNCTION__ << "Final error:" << e;
+    std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
+    qInfo() << __FUNCTION__ << "Elapsed time (ms):" << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();;
+    //return QRectF(rcx-rsw, rcy-rsh, rsw*2, rsh*2);
+    return QRectF();
+}
+std::tuple<std::vector<Graph_Rooms::Room>, double, size_t>
+Room_Detector_Grad_Stochastic::optimize_door_distance( std::vector<Graph_Rooms::Room> &rooms,
+                                                       const std::vector<Graph_Rooms::Door> &doors,
+                                                       const  std::vector<double> &deltas,
+                                                       unsigned int max_iter,
+                                                       double min_error_to_leave)
+{
+    static std::random_device rd;
+    static std::mt19937 mt(rd());
+    static std::uniform_int_distribution<int> room_selector(0, rooms.size()-1);
+    static std::uniform_int_distribution<int> delta_selector(0, deltas.size()-1);
+    static std::uniform_int_distribution<int> width_height_selector(0, 1);
+
+    std::vector<Graph_Rooms::Room> local_rooms = rooms;
+    float e_ant = std::numeric_limits<double>::max();
+    int idx_room = room_selector(mt);
+    int step_index = delta_selector(mt);
+    double step = deltas.at(step_index);
+    int whs = width_height_selector(mt);
+    double e;
+    size_t loops = 0;
+    for(auto &&i : iter::range(max_iter))
+    {
+        if(whs == 0)
+            local_rooms.at(idx_room).add_step_to_width(step);
+        else
+            local_rooms.at(idx_room).add_step_to_height(step);
+        e = door_distance_error(local_rooms, doors);
+        if( e < min_error_to_leave )
+            break;
+        if( e >= e_ant)  // time to change param and delta
+        {
+            idx_room = room_selector(mt);
+            step_index = delta_selector(mt);
+            step = deltas[step_index];
+            e_ant = std::numeric_limits<double>::max();
+            whs = width_height_selector(mt);
+        }
+        e_ant = e;
+        loops = i;
+    }
+    //qInfo() << __FUNCTION__ << std::ranges::max(gradients) << std::ranges::min(gradients);
+    return std::make_tuple(local_rooms, e, loops);
+}
+
+double Room_Detector_Grad_Stochastic::door_distance_error(const std::vector<Graph_Rooms::Room> &local_rooms,
+                                                          const std::vector<Graph_Rooms::Door> &doors)
+{
+    // error = sum of distance from door points (p1, p2) to the corresponding side of the connecting room, for all doors
+    double total_dist = 0.0;
+    for(const auto &d: doors)
+    {
+        for (const auto &r: d.to_rooms)
+            total_dist += local_rooms.at(r).distance_to_door(d);
+    }
+    return total_dist;
 };

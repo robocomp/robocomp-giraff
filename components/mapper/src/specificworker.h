@@ -36,6 +36,7 @@
 #include "dynamic_window.h"
 #include "graph_rooms.h"
 #include "room_detector_grad_stocastic.h"
+#include <chrono>
 
 class SpecificWorker : public GenericWorker
 {
@@ -119,13 +120,15 @@ private:
     int TILE_SIZE = 50;
     QRectF dimensions;
     Grid grid;
-
     void update_map(const RoboCompLaser::TLaserData &ldata);
+
+    // coordinates
     Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p);
     Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
     void fit_rectangle();
     void check_free_path_to_target(const RoboCompLaser::TLaserData &ldata,
                                    const Eigen::Vector2f &goal);
+    inline QPointF to_qpointf(const Eigen::Vector2f &p) const { return QPointF(p.x(), p.y());};
 
     // target
     struct Target

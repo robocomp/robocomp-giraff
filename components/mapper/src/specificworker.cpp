@@ -113,7 +113,7 @@ void SpecificWorker::compute()
             if (data_state.room_detected)
             {
                 // draw
-                try{ G.rooms.at(data_state.current_room).draw(&viewer_robot->scene);} catch(const std::exception &e){ std::cout << e.what() << std::endl;};
+                G.rooms.at(data_state.current_room).draw(&viewer_robot->scene);
                 G.draw_node(data_state.current_room, &viewer_graph->scene);
                 G.draw_edge(data_state.current_door, &viewer_graph->scene);
 
@@ -197,7 +197,7 @@ SpecificWorker::Data_State SpecificWorker::exploring(const Data_State &data_stat
     {
         case ExploreState::INIT_TURN:
             initial_angle = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
-            move_robot(0, 0.5);
+            move_robot(0, 0.4);
             explore_state = ExploreState::TURN;
             break;
 
@@ -297,43 +297,81 @@ SpecificWorker::Data_State SpecificWorker::estimate_rooms(const Data_State &data
         points.emplace_back(RoboCompRoomDetection::Corner{(float)key.x, (float)key.z});
 
     // filter out points beyond doors
-    RoboCompRoomDetection::ListOfPoints inside_points = points;
-//    for (const auto &c : points)
-//        for(const auto &d : G.doors | iter::filter([r = data_state.current_room](auto d){return d.connects_to_room(r);}))
-//        {
-//            auto p_r = from_world_to_robot(Eigen::Vector2f(c.x, c.y));
-//            auto mid_r = from_robot_to_world(d.get_midpoint());
-//            auto focal = mid_r.norm();
-//            if( not( (p_r.norm() > focal*1.3)) )// and fabs(focal * p_r.x() / p_r.y()) < d.width()))
-//                inside_points.push_back(c);
-////            else
-////                qInfo() << __FUNCTION__ << "discarded " << c.x << c.y;
-//        }
+    RoboCompRoomDetection::ListOfPoints inside_points;
+    bool skip=false;
+    for (const auto &c : points)
+    {
+        for (const auto &d: G.doors | iter::filter([r = data_state.current_room](auto d) { return d.connects_to_room(r); }))
+        {
+            // all in robot's reference system
+            QPointF robot_rq(0, 0);
+            auto point_r = from_world_to_robot(Eigen::Vector2f(c.x, c.y));
+            auto point_rq = to_qpointf(point_r);
+            auto point_r_distance = point_r.norm();
+            auto mid_door_distance = from_world_to_robot(d.get_midpoint()).norm();
+            // line from point to robot
+            auto l_point = QLineF(point_rq, robot_rq);
+            // door line
+            auto l_door = QLineF(to_qpointf(from_world_to_robot(d.p1)), to_qpointf(from_world_to_robot(d.p2)));
+            // compute intersection
+            // NoIntersection	Indicates that the lines do not intersect; i.e. they are parallel.
+            // UnboundedIntersection	The two lines intersect, but not within the range defined by their lengths.
+            //                          This will be the case if the lines are not parallel. intersect() will also return
+            //                          this value if the intersect point is within the start and end point of only one of the lines.
+            // BoundedIntersection	The two lines intersect with each other within the start and end points of each line.
+            QPointF inter_point;
+            auto res = l_door.intersect(l_point, &inter_point);
+            if (res == QLineF::BoundedIntersection and point_r_distance > mid_door_distance) // outside the door
+            {
+                grid.set_free(c.x, c.y);
+                skip = true;
+                continue;
+            }
+        }
+        if(not skip) inside_points.push_back(c);
+        skip = false;
+    }
+    qInfo() << __FUNCTION__ << "Points size: " << points.size() << "Points left outside:" << points.size() - inside_points.size();
+
 
     // sample size()/4 points from detected corners
-    RoboCompRoomDetection::ListOfPoints sampled_points = points;
-//    auto gen = std::mt19937{std::random_device{}()};
-//    std::ranges::sample(inside_points, std::back_inserter(sampled_points), std::clamp((double)inside_points.size(), inside_points.size() / 4.0, 400.0), gen);
+    //   RoboCompRoomDetection::ListOfPoints sampled_points = points;
+    //    auto gen = std::mt19937{std::random_device{}()};
+    //    std::ranges::sample(inside_points, std::back_inserter(sampled_points), std::clamp((double)inside_points.size(), inside_points.size() / 4.0, 400.0), gen);
+
+    if(inside_points.empty())
+    {
+        new_data_state.room_detected = false;
+        return new_data_state;
+    }
 
     Eigen::MatrixX3d my_points;
-    my_points.resize(sampled_points.size(), 3);
-    for(auto &&[i, p] : sampled_points | iter::enumerate)
+    my_points.resize(inside_points.size(), 3);
+    for(auto &&[i, p] : inside_points | iter::enumerate)
     {
         my_points(i, 0) = p.x; my_points(i, 1) = p.y; my_points(i, 2) = 1.0;
     }
+
     QRectF ro = room_detector.compute_room(my_points);
+
     qInfo() << __FUNCTION__ << ro;
     IOU::Quad max(IOU::Point(ro.left(), ro.top()), IOU::Point(ro.right(), ro.top()), IOU::Point(ro.right(), ro.bottom()), IOU::Point(ro.left(), ro.bottom()));
     //std::terminate();
     new_data_state.room_detected = true;
 
     // insert the new room only if it does not exist yet
-    Graph_Rooms::Room room(max, data_state.current_room);
+    Graph_Rooms::Room room(max, data_state.current_room, ro);
     if (auto r = std::find_if(G.rooms.begin(), G.rooms.end(), [room](auto a) { return room == a; }); r == G.rooms.end())
+    {
         G.rooms.push_back(room);
 
-    // complete door info about room connection. We need the list of doors visible from here
-    // adjust door to room's wall
+        // run one optimization over the rooms
+        room_detector.minimize_door_distances(G);
+        for(auto &rr: G.rooms)
+            rr.draw(&viewer_robot->scene);
+
+        // complete door info about room connection. We need the list of doors visible from here
+    }
 
     return new_data_state;
 }

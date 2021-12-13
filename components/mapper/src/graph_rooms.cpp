@@ -17,37 +17,38 @@ void Graph_Rooms::draw_doors(const std::vector<Graph_Rooms::Door> &local_doors, 
 }
 void Graph_Rooms::draw_node(int id, QGraphicsScene *scene)
 {
-    QRectF dimensions = scene->sceneRect();
-    std::mt19937 mt(std::random_device{}());
-    std::uniform_real_distribution<float> dist_x(dimensions.left()+1000, dimensions.right()-1000);
-    std::uniform_real_distribution<float> dist_y(dimensions.top()+800, dimensions.bottom()-800);
-    int x = dist_x(mt); int y = dist_y(mt);
+    //QRectF dimensions = scene->sceneRect();
+    //std::mt19937 mt(std::random_device{}());
+    //std::uniform_real_distribution<float> dist_x(dimensions.left()+1000, dimensions.right()-1000);
+    //std::uniform_real_distribution<float> dist_y(dimensions.top()+800, dimensions.bottom()-800);
+    //int x = dist_x(mt); int y = dist_y(mt);
     auto node = scene->addEllipse(0, 0, 600, 600, QPen(QColor("lightBlue"), 50), QBrush(QColor("lightBlue")));
-    node->setPos(x,y);
+    auto x = rooms.at(id).graph_pos.x();
+    auto y = rooms.at(id).graph_pos.y();
+    node->setPos(x-300, y-300);
     node->setZValue(100);
-    QFont f; f.setPointSize(250);
-    auto text = scene->addText(QString::number(id), f);
+    QFont f; f.setPointSize(180);
+    auto text = scene->addText("r-" + QString::number(id), f);
     text->setParentItem(node);
     flip_text(text);
-    text->setPos(220, 500);
+    text->setPos(180, 400);
     node->setZValue(120);
-    rooms.at(id).graph_pos = QPointF(x+300,y+
-    300);
 }
 void Graph_Rooms::draw_edge(int door_id, QGraphicsScene *scene)
 {
     if(door_id == -1 or doors.at(door_id).to_rooms.size() < 2) return;
     qInfo() << __FUNCTION__ << doors.at(door_id).to_rooms.size() << "door_id" << door_id;
-
-    auto room_1 = rooms.at(*(doors.at(door_id).to_rooms.begin()));
-    auto room_2 = rooms.at(*(++doors.at(door_id).to_rooms.begin()));
+    int room_id_1 = *(doors.at(door_id).to_rooms.begin());
+    int room_id_2 = *(++doors.at(door_id).to_rooms.begin());
+    auto room_1 = rooms.at(room_id_1);
+    auto room_2 = rooms.at(room_id_2);
     QPointF p1 = room_1.graph_pos;
     QPointF p2 = room_2.graph_pos;
     QLineF line(p1, p2);
     auto node = scene->addLine(line, QPen(QColor("darkGreen"), 50));
     node->setZValue(50);
-    QFont f; f.setPointSize(250);
-    auto text = scene->addText(QString::number(door_id), f);
+    QFont f; f.setPointSize(180);
+    auto text = scene->addText("d" + QString::number(door_id) + " (" + QString::number(room_id_1) + "-" + QString::number(room_id_2) +")", f);
     text->setParentItem(node);
     flip_text(text);
     text->setPos(line.center());
