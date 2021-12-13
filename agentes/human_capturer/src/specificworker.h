@@ -87,6 +87,7 @@ private:
     float get_degrees_between_vectors(cv::Point vector_1, cv::Point vector_2, std::string format);
     float calculate_orientation(RoboCompHumanCameraBody::Person person);
     double distance_3d(cv::Point3d p1, cv::Point3d p2);
+    QVector3D get_person_coords(RoboCompHumanCameraBody::Person p);
 };
 
 #endif

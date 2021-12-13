@@ -25,6 +25,7 @@ cv::Scalar color = cv::Scalar( rng.uniform(0, 256), rng.uniform(0,256), rng.unif
 SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorker(tprx)
 {
 	this->startup_check_flag = startup_check;
+    QLoggingCategory::setFilterRules("*.debug=false\n");
 }
 
 /**
@@ -116,6 +117,12 @@ void SpecificWorker::initialize(int period)
 
 }
 
+QVector3D SpecificWorker::get_person_coords(RoboCompHumanCameraBody::Person p)
+{
+    QVector3D point(3.5,3.5,3.5);
+    return point;
+}
+
 void SpecificWorker::compute()
 {
     try
@@ -127,6 +134,13 @@ void SpecificWorker::compute()
         RoboCompHumanCameraBody::PeopleData people_data = this->humancamerabody_proxy->newPeopleData();
         // RoboCompHumanCameraBody::PeopleData people_data = test_person();
         RoboCompHumanCameraBody::People people_list = people_data.peoplelist;
+
+        // Sacamos las coords de cada persona
+        for(auto p: people_list){
+            QVector3D person_coords = get_person_coords(p);
+            std::cout << "Person " << p.id << ": (" << person_coords.x() << ","<< person_coords.y()
+            << "," << person_coords.z() << ")";
+        }
 
         // Reading people list
 
@@ -170,13 +184,14 @@ void SpecificWorker::compute()
                 cv::circle(black_picture, pixel_vector[k],1,color);
             }
             cv::imshow("Output", black_picture);
-            cv::waitKey(0);
         }
     }
     catch(const char * str)
     {
         cout << "Getting error: " << str << endl;
     }
+
+
 
 
 
