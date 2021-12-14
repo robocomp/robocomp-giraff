@@ -1,0 +1,50 @@
+Performing C SOURCE FILE Test CMAKE_HAVE_LIBC_PTHREAD failed with the following output:
+Change Dir: /home/robo02/robocomp/components/robocomp-giraff-forked/agentes/human_observer/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/snap/clion/175/bin/ninja/linux/ninja cmTC_6955f && [1/2] Building C object CMakeFiles/cmTC_6955f.dir/src.c.o
+[2/2] Linking C executable cmTC_6955f
+FAILED: cmTC_6955f 
+: && /usr/bin/cc   CMakeFiles/cmTC_6955f.dir/src.c.o -o cmTC_6955f   && :
+/usr/bin/ld: CMakeFiles/cmTC_6955f.dir/src.c.o: en la función `main':
+src.c:(.text+0x46): referencia a `pthread_create' sin definir
+/usr/bin/ld: src.c:(.text+0x52): referencia a `pthread_detach' sin definir
+/usr/bin/ld: src.c:(.text+0x5e): referencia a `pthread_cancel' sin definir
+/usr/bin/ld: src.c:(.text+0x6f): referencia a `pthread_join' sin definir
+collect2: error: ld returned 1 exit status
+ninja: build stopped: subcommand failed.
+
+
+Source file was:
+#include <pthread.h>
+
+static void* test_func(void* data)
+{
+  return data;
+}
+
+int main(void)
+{
+  pthread_t thread;
+  pthread_create(&thread, NULL, test_func, NULL);
+  pthread_detach(thread);
+  pthread_cancel(thread);
+  pthread_join(thread, NULL);
+  pthread_atfork(NULL, NULL, NULL);
+  pthread_exit(NULL);
+
+  return 0;
+}
+
+Determining if the function pthread_create exists in the pthreads failed with the following output:
+Change Dir: /home/robo02/robocomp/components/robocomp-giraff-forked/agentes/human_observer/cmake-build-debug/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/snap/clion/175/bin/ninja/linux/ninja cmTC_dd09f && [1/2] Building C object CMakeFiles/cmTC_dd09f.dir/CheckFunctionExists.c.o
+[2/2] Linking C executable cmTC_dd09f
+FAILED: cmTC_dd09f 
+: && /usr/bin/cc -DCHECK_FUNCTION_EXISTS=pthread_create  CMakeFiles/cmTC_dd09f.dir/CheckFunctionExists.c.o -o cmTC_dd09f  -lpthreads && :
+/usr/bin/ld: no se puede encontrar -lpthreads
+collect2: error: ld returned 1 exit status
+ninja: build stopped: subcommand failed.
+
+
+

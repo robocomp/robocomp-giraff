@@ -1,0 +1,96 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-5c44233ef599f685283c.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "2.8"
+					},
+					"projectIndex" : 0,
+					"source" : "."
+				},
+				{
+					"build" : "src",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-src-Debug-ac29036c490f49d85d7f.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "src",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "human_observer",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 1,
+					"id" : "ICES__home_robo02_robocomp_components_robocomp-giraff-forked_agentes_human_observer_src::@145eef247bfb46b6828c",
+					"jsonFile" : "target-ICES__home_robo02_robocomp_components_robocomp-giraff-forked_agentes_human_observer_src-Debug-cf9f63a23f9184ea0b1f.json",
+					"name" : "ICES__home_robo02_robocomp_components_robocomp-giraff-forked_agentes_human_observer_src",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "human_observer::@145eef247bfb46b6828c",
+					"jsonFile" : "target-human_observer-Debug-4b2a1028daa0dac9546c.json",
+					"name" : "human_observer",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "human_observer_autogen::@145eef247bfb46b6828c",
+					"jsonFile" : "target-human_observer_autogen-Debug-e89f6849f07b538f93b9.json",
+					"name" : "human_observer_autogen",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/robo02/robocomp/components/robocomp-giraff-forked/agentes/human_observer/cmake-build-debug",
+		"source" : "/home/robo02/robocomp/components/robocomp-giraff-forked/agentes/human_observer"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}
