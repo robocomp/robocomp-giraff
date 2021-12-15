@@ -280,9 +280,9 @@ float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point 
 {
     // Returns the angle between two vectors in the 2d plane (v2 respect v1)
 
-    if (format.compare("radians") != 0 || format.compare("degrees") != 0)
+    if (format.compare("radians") == 0 && format.compare("degrees") == 0)
     {
-        cout << "Invalid angle format" << endl;
+        cout << "Invalid angle format. Format parameter should be \"radians\" or \"degrees\"" << endl;
         return 0.0;
     }
 
