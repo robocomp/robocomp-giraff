@@ -166,6 +166,9 @@ void SpecificWorker::compute()
         QVector3D person_coords = get_person_coords(p);
         cout << "Person " << p.id << ": (" << person_coords.x() << ","<< person_coords.y()
              << "," << person_coords.z() << ")" << endl;
+
+        auto orientation = calculate_orientation(p);
+        cout << "ORIENTATION: "<<orientation << endl;
     }
 
     // Generating camera image
@@ -227,6 +230,8 @@ void SpecificWorker::compute()
     update_graph(person_data_vector);
     cv::imshow("RGB image", frame);
     //cv::waitKey(1);*/
+
+    cout << "================================================================="<<endl;
 }
 
 std::int32_t SpecificWorker::increase_lambda_cont(std::int32_t lambda_cont)
@@ -296,8 +301,8 @@ float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point 
 
     // Comprobating if the angle is over 180 degrees and adapting
     float ret;
-    if(dp_90 < 0){ret = acos(dp);}
-    else{ret = M_PI + (M_PI-acos(dp));}
+    if(dp_90 < 0){ret = M_PI + (M_PI-acos(dp));}
+    else{ret = acos(dp);}
 
     // Returning value
     if (format.compare("radians") == 0) {return ret;}
