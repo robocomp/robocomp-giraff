@@ -116,8 +116,39 @@ void SpecificWorker::initialize(int period)
 
 QVector3D SpecificWorker::get_person_coords(RoboCompHumanCameraBody::Person p)
 {
-    QVector3D point(3.5,3.5,3.5);
-    return point;
+    RoboCompHumanCameraBody::TJoints person_tjoints = p.joints;
+    list<RoboCompHumanCameraBody::KeyPoint> huesitos;
+    for(auto item : person_tjoints)
+    {
+        std::string key = item.first;
+
+        if (key.compare("17") || key.compare("6") || key.compare("5") || key.compare("12") || key.compare("11") || key.compare("0") || key.compare("1") || key.compare("2") || key.compare("3") || key.compare("4"))
+        {
+            huesitos.push_back(item.second);
+        }
+    }
+
+    if(huesitos.empty())
+    {
+        auto kp = person_tjoints.begin()->second;
+        QVector3D point(kp.x,kp.y,kp.z);
+        return point;
+    }
+    else
+    {
+        float avg_x = 0, avg_y = 0,avg_z=0;
+        for(auto kp: huesitos)
+        {
+            avg_x += kp.x;
+            avg_y += kp.y;
+            avg_z += kp.z;
+        }
+        avg_x = avg_x/huesitos.size();
+        avg_y = avg_y/huesitos.size();
+        avg_z = avg_z/huesitos.size();
+        QVector3D point(avg_x,avg_y,avg_z);
+        return point;
+    }
 }
 
 void SpecificWorker::compute()
@@ -138,7 +169,7 @@ void SpecificWorker::compute()
     }
 
     // Generating camera image
-    RoboCompCameraRGBDSimple::TImage image = this->camerargbdsimple_proxy->getImage("123456789");
+/*    RoboCompCameraRGBDSimple::TImage image = this->camerargbdsimple_proxy->getImage("123456789");
     cv::Mat frame(cv::Size(image.height, image.width), CV_8UC3, &image.image[0], cv::Mat::AUTO_STEP);
 
     // Vector to include people data with ne new struct (world position and orientation added)
@@ -195,7 +226,7 @@ void SpecificWorker::compute()
     }
     update_graph(person_data_vector);
     cv::imshow("RGB image", frame);
-    cv::waitKey(1);
+    //cv::waitKey(1);*/
 }
 
 std::int32_t SpecificWorker::increase_lambda_cont(std::int32_t lambda_cont)
