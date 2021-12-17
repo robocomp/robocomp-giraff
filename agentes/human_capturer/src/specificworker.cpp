@@ -276,6 +276,28 @@ cv::Point3f SpecificWorker::cross_product(cv::Point3f p1, cv::Point3f p2)
     return point;
 }
 
+//function to calculate dot product of two vectors
+float SpecificWorker::dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b) {
+    float product = 0;
+
+    product = product + vector_a.x * vector_b.x;
+    product = product + vector_a.y * vector_b.y;
+    product = product + vector_a.z * vector_b.z;
+
+    return product;
+
+}
+
+float SpecificWorker::dot_product(cv::Point vector_a, cv::Point vector_b) {
+    float product = 0;
+
+    product = product + vector_a.x * vector_b.x;
+    product = product + vector_a.y * vector_b.y;
+
+    return product;
+
+}
+
 float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point vector_2, std::string format)
 {
     // Returns the angle between two vectors in the 2d plane (v2 respect v1)
@@ -288,21 +310,32 @@ float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point 
 
     // Getting unitary vectors
     cv::Point u_vector_1 = vector_1/cv::norm(vector_1);
+    cout << "u_vector_1: ("<< u_vector_1.x << ","<< u_vector_1.y << ")" << endl;
     cv::Point u_vector_2 = vector_2/cv::norm(vector_2);
+    cout << "u_vector_2: ("<< u_vector_2.x << ","<< u_vector_2.y << ")" << endl;
 
     // Extra vector: u_vector_2 rotated /90 degrees
     cv::Point u_vector_2_90;
     u_vector_2_90.x = cos(-M_PI / 2) * u_vector_2.x - sin(-M_PI / 2) * u_vector_2.y;
     u_vector_2_90.y = sin(-M_PI / 2) * u_vector_2.x + cos(-M_PI / 2) * u_vector_2.y;
 
+    cout << "u_vector_2_90: ("<< u_vector_2_90.x << ","<< u_vector_2_90.y << ")" << endl;
     // Dot product of u_vector_1 with u_vector_2 and u_vector_2_90
-    float dp = u_vector_1.x * u_vector_2.x + u_vector_1.y * u_vector_2.y;
-    float dp_90 = u_vector_1.x * u_vector_2_90.x + u_vector_1.y * u_vector_2_90.y;
+    //float dp = u_vector_1.x * u_vector_2.x + u_vector_1.y * u_vector_2.y;
+    //float dp_90 = u_vector_1.x * u_vector_2_90.x + u_vector_1.y * u_vector_2_90.y;
+
+    // Dot product of u_vector_1 with u_vector_2 and u_vector_2_90
+    float dp = dot_product(u_vector_1, u_vector_2);
+    cout << "DP: " << dp << endl;
+    float dp_90 = dot_product(u_vector_1, u_vector_2_90);
+    cout << "DP_90: " << dp_90 << endl;
 
     // Comprobating if the angle is over 180 degrees and adapting
     float ret;
     if(dp_90 < 0){ret = M_PI + (M_PI-acos(dp));}
     else{ret = acos(dp);}
+
+    cout << "RET: " << ret << endl;
 
     // Returning value
     if (format.compare("radians") == 0) {return ret;}

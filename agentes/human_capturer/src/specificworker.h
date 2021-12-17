@@ -99,6 +99,8 @@ private:
     void insert_person(std::vector<float> coords, float orientation, bool direct_insert);
     void update_graph(vector<SpecificWorker::PersonData> people_list);
     QVector3D get_person_coords(RoboCompHumanCameraBody::Person p);
+    float dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b);
+    float dot_product(cv::Point vector_a, cv::Point vector_b);
 };
 
 #endif
