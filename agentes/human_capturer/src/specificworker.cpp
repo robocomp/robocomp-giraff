@@ -347,7 +347,7 @@ float SpecificWorker::get_degrees_between_vectors(cv::Point2f vector_1, cv::Poin
 float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person person)
 {
     RoboCompHumanCameraBody::TJoints person_tjoints = person.joints;
-    bool left_found, base_found, right_found = false;
+    bool left_found= false, base_found= false, right_found = false;
     cv::Point3f base_p, right_p, left_p;
 
     for(auto item : person_tjoints)
