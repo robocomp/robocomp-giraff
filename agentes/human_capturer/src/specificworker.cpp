@@ -356,7 +356,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
         // Base point
 
-        if (base_found == false && (key.compare("17") || key.compare("6") || key.compare("5") || key.compare("2") || key.compare("1")))
+        if (base_found == false && (key.compare("17")==0 || key.compare("6")==0 || key.compare("5")==0 || key.compare("2")==0 || key.compare("1")==0))
         {
             base_found = true;
             base_p = dictionary_values_to_3d_point(item.second);
@@ -365,7 +365,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
         // Right point
 
-        if (right_found == false && (key.compare("12") || key.compare("4")))
+        if (right_found == false && (key.compare("12")==0 || key.compare("4")==0))
         {
             right_found = true;
             right_p = dictionary_values_to_3d_point(item.second);
@@ -374,7 +374,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
         // Left point
 
-        if (left_found == false && (key.compare("11") || key.compare("3")))
+        if (left_found == false && (key.compare("11")==0 || key.compare("3")==0))
         {
             left_found = true;
             left_p = dictionary_values_to_3d_point(item.second);
