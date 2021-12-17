@@ -389,6 +389,11 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
     cv::Point3f left_v = left_p - base_p;
     cv::Point3f right_v = right_p - base_p;
+    cout << "BASE_P: (" << base_p.x << ","<<base_p.y << ","<<base_p.z << ")" << endl;
+    cout << "left_p: (" << left_p.x << ","<<left_p.y << ","<<left_p.z << ")" << endl;
+    cout << "right_p: (" << right_p.x << ","<<right_p.y << ","<<right_p.z << ")" << endl;
+    cout << "left_v: (" << left_v.x << ","<<left_v.y << ","<<left_v.z << ")" << endl;
+    cout << "right_v: (" << right_v.x << ","<<right_v.y << ","<<right_v.z << ")" << endl;
 
     // Calculating perpendicular vector
 
@@ -398,6 +403,8 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
     vector_1.y = 1;
     vector_2.x = normal.x;
     vector_2.y = normal.z;
+    
+    cout << "vector_2: (" << vector_2.x << ","<<vector_2.y << ")" << endl;
 
     float angle = get_degrees_between_vectors(vector_1, vector_2, "radians");
     cout << "Ángulo: " << angle << endl;
