@@ -88,7 +88,7 @@ private:
     RoboCompHumanCameraBody::PeopleData test_person();
     std::int32_t increase_lambda_cont(std::int32_t lambda_cont);
     std::int32_t decrease_lambda_cont(std::int32_t lambda_cont);
-    cv::Point3f dictionary_values_to_3d_point(auto item);
+    cv::Point3f dictionary_values_to_3d_point(RoboCompHumanCameraBody::KeyPoint item);
     cv::Point3f cross_product(cv::Point3f p1, cv::Point3f p2);
     float get_degrees_between_vectors(cv::Point2f vector_1, cv::Point2f vector_2, std::string format);
     float calculate_orientation(RoboCompHumanCameraBody::Person person);

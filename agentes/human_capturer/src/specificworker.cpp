@@ -255,7 +255,7 @@ float SpecificWorker::distance_3d(cv::Point3f p1, cv::Point3f p2)
     return cv::norm(p1-p2);
 }
 
-cv::Point3f SpecificWorker::dictionary_values_to_3d_point(auto item)
+cv::Point3f SpecificWorker::dictionary_values_to_3d_point(RoboCompHumanCameraBody::KeyPoint item)
 {
     cv::Point3f point;
     float x = item.x;
@@ -360,6 +360,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
         {
             base_found = true;
             base_p = dictionary_values_to_3d_point(item.second);
+            cout << "KEYPOINT BASEP: "<< key <<endl;
         }
 
         // Right point
@@ -368,6 +369,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
         {
             right_found = true;
             right_p = dictionary_values_to_3d_point(item.second);
+            cout << "KEYPOINT RIGHTP: "<< key <<endl;
         }
 
         // Left point
@@ -376,12 +378,15 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
         {
             left_found = true;
             left_p = dictionary_values_to_3d_point(item.second);
+            cout << "KEYPOINT LEFTP: "<< key <<endl;
         }
 
         if(base_found == true && right_found == true && left_found == true)
         {
-            break;
+            //break;
         }
+
+        cout << "CLAVE: " << key << ", VALOR: (" << item.second.x << "," <<item.second.y << "," <<item.second.z << ")" << endl;
     }
 
     if(base_found == false || right_found == false || left_found == false)
