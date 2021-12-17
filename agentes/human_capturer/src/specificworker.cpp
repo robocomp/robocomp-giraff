@@ -288,7 +288,7 @@ float SpecificWorker::dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b) 
 
 }
 
-float SpecificWorker::dot_product(cv::Point vector_a, cv::Point vector_b) {
+float SpecificWorker::dot_product(cv::Point2f vector_a, cv::Point2f vector_b) {
     float product = 0;
 
     product = product + vector_a.x * vector_b.x;
@@ -298,7 +298,7 @@ float SpecificWorker::dot_product(cv::Point vector_a, cv::Point vector_b) {
 
 }
 
-float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point vector_2, std::string format)
+float SpecificWorker::get_degrees_between_vectors(cv::Point2f vector_1, cv::Point2f vector_2, std::string format)
 {
     // Returns the angle between two vectors in the 2d plane (v2 respect v1)
 
@@ -309,13 +309,15 @@ float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point 
     }
 
     // Getting unitary vectors
-    cv::Point u_vector_1 = vector_1/cv::norm(vector_1);
+    cv::Point2f u_vector_1 = vector_1/cv::norm(vector_1);
     cout << "u_vector_1: ("<< u_vector_1.x << ","<< u_vector_1.y << ")" << endl;
-    cv::Point u_vector_2 = vector_2/cv::norm(vector_2);
+    cv::Point2f u_vector_2 = vector_2/cv::norm(vector_2);
+    cout << "vector_2: ("<< vector_2.x << ","<< vector_2.y << ")" << endl;
+    cout << "NORM: "<< cv::norm(vector_2) << endl;
     cout << "u_vector_2: ("<< u_vector_2.x << ","<< u_vector_2.y << ")" << endl;
 
     // Extra vector: u_vector_2 rotated /90 degrees
-    cv::Point u_vector_2_90;
+    cv::Point2f u_vector_2_90;
     u_vector_2_90.x = cos(-M_PI / 2) * u_vector_2.x - sin(-M_PI / 2) * u_vector_2.y;
     u_vector_2_90.y = sin(-M_PI / 2) * u_vector_2.x + cos(-M_PI / 2) * u_vector_2.y;
 
@@ -391,7 +393,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
     // Calculating perpendicular vector
 
     cv::Point3f normal = cross_product(left_v, right_v);
-    cv::Point vector_1, vector_2;
+    cv::Point2f vector_1, vector_2;
     vector_1.x = 0;
     vector_1.y = 1;
     vector_2.x = normal.x;
