@@ -356,7 +356,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
         // Base point
 
-        if (base_found == false && (key.compare("17") == 0 || key.compare("6") == 0 || key.compare("5") || key.compare("2") || key.compare("1")))
+        if (base_found == false && (key.compare("17") || key.compare("6") || key.compare("5") || key.compare("2") || key.compare("1")))
         {
             base_found = true;
             base_p = dictionary_values_to_3d_point(item.second);
@@ -364,7 +364,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
         // Right point
 
-        if (right_found == false && (key.compare("12") == 0 || key.compare("4") == 0))
+        if (right_found == false && (key.compare("12") || key.compare("4")))
         {
             right_found = true;
             right_p = dictionary_values_to_3d_point(item.second);
@@ -372,10 +372,15 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
         // Left point
 
-        if (left_found == false && (key.compare("11") == 0 || key.compare("3") == 0))
+        if (left_found == false && (key.compare("11") || key.compare("3")))
         {
             left_found = true;
             left_p = dictionary_values_to_3d_point(item.second);
+        }
+
+        if(base_found == true && right_found == true && left_found == true)
+        {
+            break;
         }
     }
 
@@ -403,7 +408,7 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
     vector_1.y = 1;
     vector_2.x = normal.x;
     vector_2.y = normal.z;
-    
+
     cout << "vector_2: (" << vector_2.x << ","<<vector_2.y << ")" << endl;
 
     float angle = get_degrees_between_vectors(vector_1, vector_2, "radians");
