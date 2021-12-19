@@ -88,9 +88,9 @@ private:
     RoboCompHumanCameraBody::PeopleData test_person();
     std::int32_t increase_lambda_cont(std::int32_t lambda_cont);
     std::int32_t decrease_lambda_cont(std::int32_t lambda_cont);
-    cv::Point3f dictionary_values_to_3d_point(auto item);
+    cv::Point3f dictionary_values_to_3d_point(RoboCompHumanCameraBody::KeyPoint item);
     cv::Point3f cross_product(cv::Point3f p1, cv::Point3f p2);
-    float get_degrees_between_vectors(cv::Point vector_1, cv::Point vector_2, std::string format);
+    float get_degrees_between_vectors(cv::Point2f vector_1, cv::Point2f vector_2, std::string format);
     float calculate_orientation(RoboCompHumanCameraBody::Person person);
     float distance_3d(cv::Point3f p1, cv::Point3f p2);
     void remove_person(DSR::Node person_node, bool direct_remove); // direct_remove = false in python
@@ -99,6 +99,8 @@ private:
     void insert_person(std::vector<float> coords, float orientation, bool direct_insert);
     void update_graph(vector<SpecificWorker::PersonData> people_list);
     QVector3D get_person_coords(RoboCompHumanCameraBody::Person p);
+    float dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b);
+    float dot_product(cv::Point2f vector_a, cv::Point2f vector_b);
 };
 
 #endif

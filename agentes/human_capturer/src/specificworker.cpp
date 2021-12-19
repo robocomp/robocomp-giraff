@@ -116,8 +116,39 @@ void SpecificWorker::initialize(int period)
 
 QVector3D SpecificWorker::get_person_coords(RoboCompHumanCameraBody::Person p)
 {
-    QVector3D point(3.5,3.5,3.5);
-    return point;
+    RoboCompHumanCameraBody::TJoints person_tjoints = p.joints;
+    list<RoboCompHumanCameraBody::KeyPoint> huesitos;
+    for(auto item : person_tjoints)
+    {
+        std::string key = item.first;
+
+        if (key.compare("17") || key.compare("6") || key.compare("5") || key.compare("12") || key.compare("11") || key.compare("0") || key.compare("1") || key.compare("2") || key.compare("3") || key.compare("4"))
+        {
+            huesitos.push_back(item.second);
+        }
+    }
+
+    if(huesitos.empty())
+    {
+        auto kp = person_tjoints.begin()->second;
+        QVector3D point(kp.x,kp.y,kp.z);
+        return point;
+    }
+    else
+    {
+        float avg_x = 0, avg_y = 0,avg_z=0;
+        for(auto kp: huesitos)
+        {
+            avg_x += kp.x;
+            avg_y += kp.y;
+            avg_z += kp.z;
+        }
+        avg_x = avg_x/huesitos.size();
+        avg_y = avg_y/huesitos.size();
+        avg_z = avg_z/huesitos.size();
+        QVector3D point(avg_x,avg_y,avg_z);
+        return point;
+    }
 }
 
 void SpecificWorker::compute()
@@ -135,10 +166,13 @@ void SpecificWorker::compute()
         QVector3D person_coords = get_person_coords(p);
         cout << "Person " << p.id << ": (" << person_coords.x() << ","<< person_coords.y()
              << "," << person_coords.z() << ")" << endl;
+
+        auto orientation = calculate_orientation(p);
+        cout << "ORIENTATION: "<<orientation << endl;
     }
 
     // Generating camera image
-    RoboCompCameraRGBDSimple::TImage image = this->camerargbdsimple_proxy->getImage("123456789");
+/*    RoboCompCameraRGBDSimple::TImage image = this->camerargbdsimple_proxy->getImage("123456789");
     cv::Mat frame(cv::Size(image.height, image.width), CV_8UC3, &image.image[0], cv::Mat::AUTO_STEP);
 
     // Vector to include people data with ne new struct (world position and orientation added)
@@ -195,7 +229,9 @@ void SpecificWorker::compute()
     }
     update_graph(person_data_vector);
     cv::imshow("RGB image", frame);
-    cv::waitKey(1);
+    //cv::waitKey(1);*/
+
+    cout << "================================================================="<<endl;
 }
 
 std::int32_t SpecificWorker::increase_lambda_cont(std::int32_t lambda_cont)
@@ -219,7 +255,7 @@ float SpecificWorker::distance_3d(cv::Point3f p1, cv::Point3f p2)
     return cv::norm(p1-p2);
 }
 
-cv::Point3f SpecificWorker::dictionary_values_to_3d_point(auto item)
+cv::Point3f SpecificWorker::dictionary_values_to_3d_point(RoboCompHumanCameraBody::KeyPoint item)
 {
     cv::Point3f point;
     float x = item.x;
@@ -240,33 +276,68 @@ cv::Point3f SpecificWorker::cross_product(cv::Point3f p1, cv::Point3f p2)
     return point;
 }
 
-float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point vector_2, std::string format)
+//function to calculate dot product of two vectors
+float SpecificWorker::dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b) {
+    float product = 0;
+
+    product = product + vector_a.x * vector_b.x;
+    product = product + vector_a.y * vector_b.y;
+    product = product + vector_a.z * vector_b.z;
+
+    return product;
+
+}
+
+float SpecificWorker::dot_product(cv::Point2f vector_a, cv::Point2f vector_b) {
+    float product = 0;
+
+    product = product + vector_a.x * vector_b.x;
+    product = product + vector_a.y * vector_b.y;
+
+    return product;
+
+}
+
+float SpecificWorker::get_degrees_between_vectors(cv::Point2f vector_1, cv::Point2f vector_2, std::string format)
 {
     // Returns the angle between two vectors in the 2d plane (v2 respect v1)
 
-    if (format.compare("radians") != 0 || format.compare("degrees") != 0)
+    if (format.compare("radians") == 0 && format.compare("degrees") == 0)
     {
-        cout << "Invalid angle format" << endl;
+        cout << "Invalid angle format. Format parameter should be \"radians\" or \"degrees\"" << endl;
         return 0.0;
     }
 
     // Getting unitary vectors
-    cv::Point u_vector_1 = vector_1/cv::norm(vector_1);
-    cv::Point u_vector_2 = vector_2/cv::norm(vector_2);
+    cv::Point2f u_vector_1 = vector_1/cv::norm(vector_1);
+    cout << "u_vector_1: ("<< u_vector_1.x << ","<< u_vector_1.y << ")" << endl;
+    cv::Point2f u_vector_2 = vector_2/cv::norm(vector_2);
+    cout << "vector_2: ("<< vector_2.x << ","<< vector_2.y << ")" << endl;
+    cout << "NORM: "<< cv::norm(vector_2) << endl;
+    cout << "u_vector_2: ("<< u_vector_2.x << ","<< u_vector_2.y << ")" << endl;
 
     // Extra vector: u_vector_2 rotated /90 degrees
-    cv::Point u_vector_2_90;
+    cv::Point2f u_vector_2_90;
     u_vector_2_90.x = cos(-M_PI / 2) * u_vector_2.x - sin(-M_PI / 2) * u_vector_2.y;
     u_vector_2_90.y = sin(-M_PI / 2) * u_vector_2.x + cos(-M_PI / 2) * u_vector_2.y;
 
+    cout << "u_vector_2_90: ("<< u_vector_2_90.x << ","<< u_vector_2_90.y << ")" << endl;
     // Dot product of u_vector_1 with u_vector_2 and u_vector_2_90
-    float dp = u_vector_1.x * u_vector_2.x + u_vector_1.y * u_vector_2.y;
-    float dp_90 = u_vector_1.x * u_vector_2_90.x + u_vector_1.y * u_vector_2_90.y;
+    //float dp = u_vector_1.x * u_vector_2.x + u_vector_1.y * u_vector_2.y;
+    //float dp_90 = u_vector_1.x * u_vector_2_90.x + u_vector_1.y * u_vector_2_90.y;
+
+    // Dot product of u_vector_1 with u_vector_2 and u_vector_2_90
+    float dp = dot_product(u_vector_1, u_vector_2);
+    cout << "DP: " << dp << endl;
+    float dp_90 = dot_product(u_vector_1, u_vector_2_90);
+    cout << "DP_90: " << dp_90 << endl;
 
     // Comprobating if the angle is over 180 degrees and adapting
     float ret;
-    if(dp_90 < 0){ret = acos(dp);}
-    else{ret = M_PI + (M_PI-acos(dp));}
+    if(dp_90 < 0){ret = M_PI + (M_PI-acos(dp));}
+    else{ret = acos(dp);}
+
+    cout << "RET: " << ret << endl;
 
     // Returning value
     if (format.compare("radians") == 0) {return ret;}
@@ -276,7 +347,7 @@ float SpecificWorker::get_degrees_between_vectors(cv::Point vector_1, cv::Point 
 float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person person)
 {
     RoboCompHumanCameraBody::TJoints person_tjoints = person.joints;
-    bool left_found, base_found, right_found = false;
+    bool left_found= false, base_found= false, right_found = false;
     cv::Point3f base_p, right_p, left_p;
 
     for(auto item : person_tjoints)
@@ -285,27 +356,37 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
         // Base point
 
-        if (base_found == false && (key.compare("17") == 0 || key.compare("6") == 0 || key.compare("5") || key.compare("2") || key.compare("1")))
+        if (base_found == false && (key.compare("17")==0 || key.compare("6")==0 || key.compare("5")==0 || key.compare("2")==0 || key.compare("1")==0))
         {
             base_found = true;
             base_p = dictionary_values_to_3d_point(item.second);
+            cout << "KEYPOINT BASEP: "<< key <<endl;
         }
 
         // Right point
 
-        if (right_found == false && (key.compare("12") == 0 || key.compare("4") == 0))
+        if (right_found == false && (key.compare("12")==0 || key.compare("4")==0))
         {
             right_found = true;
             right_p = dictionary_values_to_3d_point(item.second);
+            cout << "KEYPOINT RIGHTP: "<< key <<endl;
         }
 
         // Left point
 
-        if (left_found == false && (key.compare("11") == 0 || key.compare("3") == 0))
+        if (left_found == false && (key.compare("11")==0 || key.compare("3")==0))
         {
             left_found = true;
             left_p = dictionary_values_to_3d_point(item.second);
+            cout << "KEYPOINT LEFTP: "<< key <<endl;
         }
+
+        if(base_found == true && right_found == true && left_found == true)
+        {
+            //break;
+        }
+
+        cout << "CLAVE: " << key << ", VALOR: (" << item.second.x << "," <<item.second.y << "," <<item.second.z << ")" << endl;
     }
 
     if(base_found == false || right_found == false || left_found == false)
@@ -318,15 +399,22 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
 
     cv::Point3f left_v = left_p - base_p;
     cv::Point3f right_v = right_p - base_p;
+    cout << "BASE_P: (" << base_p.x << ","<<base_p.y << ","<<base_p.z << ")" << endl;
+    cout << "left_p: (" << left_p.x << ","<<left_p.y << ","<<left_p.z << ")" << endl;
+    cout << "right_p: (" << right_p.x << ","<<right_p.y << ","<<right_p.z << ")" << endl;
+    cout << "left_v: (" << left_v.x << ","<<left_v.y << ","<<left_v.z << ")" << endl;
+    cout << "right_v: (" << right_v.x << ","<<right_v.y << ","<<right_v.z << ")" << endl;
 
     // Calculating perpendicular vector
 
     cv::Point3f normal = cross_product(left_v, right_v);
-    cv::Point vector_1, vector_2;
+    cv::Point2f vector_1, vector_2;
     vector_1.x = 0;
     vector_1.y = 1;
     vector_2.x = normal.x;
     vector_2.y = normal.z;
+
+    cout << "vector_2: (" << vector_2.x << ","<<vector_2.y << ")" << endl;
 
     float angle = get_degrees_between_vectors(vector_1, vector_2, "radians");
     cout << "Ángulo: " << angle << endl;
