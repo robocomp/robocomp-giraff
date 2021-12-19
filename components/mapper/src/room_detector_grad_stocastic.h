@@ -33,13 +33,11 @@ class Room_Detector_Grad_Stochastic
                  double  huber);
 
 
-        std::tuple< std::vector<Graph_Rooms::Room>, double, size_t> optimize_door_distance( std::vector<Graph_Rooms::Room> &rooms,
-                                                        const std::vector<Graph_Rooms::Door> &doors,
+        std::tuple< std::vector<Graph_Rooms::Room>, double, size_t> optimize_door_distance( std::vector<Graph_Rooms::Room> rooms,
                                                         const  std::vector<double> &deltas,
                                                         unsigned int max_iter,
                                                         double min_error_to_leave);
-    double door_distance_error(const std::vector<Graph_Rooms::Room> &local_rooms,
-                               const std::vector<Graph_Rooms::Door> &doors);
+    double door_distance_error(const std::vector<Graph_Rooms::Room> &local_rooms);
 };
 
 

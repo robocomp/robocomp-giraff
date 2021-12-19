@@ -37,6 +37,8 @@
 #include "graph_rooms.h"
 #include "room_detector_grad_stocastic.h"
 #include <chrono>
+#include <thread>
+#include <future>
 
 class SpecificWorker : public GenericWorker
 {
@@ -104,6 +106,8 @@ private:
     enum class State {INIT, EXPLORING, VISITING, CHANGING_ROOM, IDLE};
     State state = State::INIT;
     Data_State exploring(const Data_State &data_state);
+    bool explore();
+    bool change_room();
     void detect_doors(const Data_State &data_state);
     Data_State estimate_rooms(const Data_State &data_state);
     State visiting(State &state);
