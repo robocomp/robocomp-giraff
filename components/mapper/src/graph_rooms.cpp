@@ -12,6 +12,11 @@ Graph_Rooms::Graph_Rooms()
 
 void Graph_Rooms::draw_doors(QGraphicsScene *scene)
 {
+    std::vector<QGraphicsItem *> nodes;
+    for(const auto &e : nodes)
+        scene->removeItem(e);
+    nodes.clear();
+
     for (auto &r: rooms)
         for(auto &d : r.doors)
             d.draw(scene);
@@ -21,26 +26,42 @@ void Graph_Rooms::draw_rooms(QGraphicsScene *scene)
     for (auto &rr: rooms)
         rr.draw(scene);
 }
-void Graph_Rooms::draw_node(const Room &r, QGraphicsScene *scene)
+void Graph_Rooms::draw_nodes(QGraphicsScene *scene)
 {
-    auto node = scene->addEllipse(0, 0, 600, 600, QPen(QColor("lightBlue"), 50), QBrush(QColor("lightBlue")));
-    auto x = r.graph_pos.x();
-    auto y = r.graph_pos.y();
-    node->setPos(x-300, y-300);
-    node->setZValue(100);
-    QFont f; f.setPointSize(180);
-    auto text = scene->addText("r-" + QString::number(r.id), f);
-    text->setParentItem(node);
-    flip_text(text);
-    text->setPos(180, 400);
-    node->setZValue(120);
+    static std::vector<QGraphicsItem*> nodes;
+    for(auto n: nodes)
+    {
+        for (auto c: n->childItems())
+            scene->removeItem(c);
+        scene->removeItem(n);
+    }
 
+    for(const auto &r : rooms)
+    {
+        auto node = scene->addEllipse(0, 0, 600, 600, QPen(QColor("lightBlue"), 50), QBrush(QColor("lightBlue")));
+        auto x = r.graph_pos.x();
+        auto y = r.graph_pos.y();
+        node->setPos(x - 300, y - 300);
+        node->setZValue(100);
+        QFont f;
+        f.setPointSize(180);
+        auto text = scene->addText("r-" + QString::number(r.id), f);
+        text->setParentItem(node);
+        flip_text(text);
+        text->setPos(180, 400);
+        node->setZValue(120);
+        nodes.push_back(node);
+    }
 }
 void Graph_Rooms::draw_edges(QGraphicsScene *scene)
 {
     std::vector<QGraphicsItem *> edges;
     for(const auto &e : edges)
+    {
+        for (auto c: e->childItems())
+            scene->removeItem(c);
         scene->removeItem(e);
+    }
     edges.clear();
 
     for(const auto &r: rooms)
@@ -63,6 +84,14 @@ void Graph_Rooms::draw_edges(QGraphicsScene *scene)
             }
         }
  }
+
+void Graph_Rooms::draw_all(QGraphicsScene *scene)
+{
+    draw_rooms(scene);
+    draw_doors(scene);
+    draw_nodes(scene);
+    draw_edges(scene);
+}
 void Graph_Rooms::flip_text(QGraphicsTextItem *text)
 {
     QTransform transform(text->transform());
@@ -95,7 +124,9 @@ void Graph_Rooms::add_door_to_current_room(const Eigen::Vector2f &p1, const Eige
                 if (r.id != room.id  and d.to_room == -1) // exists a free connecting door in a nearby room
                 {
                     d.to_room = room.id;
+                    d.from_room = r.id;
                     new_door.to_room = r.id;
+                    new_door.from_room = room.id;
                     new_door.id = d.id;
                     room.doors.emplace_back(new_door);
                     qInfo() << __FUNCTION__ << "REPLICATED door " << new_door.id << "added to room" << room.id;
@@ -143,4 +174,30 @@ Eigen::Vector2f Graph_Rooms::project_point_on_closest_side(const Room &r, const 
     int idx = std::distance(distances.begin(), min);
     auto proj = lines[idx].projection(p);
     return proj;
+}
+
+float  Graph_Rooms::min_distance_from_point_to_closest_side(const Room &r, const Eigen::Vector2f &p) const
+{
+    std::vector<Eigen::Vector2f> corners = {  Eigen::Vector2f(r.room_rect.right(), r.room_rect.top()),
+                                              Eigen::Vector2f(r.room_rect.right(), r.room_rect.bottom()),
+                                              Eigen::Vector2f(r.room_rect.left(), r.room_rect.bottom()),
+                                              Eigen::Vector2f(r.room_rect.left(), r.room_rect.top())};
+
+    std::vector<Eigen::ParametrizedLine<float, 2>> lines;
+    std::vector<float> distances;
+    for(int i=0; i<4; i++)
+    {
+        lines.emplace_back(Eigen::ParametrizedLine<float, 2>::Through(corners[i], corners[(i + 1) % 4]));
+        distances.push_back(lines.back().distance(p));
+    }
+    return std::ranges::min(distances);
+}
+void Graph_Rooms::project_doors_on_room_side(Room &r,QGraphicsScene *scene)
+{
+    for(auto &d: r.doors)
+    {
+        d.p1 = project_point_on_closest_side(r, d.p1);
+        d.p2 = project_point_on_closest_side(r, d.p2);
+        d.draw(scene);
+    }
 }

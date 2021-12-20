@@ -34,14 +34,14 @@ class Graph_Rooms
                 bool operator ==(const Door &d) { return ((d.p1-p1).norm() < diff and (d.p2-p2).norm() < diff) or
                                                          ((d.p1-p2).norm() < diff and (d.p2-p1).norm() < diff);};
                 Eigen::Vector2f get_midpoint() const {return p1 + ((p2-p1)/2.0);};
-                Eigen::Vector2f get_external_midpoint(const Eigen::Vector2f &inside_point) const
+                Eigen::Vector2f get_external_midpoint(const Eigen::Vector2f &inside_point, int dist = 1200) const
                 {
                     Eigen::ParametrizedLine<float, 2> r1 =  Eigen::ParametrizedLine<float, 2>(get_midpoint(), (p1-p2).unitOrthogonal());
                     Eigen::ParametrizedLine<float, 2> r2 =  Eigen::ParametrizedLine<float, 2>(get_midpoint(), (p2-p1).unitOrthogonal());
-                    if ((inside_point-r1.pointAt(1300)).norm() > (inside_point-r2.pointAt(1300)).norm())
-                        return r1.pointAt(1300);
+                    if ((inside_point-r1.pointAt(dist)).norm() > (inside_point-r2.pointAt(dist)).norm())
+                        return r1.pointAt(dist);
                     else
-                        return r2.pointAt(1300);
+                        return r2.pointAt(dist);
                 };
                 Door& operator=(Door other)
                 {
@@ -53,16 +53,14 @@ class Graph_Rooms
                     poly_draw = other.poly_draw;
                     return *this;
                 }
-                //bool connects_to_room(int room) const { return to_rooms.contains(room);};
-                //void operator=(const Door &d){ p1 = d.p1; p2=d.p2; to_rooms=d.to_rooms;};
                 float distance_to_robot(const Eigen::Vector2f &robot) const { return (get_midpoint() - robot).norm(); };
                 void print()
                 {
-                    qInfo() << "Door:" << id;
-                    qInfo() << "    p1:" << p1.x() << p1.y();
-                    qInfo() << "    p2:" << p2.x() << p2.y();
-                    qInfo() << "    to_room:" << to_room;
-                    qInfo() << "    from_room:" << from_room;
+                    qInfo() << "    Door:" << id;
+                    qInfo() << "     p1:" << p1.x() << p1.y();
+                    qInfo() << "     p2:" << p2.x() << p2.y();
+                    qInfo() << "     to_room:" << to_room;
+                    qInfo() << "     from_room:" << from_room;
 
 //                    qInfo() << "    num rooms:" << to_rooms.size();
 //                    for (const auto &r: to_rooms)
@@ -119,6 +117,7 @@ class Graph_Rooms
                 {
                     qInfo() << "Room:" << id;
                     qInfo() << "    graph_pos:" << graph_pos;
+                    qInfo() << "    rect:" << room_rect;
                     for(auto &d: doors)
                         d.print();
                 }
@@ -130,37 +129,10 @@ class Graph_Rooms
                     graph_pos = room_rect.center();
                     poly_draw->setZValue(100);
                 }
-                double distance_to_door(const Door &d)  const   // compute the shortest distance of door d to this room
-                {
-                    // compute distance to all four sides
-                    Eigen::Vector2d c1(room_rect.right(), room_rect.top());
-                    Eigen::Vector2d c2(room_rect.right(), room_rect.bottom());
-                    Eigen::Vector2d c3(room_rect.left(), room_rect.bottom());
-                    Eigen::Vector2d c4(room_rect.left(), room_rect.top());
-                    Eigen::Matrix<double, 4, 3> sides_matrix;
-                    sides_matrix << c1.y() - c2.y(), c2.x() - c1.x(), (c1.x() - c2.x()) * c1.y() + (c2.y() - c1.y()) * c1.x(),
-                            c2.y() - c3.y(), c3.x() - c2.x(), (c2.x() - c3.x()) * c2.y() + (c3.y() - c2.y()) * c2.x(),
-                            c3.y() - c4.y(), c4.x() - c3.x(), (c3.x() - c4.x()) * c3.y() + (c4.y() - c3.y()) * c3.x(),
-                            c4.y() - c1.y(), c1.x() - c4.x(), (c4.x() - c1.x()) * c4.y() + (c1.y() - c4.y()) * c4.x();
-                    // compute normalizing line coefficients M 4x1
-                    Eigen::Vector4d M;
-                    for( auto &&i : iter::range(sides_matrix.rows()))
-                        M[i] = sqrt(sides_matrix.row(i).x()*sides_matrix.row(i).x() + sides_matrix.row(i).y()*sides_matrix.row(i).y());
-                    // multiply door points times line coefficients: dist = 4x3 * 3*1 = 4x1
-                    auto dmp = d.get_midpoint();
-                    Eigen::Vector3d door_mid_point(dmp.x() ,dmp.y(), 1.0);
-                    auto dist = sides_matrix * door_mid_point;  // 4x1
-                    // compute absolute value
-                    auto abs_dist = dist.cwiseAbs();
-                    // divide by norm coeffs  4x1 / colwise
-                    auto abs_dist_norm = abs_dist.array().colwise() / M.array();
-                    // minimun value along columns
-                    double res = abs_dist_norm.colwise().minCoeff().x();
-                    //qInfo() << __FUNCTION__ << "RES SIZE:" << abs_dist.colwise().minCoeff().rows() <<  abs_dist.colwise().minCoeff().cols() << res;
-                    return res;
-                }
                 void add_step_to_width(double step) { room_rect.setWidth(room_rect.width() + step);};
                 void add_step_to_height(double step) {room_rect.setHeight(room_rect.height() + step);};
+                void add_step_to_center_x(double step) { room_rect.moveCenter(room_rect.center() + QPointF(step, 0.f));};
+                void add_step_to_center_y(double step) {room_rect.moveCenter(room_rect.center() + QPointF(0.f, step));};
         };
 
         //std::vector<Door> doors;
@@ -171,14 +143,17 @@ class Graph_Rooms
 
         Room& current_room() { return rooms.at(current_room_local);};
         Room current_room() const { return rooms.at(current_room_local);};
-        void draw_node(const Room &r, QGraphicsScene *scene);
+        void draw_nodes(QGraphicsScene *scene);
         void draw_doors(QGraphicsScene *scene);
         void draw_rooms(QGraphicsScene *scene);
         void draw_edges(QGraphicsScene *scene);
+        void draw_all(QGraphicsScene *scene);
         void flip_text(QGraphicsTextItem *text);
         void add_door_to_current_room(const Eigen::Vector2f &p1, const Eigen::Vector2f &p2);
         Eigen::Matrix<double, 4, 3> get_room_sides_matrix(const Room &r);
         Eigen::Vector2f  project_point_on_closest_side(const Room &room, const Eigen::Vector2f &p);
+        float  min_distance_from_point_to_closest_side(const Room &r, const Eigen::Vector2f &p) const;
+        void project_doors_on_room_side(Room &r, QGraphicsScene *scene);
 };
 
 

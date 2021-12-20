@@ -67,6 +67,7 @@ private:
         float current_adv_speed = 0;
         float robot_length = 450;
         const float robot_semi_length = robot_length/2.0;
+        const float final_distance_to_target = 150; //mm
     };
     Constants constants;
 
@@ -78,47 +79,18 @@ private:
     RoboCompFullPoseEstimation::FullPoseEuler r_state;
     float gaussian(float x);
     void move_robot(float adv, float rot);
+    void read_base();
 
     // laser
     RoboCompLaser::TLaserData ldata;
+    const int MAX_LASER_RANGE = 4000;
+    void read_laser();
 
-    // state machine main
-    struct Data_State
-    {
-        int current_room = -1;
-        int current_door = -1;
-        int last_room = -1;
-        int next_room = -1;
-        bool room_detected = false;
-        bool at_target_room = false;
-        bool no_rooms_found = false;
-        void print() const
-        {
-            qInfo() << "data_state: ";
-            qInfo() << "    current_room: " << current_room;
-            qInfo() << "    current_door: " << current_door;
-            qInfo() << "    next_room: " << next_room;
-            qInfo() << "    room_detected: " << room_detected;
-            qInfo() << "    at_target_room: " << at_target_room;
-        };
-    };
-    Data_State data_state;
-    enum class State {INIT, EXPLORING, VISITING, CHANGING_ROOM, IDLE};
-    State state = State::INIT;
-    Data_State exploring(const Data_State &data_state);
+    // behaviors
     bool explore();
     bool change_room();
-    void detect_doors(const Data_State &data_state);
-    Data_State estimate_rooms(const Data_State &data_state);
-    State visiting(State &state);
-    Data_State changing_room(const Data_State &data_state);
-    std::tuple<int,int> choose_exit_door(const Data_State &data_state);
-
-    // state machine explore
-    enum class ExploreState {INIT_TURN, TURN, ESTIMATE};
-
-    // laser
-    const int MAX_LASER_RANGE = 4000;
+    void detect_doors();
+    bool estimate_rooms();
 
     // grid
     int TILE_SIZE = 50;
