@@ -32,9 +32,12 @@
 #include "dsr/api/dsr_api.h"
 #include "dsr/gui/dsr_gui.h"
 #include <doublebuffer/DoubleBuffer.h>
+#include <QVector>
 
 class SpecificWorker : public GenericWorker
 {
+    using Myclock = std::chrono::system_clock;
+    using Msec = std::chrono::duration<double, std::milli>;
 Q_OBJECT
 public:
 	SpecificWorker(TuplePrx tprx, bool startup_check);
@@ -71,7 +74,9 @@ private:
 	void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag){};
 	void del_node_slot(std::uint64_t from){};     
 	bool startup_check_flag;
-    void close_people();
+    vector<tuple<int,int,bool>> close_people(vector<DSR::Node> person);
+    Eigen::Vector2f filter_interaction(Eigen::Vector2f vector_pos);
+    void create_or_delete_edges (vector<tuple<int,int,bool>>,vector<DSR::Node> person);
     float threshold=1500;
 
 };

@@ -24,6 +24,7 @@
 SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorker(tprx)
 {
 	this->startup_check_flag = startup_check;
+    QLoggingCategory::setFilterRules("*.debug=false\n");
 }
 
 /**
@@ -80,9 +81,9 @@ void SpecificWorker::initialize(int period)
 
 		//dsr update signals
 		connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::modify_node_slot);
-		connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::modify_edge_slot);
-		connect(G.get(), &DSR::DSRGraph::update_node_attr_signal, this, &SpecificWorker::modify_attrs_slot);
-		connect(G.get(), &DSR::DSRGraph::del_edge_signal, this, &SpecificWorker::del_edge_slot);
+		//connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::modify_edge_slot);
+		//connect(G.get(), &DSR::DSRGraph::update_node_attr_signal, this, &SpecificWorker::modify_attrs_slot);
+		//connect(G.get(), &DSR::DSRGraph::del_edge_signal, this, &SpecificWorker::del_edge_slot);
 		connect(G.get(), &DSR::DSRGraph::del_node_signal, this, &SpecificWorker::del_node_slot);
 
 		// Graph viewer
@@ -107,7 +108,9 @@ void SpecificWorker::initialize(int period)
 		    current_opts = current_opts | opts::osg;
 		}
 		graph_viewer = std::make_unique<DSR::DSRViewer>(this, G, current_opts, main);
-		setWindowTitle(QString::fromStdString(agent_name + "-") + QString::number(agent_id));
+        setWindowTitle(QString::fromStdString(agent_name + "-") + QString::number(agent_id));
+
+        inner_eigen = G->get_inner_eigen_api();
 
 		this->Period = period;
 		timer.start(Period);
@@ -117,7 +120,10 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-	close_people();
+    if(auto person = G->get_nodes_by_type(person_type_name); not person.empty()) {
+        auto interacting_people = close_people(person);
+        create_or_delete_edges(interacting_people,person);
+    }
     //computeCODE
 	//QMutexLocker locker(mutex);
 	//try
@@ -141,24 +147,64 @@ int SpecificWorker::startup_check()
 	return 0;
 }
 
-void SpecificWorker::close_people()
+vector<tuple<int,int,bool>> SpecificWorker::close_people(vector<DSR::Node> person)
 {
-    if(auto person = G->get_nodes_by_type(person_type_name); not person.empty()) {
-        std::vector<std::tuple<float,float,int,int>> close_people;
-        for (int i=0 ; i<person.size();i++ ){
-            for (int j=i+1; j<person.size();j++ ){
-                auto person_pose_i= inner_eigen->transform(world_name, person[i].name()).value();
-                auto rz_i= inner_eigen->get_euler_xyz_angles(world_name,person[i].name())->z();
-                auto person_pose_j= inner_eigen->transform(world_name, person[j].name()).value();
-                auto rz_j= inner_eigen->get_euler_xyz_angles(world_name,person[j].name())->z();
-                auto dist= sqrt(pow(person_pose_i.x()-person_pose_j.x(),2)+pow(person_pose_i.y()-person_pose_j.y(),2));
-                if (dist<threshold){
-                    close_people.push_back(std::tuple<float,float,int,int>{rz_i,rz_j,i,j});
-                    std::cout << std::get<0>(close_people[0]) << std::get<1>(close_people[0]);
+    vector<tuple<int,int, bool>> close_people;
+    for (int i=0 ; i<person.size()-1;i++ ){
+        for (int j=i+1; j<person.size();j++ ){
+            bool interacting=false;
+            auto person_pose_i= inner_eigen->transform(world_name, person[i].name()).value();
+            float ry_i= inner_eigen->get_euler_xyz_angles(world_name,person[i].name())->y()+osg::PI;
+            auto person_pose_j= inner_eigen->transform(world_name, person[j].name()).value();
+            float ry_j= inner_eigen->get_euler_xyz_angles(world_name,person[j].name())->y()+osg::PI;
+            Eigen::Vector2f vector_pos (person_pose_i.x()-person_pose_j.x(), person_pose_i.y()-person_pose_j.y());
+            auto vector_pol =filter_interaction(vector_pos);
+            cout<< vector_pol[0] << "......"<<vector_pol[1]<<endl;
+
+            //std::cout<< dist<<"......"<<ang<<endl;
+            if (vector_pol[0]<threshold) {
+                if ((abs(vector_pol[1] - ry_j) < osg::PI / 6) or (abs(vector_pol[1] - ry_j) > 11 * osg::PI / 6)) {
+                    if ((abs(ry_i - ry_j) > 5 * osg::PI / 6) and (abs(ry_i - ry_j) < 7 * osg::PI / 6)) {
+                        interacting= true;
+                    }
                 }
             }
+            close_people.push_back(tuple<int, int, bool >{i, j,interacting});
+        }
+    }
+    return close_people;
+}
+
+Eigen::Vector2f SpecificWorker::filter_interaction(Eigen::Vector2f vector_pos) {
+    auto ang = atan(vector_pos[1] / vector_pos[0]);
+    if (vector_pos[0] < 0){
+        ang +=osg::PI;
+
+    }
+    else{
+        if(vector_pos[1]< 0) {
+            ang = 2 * osg::PI + ang;
+        }
+    }
+    ang=abs(ang-3*osg::PI_2);
+    if (vector_pos[0]>0 and vector_pos[1]<0){
+        ang=2*osg::PI-ang;
+    }
+    Eigen::Vector2f vector_pol (vector_pos.norm(),ang);
+    return vector_pol;
+}
+
+void SpecificWorker::create_or_delete_edges(vector<tuple<int,int,bool>> interacting_vector,vector<DSR::Node> person){
+    for (const auto &interaction : interacting_vector){
+        if(get<2>(interaction)){
+            DSR::Edge edge_interacting = DSR::Edge::create<interacting_edge_type>(person[get<0>(interaction)].id(),person[get<1>(interaction)].id());
+            G->insert_or_assign_edge(edge_interacting);
+            DSR::Edge edge_interacting1 = DSR::Edge::create<interacting_edge_type>(person[get<1>(interaction)].id(),person[get<0>(interaction)].id());;
+            G->insert_or_assign_edge(edge_interacting1);
+        }
+        else{
+            G->delete_edge(person[get<0>(interaction)].id(), person[get<1>(interaction)].id(), "interacting");
+            G->delete_edge(person[get<1>(interaction)].id(), person[get<0>(interaction)].id(), "interacting");
         }
     }
 }
-
-
