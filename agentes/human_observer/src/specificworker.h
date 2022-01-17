@@ -33,6 +33,8 @@
 #include "dsr/gui/dsr_gui.h"
 #include <doublebuffer/DoubleBuffer.h>
 #include <QVector>
+#include <opencv2/core.hpp>
+#include <opencv2/highgui.hpp>
 
 class SpecificWorker : public GenericWorker
 {
@@ -77,9 +79,12 @@ private:
     vector<tuple<int,int,bool>> close_people(vector<DSR::Node> person);
     Eigen::Vector2f filter_interaction(Eigen::Vector2f vector_pos);
     void create_or_delete_edges (vector<tuple<int,int,bool>>,vector<DSR::Node> person);
-    vector<QPointF> compute_positions(vector<DSR::Node> person);
     void compute_velocity(vector<QPointF> &position,vector<DSR::Node> person);
+    vector<QPointF> future_position(vector<DSR::Node> person);
+    void paint_gaussian(vector<QPointF> future_positions);
+    float gauss(int px,int py,float cx, float cy);
     float threshold=1500;
+    int t=1;
     vector<QPointF> positions;
 
 };

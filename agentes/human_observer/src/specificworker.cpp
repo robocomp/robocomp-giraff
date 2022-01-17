@@ -124,6 +124,8 @@ void SpecificWorker::compute()
         auto interacting_people = close_people(person);
         create_or_delete_edges(interacting_people,person);
         compute_velocity(positions,person);
+        auto future_positions= future_position(person);
+        //paint_gaussian(future_positions);
     }
     //computeCODE
 	//QMutexLocker locker(mutex);
@@ -210,16 +212,6 @@ void SpecificWorker::create_or_delete_edges(vector<tuple<int,int,bool>> interact
     }
 }
 
-vector<QPointF> SpecificWorker::compute_positions(vector<DSR::Node> person){
-    vector<QPointF> positions;
-    for (const auto &p: person){
-        auto person_pose= inner_eigen->transform(world_name, p.name()).value();
-        QPointF position(person_pose[0],person_pose[1]);
-        positions.push_back(position);
-    }
-    return positions;
-}
-
 void SpecificWorker::compute_velocity(vector<QPointF> &positions,vector<DSR::Node> person) {
     //cout<<"Llegado"<<endl;
     if (positions.empty()){
@@ -233,9 +225,43 @@ void SpecificWorker::compute_velocity(vector<QPointF> &positions,vector<DSR::Nod
         auto person_pose = inner_eigen->transform(world_name, person[i].name()).value();
         QPointF position(person_pose[0], person_pose[1]);
         QPointF position_ant= positions[i];
-        auto dist= sqrt(pow((position.x()-position_ant.x()),2)+pow((position.y()-position_ant.y()),2));
-        auto velocity=dist/0.1;
+        auto vel_x= float((position.x()-position_ant.x())/0.1);
+        auto vel_y= float((position.y()-position_ant.y())/0.1);
+        float vel_arr[]={vel_x,vel_y};
+        vector <float> velocity(vel_arr,vel_arr+2);
         positions[i]=position;
-        cout<< velocity<<endl;
+        G->add_or_modify_attrib_local<person_velocity_att>(person[i],velocity);
+        //cout<< velocity<<endl;
     }
+}
+
+vector<QPointF> SpecificWorker::future_position(vector<DSR::Node> person) {
+    vector<QPointF> future_positions;
+    for (const auto &p : person){
+        auto velocity= G->get_attrib_by_name<person_velocity_att>(p);
+        QPointF velocity_p(velocity.value()[0],velocity.value()[1]);
+        auto person_pose = inner_eigen->transform(world_name, p.name()).value();
+        QPointF position(person_pose[0], person_pose[1]);
+        QPointF future_pos=position+velocity_p*t;
+        future_positions.push_back(future_pos);
+    }
+return future_positions;
+}
+
+void SpecificWorker::paint_gaussian(vector<QPointF> future_positions) {
+    cv::Mat imag(500,1000,CV_8UC1);
+    for (const auto &p:future_positions){
+        for(auto px=int(p.x())-50;px<int(p.x())+50;px++){
+            for (auto py=int(p.y())-50;px<int(p.y())+50;py++){
+                auto ix=(px/10)-500;
+                auto iy=(py/10)-250;
+                imag.at<uchar>(iy,ix)=gauss(px,py,p.x(),p.y())*255;
+            }
+        }
+    }
+    cv::imshow("",imag);
+}
+
+float SpecificWorker::gauss(int px,int py,float cx, float cy){
+    return exp(pow(px-cx,2)+pow(py-cy,2));
 }
