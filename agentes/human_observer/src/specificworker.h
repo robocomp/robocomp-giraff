@@ -77,7 +77,10 @@ private:
     vector<tuple<int,int,bool>> close_people(vector<DSR::Node> person);
     Eigen::Vector2f filter_interaction(Eigen::Vector2f vector_pos);
     void create_or_delete_edges (vector<tuple<int,int,bool>>,vector<DSR::Node> person);
+    vector<QPointF> compute_positions(vector<DSR::Node> person);
+    void compute_velocity(vector<QPointF> &position,vector<DSR::Node> person);
     float threshold=1500;
+    vector<QPointF> positions;
 
 };
 

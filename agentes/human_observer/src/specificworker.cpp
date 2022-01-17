@@ -123,6 +123,7 @@ void SpecificWorker::compute()
     if(auto person = G->get_nodes_by_type(person_type_name); not person.empty()) {
         auto interacting_people = close_people(person);
         create_or_delete_edges(interacting_people,person);
+        compute_velocity(positions,person);
     }
     //computeCODE
 	//QMutexLocker locker(mutex);
@@ -163,8 +164,8 @@ vector<tuple<int,int,bool>> SpecificWorker::close_people(vector<DSR::Node> perso
 
             //std::cout<< dist<<"......"<<ang<<endl;
             if (vector_pol[0]<threshold) {
-                if ((abs(vector_pol[1] - ry_j) < osg::PI / 6) or (abs(vector_pol[1] - ry_j) > 11 * osg::PI / 6)) {
-                    if ((abs(ry_i - ry_j) > 5 * osg::PI / 6) and (abs(ry_i - ry_j) < 7 * osg::PI / 6)) {
+                if ((abs(vector_pol[1] - ry_j) < osg::PI / 5) or (abs(vector_pol[1] - ry_j) > 9 * osg::PI / 5)) {
+                    if ((abs(ry_i - ry_j) > 4 * osg::PI / 5) and (abs(ry_i - ry_j) < 6 * osg::PI / 5)) {
                         interacting= true;
                     }
                 }
@@ -206,5 +207,35 @@ void SpecificWorker::create_or_delete_edges(vector<tuple<int,int,bool>> interact
             G->delete_edge(person[get<0>(interaction)].id(), person[get<1>(interaction)].id(), "interacting");
             G->delete_edge(person[get<1>(interaction)].id(), person[get<0>(interaction)].id(), "interacting");
         }
+    }
+}
+
+vector<QPointF> SpecificWorker::compute_positions(vector<DSR::Node> person){
+    vector<QPointF> positions;
+    for (const auto &p: person){
+        auto person_pose= inner_eigen->transform(world_name, p.name()).value();
+        QPointF position(person_pose[0],person_pose[1]);
+        positions.push_back(position);
+    }
+    return positions;
+}
+
+void SpecificWorker::compute_velocity(vector<QPointF> &positions,vector<DSR::Node> person) {
+    //cout<<"Llegado"<<endl;
+    if (positions.empty()){
+        for (const auto &p: person){
+            auto person_pose= inner_eigen->transform(world_name, p.name()).value();
+            QPointF position(person_pose[0],person_pose[1]);
+            positions.push_back(position);
+        }
+    }
+    for (int i=0 ; i<person.size();i++ ) {
+        auto person_pose = inner_eigen->transform(world_name, person[i].name()).value();
+        QPointF position(person_pose[0], person_pose[1]);
+        QPointF position_ant= positions[i];
+        auto dist= sqrt(pow((position.x()-position_ant.x()),2)+pow((position.y()-position_ant.y()),2));
+        auto velocity=dist/0.1;
+        positions[i]=position;
+        cout<< velocity<<endl;
     }
 }
