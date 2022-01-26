@@ -125,7 +125,7 @@ void SpecificWorker::compute()
         create_or_delete_edges(interacting_people,person);
         compute_velocity(positions,person);
         auto future_positions= future_position(person);
-        //paint_gaussian(future_positions);
+        paint_gaussian(future_positions);
     }
     //computeCODE
 	//QMutexLocker locker(mutex);
@@ -231,7 +231,8 @@ void SpecificWorker::compute_velocity(vector<QPointF> &positions,vector<DSR::Nod
         vector <float> velocity(vel_arr,vel_arr+2);
         positions[i]=position;
         G->add_or_modify_attrib_local<person_velocity_att>(person[i],velocity);
-        //cout<< velocity<<endl;
+        G->update_node(person[i]);
+        cout<< "Velocity "<<velocity[0]<< endl;
     }
 }
 
@@ -244,24 +245,31 @@ vector<QPointF> SpecificWorker::future_position(vector<DSR::Node> person) {
         QPointF position(person_pose[0], person_pose[1]);
         QPointF future_pos=position+velocity_p*t;
         future_positions.push_back(future_pos);
+        cout<<"Future Positiom"<<future_positions[0].x()<< endl;
     }
 return future_positions;
 }
 
 void SpecificWorker::paint_gaussian(vector<QPointF> future_positions) {
-    cv::Mat imag(500,1000,CV_8UC1);
+    cv::Mat imag(250,500,CV_8UC3);
     for (const auto &p:future_positions){
-        for(auto px=int(p.x())-50;px<int(p.x())+50;px++){
-            for (auto py=int(p.y())-50;px<int(p.y())+50;py++){
-                auto ix=(px/10)-500;
-                auto iy=(py/10)-250;
+        cout<< p.x() << p.y() << endl;
+        for(auto px=int(p.x())-1000;px<int(p.x())+1000;px+=20){
+            for (auto py=int(p.y())-1000;py<int(p.y())+1000;py+=20){
+                auto ix=(px/10)+500;
+                cout <<"ix:"<< ix <<endl;
+                auto iy=(py/10)+250;
+                cout <<"iy:"<< iy <<endl;
                 imag.at<uchar>(iy,ix)=gauss(px,py,p.x(),p.y())*255;
             }
         }
     }
-    cv::imshow("",imag);
+    cv::imshow("imagen",imag);
+    cv::waitKey(1);
+    //cv::imwrite("imagen.png",imag);
 }
 
 float SpecificWorker::gauss(int px,int py,float cx, float cy){
-    return exp(pow(px-cx,2)+pow(py-cy,2));
+    cout<< exp(-(pow(px-cx,2)+pow(py-cy,2))/100)<< endl;
+    return exp(-(pow(px-cx,2)+pow(py-cy,2))/500000);
 }
