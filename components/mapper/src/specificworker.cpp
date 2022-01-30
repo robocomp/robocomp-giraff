@@ -88,7 +88,7 @@ void SpecificWorker::compute()
                 G.current_room().is_unknown = false;
                 qInfo() << __FUNCTION__ << "Future EXPLORE ended with result:" << res;
                 room_detector.minimize_door_distances(G);
-                G.draw_all(&viewer_robot->scene);
+                G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
             }
     }
     else  // change room
@@ -101,10 +101,10 @@ void SpecificWorker::compute()
             {
                 auto res = future_visit.get();
                 qInfo() << __FUNCTION__ << "Future VISIT ended with " << res;
+                G.current_room().print();
                 room_detector.minimize_door_distances(G);
                 G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
-                G.draw_rooms(&viewer_robot->scene);
-                G.draw_doors(&viewer_robot->scene);
+                G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
                 // if known room check if it matches the prediction. If not, set it as unknown so it is explored again
             }
     }
@@ -131,6 +131,7 @@ bool SpecificWorker::change_room()
     // Choose an un-explored destination room
     Graph_Rooms::Door new_door;
     int new_room_id = -1;
+    // door to unknown room
     if( auto hit = std::ranges::find_if(G.current_room().doors, [](auto d){ return d.to_room == -1;}); hit != G.current_room().doors.end())
     {
         new_door = (*hit);

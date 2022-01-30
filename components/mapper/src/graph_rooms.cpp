@@ -38,7 +38,12 @@ void Graph_Rooms::draw_nodes(QGraphicsScene *scene)
 
     for(const auto &r : rooms)
     {
-        auto node = scene->addEllipse(0, 0, 600, 600, QPen(QColor("lightBlue"), 50), QBrush(QColor("lightBlue")));
+        QGraphicsEllipseItem *node;
+        if(r.id != current_room().id)
+            node = scene->addEllipse(0, 0, 600, 600, QPen(QColor("lightBlue"), 50), QBrush(QColor("lightBlue")));
+        else
+            node = scene->addEllipse(0, 0, 600, 600, QPen(QColor("orange"), 50), QBrush(QColor("orange")));
+
         auto x = r.graph_pos.x();
         auto y = r.graph_pos.y();
         node->setPos(x - 300, y - 300);
@@ -56,6 +61,7 @@ void Graph_Rooms::draw_nodes(QGraphicsScene *scene)
 void Graph_Rooms::draw_edges(QGraphicsScene *scene)
 {
     std::vector<QGraphicsItem *> edges;
+    std::vector<QGraphicsItem *> texts;
     for(const auto &e : edges)
     {
         for (auto c: e->childItems())
@@ -73,24 +79,25 @@ void Graph_Rooms::draw_edges(QGraphicsScene *scene)
                 QPointF p1 = r.graph_pos;
                 QPointF p2 = rooms.at(d.to_room).graph_pos;
                 QLineF line(p1, p2);
-                auto node = scene->addLine(line, QPen(QColor("darkGreen"), 50));
-                node->setZValue(50);
+                auto edge = scene->addLine(line, QPen(QColor("darkGreen"), 50));
+                edge->setZValue(50);
                 QFont f;
                 f.setPointSize(180);
                 auto text = scene->addText("d" + QString::number(d.id) + " (" + QString::number(r.id) + "-" + QString::number(rooms.at(d.to_room).id) + ")", f);
-                text->setParentItem(node);
+                text->setParentItem(edge);
                 flip_text(text);
                 text->setPos(line.center());
+                edges.push_back(edge);
             }
         }
  }
 
-void Graph_Rooms::draw_all(QGraphicsScene *scene)
+void Graph_Rooms::draw_all(QGraphicsScene *robot_scene, QGraphicsScene *graph_scene)
 {
-    draw_rooms(scene);
-    draw_doors(scene);
-    draw_nodes(scene);
-    draw_edges(scene);
+    draw_rooms(robot_scene);
+    draw_doors(robot_scene);
+    draw_nodes(graph_scene);
+    draw_edges(graph_scene);
 }
 void Graph_Rooms::flip_text(QGraphicsTextItem *text)
 {
@@ -138,6 +145,7 @@ void Graph_Rooms::add_door_to_current_room(const Eigen::Vector2f &p1, const Eige
     if( not door_found)
     {
         new_door.id = number_of_doors++;
+        new_door.from_room = current_room().id;
         room.doors.emplace_back(new_door);
         qInfo() << __FUNCTION__ << "NEW door " << new_door.id << "added to room" << room.id;
         new_door.print();

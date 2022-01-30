@@ -147,7 +147,7 @@ class Graph_Rooms
         void draw_doors(QGraphicsScene *scene);
         void draw_rooms(QGraphicsScene *scene);
         void draw_edges(QGraphicsScene *scene);
-        void draw_all(QGraphicsScene *scene);
+        void draw_all(QGraphicsScene *robot_scene, QGraphicsScene *graph_scene);
         void flip_text(QGraphicsTextItem *text);
         void add_door_to_current_room(const Eigen::Vector2f &p1, const Eigen::Vector2f &p2);
         Eigen::Matrix<double, 4, 3> get_room_sides_matrix(const Room &r);
