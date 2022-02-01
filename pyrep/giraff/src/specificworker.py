@@ -707,8 +707,9 @@ class SpecificWorker(GenericWorker):
     #
     def BillCoppelia_getPose(self):
         ret = RoboCompBillCoppelia.Pose()
-        bill = Dummy("Bill")
+        bill = Dummy("/Bill/Bill")
         pos = bill.get_position()
+        print(pos)
         ret.x = pos[0] * 1000.0
         ret.y = pos[1] * 1000.0
         linear_vel, ang_vel = bill.get_velocity()
