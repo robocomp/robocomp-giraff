@@ -32,9 +32,11 @@
 #include "dsr/api/dsr_api.h"
 #include "dsr/gui/dsr_gui.h"
 #include <doublebuffer/DoubleBuffer.h>
-#include <QVector>
-#include <opencv2/core.hpp>
-#include <opencv2/highgui.hpp>
+#include <QPolygonF>
+#include <QPointF>
+#include "grid.h"
+#include <cppitertools/chain.hpp>
+#include <cppitertools/zip.hpp>
 
 class SpecificWorker : public GenericWorker
 {
@@ -69,20 +71,39 @@ private:
 	// DSR graph viewer
 	std::unique_ptr<DSR::DSRViewer> graph_viewer;
 	QHBoxLayout mainLayout;
-	void modify_node_slot(std::uint64_t, const std::string &type){};
+	void modify_node_slot(std::uint64_t, const std::string &type);
 	void modify_attrs_slot(std::uint64_t id, const std::vector<std::string>& att_names){};
 	void modify_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type){};
 
 	void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag){};
 	void del_node_slot(std::uint64_t from){};     
 	bool startup_check_flag;
+
+    //drawing
+    DSR::QScene2dViewer* widget_2d;
+
+    // Grid
+    Grid grid;
+    //bool grid_initialized = false;
+    //bool personal_spaces_changed = false;
+    std::shared_ptr<Collisions> collisions;
+
+    std::shared_ptr<RoboCompCommonBehavior::ParameterList> conf_params;
+
+    DoubleBuffer<std::string, std::string> grid_buffer;
+    DoubleBuffer<std::vector<DSR::Node>, std::vector<DSR::Node>> space_nodes_buffer;
+
+    using Space = std::vector<QPolygonF>;
+    using Spaces = std::tuple<Space, Space, Space>;
+
     vector<tuple<int,int,bool>> close_people(vector<DSR::Node> person);
     Eigen::Vector2f filter_interaction(Eigen::Vector2f vector_pos);
     void create_or_delete_edges (vector<tuple<int,int,bool>>,vector<DSR::Node> person);
     void compute_velocity(vector<QPointF> &position,vector<DSR::Node> person);
-    vector<QPointF> future_position(vector<DSR::Node> person);
-    void paint_gaussian(vector<QPointF> future_positions);
-    float gauss(int px,int py,float cx, float cy);
+    Spaces get_polylines_from_dsr(vector<DSR::Node> person);
+    void update_grid(tuple<Space,Space,Space> Spaces);
+    void insert_polylines_in_grid(const Spaces &spaces);
+
     float threshold=1500;
     int t=1;
     vector<QPointF> positions;
