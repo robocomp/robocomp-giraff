@@ -1,0 +1,29 @@
+# Endpoints for implements interfaces
+Follower.Endpoints=tcp -p 18917
+
+
+# Endpoints for subscriptions interfaces
+SoundRotationPubTopic.Endpoints=tcp -p 17267
+
+
+# Proxies for required interfaces
+CameraRGBDSimpleProxy = camerargbdsimple:tcp -h 192.168.3.6 -p 14842
+DifferentialRobotProxy = differentialrobot:tcp -h 192.168.3.5 -p 10004
+HumanCameraBodyProxy = humancamerabody:tcp -h 192.168.3.6 -p 14213
+JointMotorSimpleProxy = jointmotorsimple:tcp -h 192.168.3.5 -p 17193
+MoveTowardsProxy = movetowards:tcp -h localhost -p 14084
+SoundRotationProxy = soundrotation:tcp -h 192.168.3.5 -p 13075
+
+
+
+# This property is used by the clients to connect to IceStorm.
+TopicManager.Proxy=IceStorm/TopicManager:default -p 9999
+
+
+Ice.Warn.Connections=0
+Ice.Trace.Network=0
+Ice.Trace.Protocol=0
+Ice.MessageSizeMax=20004800
+
+
+
