@@ -1,0 +1,19 @@
+import "OmniRobot.idsl";
+import "Laser.idsl";
+import "DifferentialRobot.idsl";
+import "FullPoseEstimation.idsl";
+import "MoveTowards.idsl";
+import "BillCoppelia.idsl";
+
+Component dwa_dsr
+{
+    Communications
+    {
+        requires OmniRobot, Laser, Laser, DifferentialRobot, DifferentialRobot, FullPoseEstimation, FullPoseEstimation, BillCoppelia;
+        implements MoveTowards;
+    };
+    language Cpp11;
+    gui Qt(QMainWindow);
+    options dsr;
+};
+

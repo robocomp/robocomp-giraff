@@ -1,0 +1,34 @@
+CommonBehavior.Endpoints=tcp -p 10200
+MoveTowards.Endpoints=tcp -p 12123
+
+# Proxies for required interfaces
+BillCoppeliaProxy = billcoppelia:tcp -h localhost -p 11046
+
+# Proxys for Giraff
+DifferentialRobotProxy = differentialrobot:tcp -h 192.168.3.5 -p 10004 
+FullPoseEstimationProxy = fullposeestimation:tcp -h 192.168.3.5 -p 10696
+LaserProxy = laser:tcp -h 192.168.3.5 -p 10003
+
+# Proxys for Coppelia
+DifferentialRobot1Proxy = differentialrobot:tcp -p 10004
+FullPoseEstimation1Proxy = fullposeestimation:tcp -p 10696
+Laser1Proxy = laser:tcp -p 10003
+
+
+OmniRobotProxy = omnirobot:tcp -h localhost -p 0
+
+
+agent_id = 4073 # Change id
+agent_name = dwa_dsr
+tree_view = true
+graph_view = true
+2d_view = true
+3d_view = true
+#Ice.MessageSizeMax=20004800
+
+InnerModelPath = innermodel.xml
+
+Ice.Warn.Connections=0
+Ice.Trace.Network=0
+Ice.Trace.Protocol=0
+Ice.MessageSizeMax=20004800
