@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2021 by YOUR NAME HERE
+ *    Copyright (C) 2022 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -131,6 +131,7 @@ int ::human_capturer::run(int argc, char* argv[])
 
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompHumanCameraBody::HumanCameraBodyPrxPtr humancamerabody_proxy;
+	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
 
 	string proxy, tmp;
 	initialize();
@@ -167,7 +168,23 @@ int ::human_capturer::run(int argc, char* argv[])
 	rInfo("HumanCameraBodyProxy initialized Ok!");
 
 
-	tprx = std::make_tuple(camerargbdsimple_proxy,humancamerabody_proxy);
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "JointMotorSimpleProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy JointMotorSimpleProxy\n";
+		}
+		jointmotorsimple_proxy = Ice::uncheckedCast<RoboCompJointMotorSimple::JointMotorSimplePrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy JointMotorSimple: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("JointMotorSimpleProxy initialized Ok!");
+
+
+	tprx = std::make_tuple(camerargbdsimple_proxy,humancamerabody_proxy,jointmotorsimple_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx, startup_check_flag);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());

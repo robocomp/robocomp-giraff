@@ -1,8 +1,10 @@
 CommonBehavior.Endpoints=tcp -p 10000
 
 # Proxies for required interfaces
+
 CameraRGBDSimpleProxy = camerargbdsimple:tcp -h 192.168.3.6 -p 14842
 HumanCameraBodyProxy = humancamerabody:tcp -h 192.168.3.6 -p 14213
+JointMotorSimpleProxy = jointmotorsimple:tcp -h 192.168.3.5 -p 17193
 
 
 agent_id = 2689 # Change id

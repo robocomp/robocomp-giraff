@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2021 by YOUR NAME HERE
+ *    Copyright (C) 2022 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -33,13 +33,14 @@
 
 #include <CameraRGBDSimple.h>
 #include <HumanCameraBody.h>
+#include <JointMotorSimple.h>
 
 
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
 
 
-using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompHumanCameraBody::HumanCameraBodyPrxPtr>;
+using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompHumanCameraBody::HumanCameraBodyPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr>;
 
 
 class GenericWorker : public QMainWindow, public Ui_guiDlg
@@ -57,6 +58,7 @@ public:
 
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompHumanCameraBody::HumanCameraBodyPrxPtr humancamerabody_proxy;
+	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
 
 
 protected:

@@ -45,7 +45,10 @@ public:
         int id;
         RoboCompHumanCameraBody::TJoints joints;
         // TImage roi;
-        vector<float> personCoords;
+        cv::Point3f personCoords_robot;
+        cv::Point3f personCoords_world;
+        cv::Point2i pixels;
+        vector<float> orientation_filter;
         float orientation;
     };
 
@@ -56,8 +59,11 @@ public slots:
 	void initialize(int period);
 
 private:
+    std::unique_ptr<DSR::RT_API> rt;
+
     // DSR graph
     std::shared_ptr<DSR::DSRGraph> G;
+    std::shared_ptr<DSR::InnerEigenAPI> inner_eigen;
 
     //DSR params
     std::string agent_name;
@@ -80,6 +86,7 @@ private:
     bool startup_check_flag;
     std::shared_ptr<DSR::RT_API> rt_api;
 
+    float servo_position;
 
 
 
@@ -94,11 +101,12 @@ private:
     float calculate_orientation(RoboCompHumanCameraBody::Person person);
     float distance_3d(cv::Point3f p1, cv::Point3f p2);
     void remove_person(DSR::Node person_node, bool direct_remove); // direct_remove = false in python
-    void update_person(DSR::Node node, std::vector<float> coords, float orientation);
+    void update_person(DSR::Node node, cv::Point3f world_coords, cv::Point3f robot_coords, float orientation, cv::Point2i pixels);
     void insert_mind(std::uint64_t parent_id, std::int32_t person_id);
-    void insert_person(std::vector<float> coords, float orientation, bool direct_insert);
+    void insert_person(cv::Point3f world_coords, cv::Point3f robot_coords, float orientation, bool direct_insert, cv::Point2i pixels);
     void update_graph(vector<SpecificWorker::PersonData> people_list);
-    QVector3D get_person_coords(RoboCompHumanCameraBody::Person p);
+    std::optional<vector<cv::Point3f>> get_person_coords(RoboCompHumanCameraBody::Person p);
+    cv::Point2i get_person_pixels(RoboCompHumanCameraBody::Person p);
     float dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b);
     float dot_product(cv::Point2f vector_a, cv::Point2f vector_b);
 };

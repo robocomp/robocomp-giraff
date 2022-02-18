@@ -1,11 +1,12 @@
 import "HumanCameraBody.idsl";
 import "CameraRGBDSimple.idsl";
+import "JointMotorSimple.idsl";
 
 Component human_capturer
 {
     Communications
     {
-        requires HumanCameraBody, CameraRGBDSimple;
+        requires HumanCameraBody, CameraRGBDSimple, JointMotorSimple;
     };
     language Cpp11;
     gui Qt(QMainWindow);

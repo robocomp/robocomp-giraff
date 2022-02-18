@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2021 by YOUR NAME HERE
+ *    Copyright (C) 2022 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -25,6 +25,7 @@ GenericWorker::GenericWorker(TuplePrx tprx) : Ui_guiDlg()
 
 	camerargbdsimple_proxy = std::get<0>(tprx);
 	humancamerabody_proxy = std::get<1>(tprx);
+	jointmotorsimple_proxy = std::get<2>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 
