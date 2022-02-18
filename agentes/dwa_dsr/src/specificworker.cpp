@@ -203,39 +203,44 @@ void SpecificWorker::compute()
     auto [r_state_real, advance_real, rotation_real] = read_base_real();
     laser_poly_real = read_laser_real();
 
-    std::vector<float> position;
-    float distance;
     Eigen::Vector2f point;
+    float person_distance;
 
     auto people_nodes = G->get_nodes_by_type("person");
     auto world_node = G->get_node("world").value();
     for(auto p: people_nodes)
     {
-        auto is_followed = G->get_attrib_by_name<followed_att>(p).value();
-        if(is_followed == true)
+        if(auto is_followed = G->get_attrib_by_name<followed_att>(p); is_followed.has_value())
         {
-            std::cout << "ENTRA" << endl;
-            auto edge_world = rt->get_edge_RT(world_node, p.id());
-            if( edge_world.has_value())
+            if(is_followed == true)
             {
-                position = G->get_attrib_by_name<rt_translation_att>(edge_world.value()).value().get();
-                std::cout << "POS x: " << position[0] << " POS y: " << position[1] << endl;
-                distance = G->get_attrib_by_name<distance_to_robot_att>(p).value();
-                point.x() = position[0];
-                point.y() = position[1];
-                viewer_robot->scene.addEllipse(point.x()-50, point.y()-50, 100, 100, QPen(QColor("magenta")), QBrush(QColor("magenta")));
-                target.active = true;
-            }
+                if(auto edge_world = rt->get_edge_RT(world_node, p.id()); edge_world.has_value())
+                {
+                    if(auto position = G->get_attrib_by_name<rt_translation_att>(edge_world.value()); position.has_value())
+                    {
+                        if(auto distance = G->get_attrib_by_name<distance_to_robot_att>(p); distance.has_value())
+                        {
+                            person_distance = distance.value();
+                            std::cout << "POS x: " << position.value().get()[0] << " POS y: " << position.value().get()[1] << endl;
+                            point.x() = position.value().get()[0];
+                            point.y() = position.value().get()[1];
+                            viewer_robot->scene.addEllipse(point.x()-50, point.y()-50, 100, 100, QPen(QColor("magenta")), QBrush(QColor("magenta")));
+                            target.active = true;
+                        }
 
+                    }
+
+                }
+
+            }
         }
+
+
     }
     // If a point is clicked...
     if(target.active)
     {
-        auto dist_real = distance;
-//        cout << "distance to point: " << dist_real << endl;
-        // Comparing if target point is more far than the reference final distance (950 mm)
-        if( dist_real > constants.final_distance_to_target) {
+        if( person_distance > constants.final_distance_to_target) {
             // Creating variable that contains data about the best option to avoid an obstacle
             Result res_real;
             // Calculating best option
@@ -243,7 +248,7 @@ void SpecificWorker::compute()
                                       Eigen::Vector3f(r_state_real.x, r_state_real.y, r_state_real.rz),
                                       &viewer_robot->scene);
             if (not res_o_real.has_value()){   // no control
-//                qInfo() << __FUNCTION__ << "NO CONTROL";
+                qInfo() << __FUNCTION__ << "NO CONTROL";
 
                 stuck_real = do_if_stuck_real(advance_real, rotation_real, r_state_real, lhit_real, rhit_real);
                 if(stuck_real == true){
@@ -257,8 +262,6 @@ void SpecificWorker::compute()
                 res_real = res_o_real.value();
             }
             auto [_, __, adv, rot, ___] = res_real;
-            float dist_break = std::clamp(dist_real / constants.final_distance_to_target - 1.0, -1.0, 1.0);
-//            float adv_n = constants.max_advance_speed * dist_break * gaussian(rot);
 
             // Comprueba que no haya obstáculos por los lados
             auto linl_real = laser_draw_polygon_real->mapFromParent(laser_poly_real);
@@ -294,10 +297,6 @@ void SpecificWorker::compute()
             }
             rot = std::clamp(rot, -constants.max_rotation_speed, constants.max_rotation_speed);
 
-//            if(adv < 20) adv = 20;
-//            move_robot_real(adv, rot);
-
-//            stuck_real = do_if_stuck_real(adv, rot, r_state_real, lhit_real, rhit_real);
             if (stuck_real == false)
             {
                 if(adv < 50) adv = 50;
@@ -345,19 +344,14 @@ std::optional<SpecificWorker::Result> SpecificWorker::control(const Eigen::Vecto
                                                               double advance, double rot, const Eigen::Vector3f &robot,
                                                               QGraphicsScene *scene)
 {
-    static float previous_turn = 0;
     // compute future positions of the robot
     auto point_list = compute_predictions(advance, rot, laser_poly);
-    std::cout << "point list lenght: " << point_list.size()<< endl;
     // compute best value
     auto best_choice = compute_optimus(point_list, target_r);
     if(scene != nullptr)
         draw_dwa(robot, point_list, best_choice, scene);
     if (best_choice.has_value())
     {
-        auto[x, y, v, w, alpha]= best_choice.value();  // x,y coordinates of best point, v,w velocities to reach that point, alpha robot's angle at that point
-        previous_turn = w;
-
         return best_choice.value();
     }
     else
@@ -433,7 +427,6 @@ std::optional<SpecificWorker::Result> SpecificWorker::compute_optimus(const std:
     {
         auto [x, y, adv, giro, ang] = point;
         float dist_to_target = (Eigen::Vector2f(x, y) - tr).norm();
-        //float dist_to_previous_turn =  fabs(giro - previous_turn);
         float dist_to_previous_turn =  fabs(giro);
         values[k] = std::make_tuple(constants.A_dist_factor*dist_to_target + constants.B_turn_factor*dist_to_previous_turn, point);
     }

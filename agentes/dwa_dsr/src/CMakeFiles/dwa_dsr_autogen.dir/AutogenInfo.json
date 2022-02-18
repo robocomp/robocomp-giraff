@@ -1,0 +1,205 @@
+{
+	"BUILD_DIR" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/dwa_dsr_autogen",
+	"CMAKE_BINARY_DIR" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr",
+	"CMAKE_CURRENT_BINARY_DIR" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src",
+	"CMAKE_CURRENT_SOURCE_DIR" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src",
+	"CMAKE_EXECUTABLE" : "/usr/bin/cmake",
+	"CMAKE_SOURCE_DIR" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr",
+	"HEADERS" : 
+	[
+		[
+			"/home/javier/robocomp/classes/abstract_graphic_viewer/abstract_graphic_viewer.h",
+			"MU",
+			"F3J73KASUY/moc_abstract_graphic_viewer.cpp"
+		],
+		[
+			"/home/javier/robocomp/classes/qcustomplot/qcustomplot.h",
+			"MU",
+			"OBLXHCWPFU/moc_qcustomplot.cpp"
+		],
+		[
+			"/home/javier/robocomp/classes/qlog/qlog.h",
+			"MU",
+			"7HOGDPGTXH/moc_qlog.cpp"
+		],
+		[
+			"/home/javier/robocomp/classes/rapplication/rapplication.h",
+			"MU",
+			"HHAFUR3RYL/moc_rapplication.cpp"
+		],
+		[
+			"/home/javier/robocomp/classes/sigwatch/sigwatch.h",
+			"MU",
+			"OIUJXPQYPG/moc_sigwatch.cpp"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/commonbehaviorI.h",
+			"MU",
+			"EWIEGA46WW/moc_commonbehaviorI.cpp"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/genericmonitor.h",
+			"MU",
+			"EWIEGA46WW/moc_genericmonitor.cpp"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/genericworker.h",
+			"MU",
+			"EWIEGA46WW/moc_genericworker.cpp"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/movetowardsI.h",
+			"MU",
+			"EWIEGA46WW/moc_movetowardsI.cpp"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/specificmonitor.h",
+			"MU",
+			"EWIEGA46WW/moc_specificmonitor.cpp"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/specificworker.h",
+			"MU",
+			"EWIEGA46WW/moc_specificworker.cpp"
+		]
+	],
+	"HEADER_EXTENSIONS" : [ "h", "hh", "h++", "hm", "hpp", "hxx", "in", "txx" ],
+	"INCLUDE_DIR" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/dwa_dsr_autogen/include",
+	"MOC_COMPILATION_FILE" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/dwa_dsr_autogen/mocs_compilation.cpp",
+	"MOC_DEFINITIONS" : 
+	[
+		"ICE_CPP11_MAPPING",
+		"QT_CORE_LIB",
+		"QT_GUI_LIB",
+		"QT_NETWORK_LIB",
+		"QT_NO_DEBUG",
+		"QT_OPENGL_LIB",
+		"QT_PRINTSUPPORT_LIB",
+		"QT_SQL_LIB",
+		"QT_WIDGETS_LIB",
+		"QT_XMLPATTERNS_LIB",
+		"QT_XML_LIB"
+	],
+	"MOC_DEPEND_FILTERS" : 
+	[
+		[
+			"Q_PLUGIN_METADATA",
+			"[\n][ \t]*Q_PLUGIN_METADATA[ \t]*\\([^\\)]*FILE[ \t]*\"([^\"]+)\""
+		]
+	],
+	"MOC_INCLUDES" : 
+	[
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src",
+		"/opt/robocomp/include",
+		"/classes",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr",
+		"/home/javier/robocomp/classes",
+		"/home/javier/robocomp/libs",
+		"/home/javier/robocomp/interfaces",
+		"/include",
+		"/usr/include/eigen3",
+		"/usr/include/x86_64-linux-gnu/qt5",
+		"/usr/include/x86_64-linux-gnu/qt5/QtPrintSupport",
+		"/usr/include/x86_64-linux-gnu/qt5/QtWidgets",
+		"/usr/include/x86_64-linux-gnu/qt5/QtGui",
+		"/usr/include/x86_64-linux-gnu/qt5/QtCore",
+		"/usr/lib/x86_64-linux-gnu/qt5/mkspecs/linux-g++",
+		"/usr/include/x86_64-linux-gnu/qt5/QtSql",
+		"/usr/include/x86_64-linux-gnu/qt5/QtOpenGL",
+		"/usr/include/x86_64-linux-gnu/qt5/QtXml",
+		"/usr/include/x86_64-linux-gnu/qt5/QtXmlPatterns",
+		"/usr/include/x86_64-linux-gnu/qt5/QtNetwork",
+		"/usr/include/c++/10",
+		"/usr/include/x86_64-linux-gnu/c++/10",
+		"/usr/include/c++/10/backward",
+		"/usr/lib/gcc/x86_64-linux-gnu/10/include",
+		"/usr/local/include",
+		"/usr/include/x86_64-linux-gnu",
+		"/usr/include"
+	],
+	"MOC_MACRO_NAMES" : [ "Q_OBJECT", "Q_GADGET", "Q_NAMESPACE" ],
+	"MOC_OPTIONS" : [],
+	"MOC_PATH_PREFIX" : true,
+	"MOC_PREDEFS_CMD" : 
+	[
+		"/usr/bin/c++",
+		"-dM",
+		"-E",
+		"-c",
+		"/usr/share/cmake-3.16/Modules/CMakeCXXCompilerABI.cpp"
+	],
+	"MOC_PREDEFS_FILE" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/dwa_dsr_autogen/moc_predefs.h",
+	"MOC_RELAXED_MODE" : false,
+	"MOC_SKIP" : 
+	[
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/BillCoppelia.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/CommonBehavior.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/DifferentialRobot.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/FullPoseEstimation.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/GenericBase.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/Laser.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/MoveTowards.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/OmniRobot.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/ui_mainUI.h"
+	],
+	"MULTI_CONFIG" : false,
+	"PARALLEL" : 10,
+	"PARSE_CACHE_FILE" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/CMakeFiles/dwa_dsr_autogen.dir/ParseCache.txt",
+	"QT_MOC_EXECUTABLE" : "/usr/lib/qt5/bin/moc",
+	"QT_UIC_EXECUTABLE" : "/usr/lib/qt5/bin/uic",
+	"QT_VERSION_MAJOR" : 5,
+	"SETTINGS_FILE" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/CMakeFiles/dwa_dsr_autogen.dir/AutogenUsed.txt",
+	"SOURCES" : 
+	[
+		[ "/home/javier/robocomp/classes/qcustomplot/qcustomplot.cpp", "MU" ],
+		[ "/home/javier/robocomp/classes/qlog/qlog.cpp", "MU" ],
+		[ "/home/javier/robocomp/classes/rapplication/rapplication.cpp", "MU" ],
+		[ "/home/javier/robocomp/classes/sigwatch/sigwatch.cpp", "MU" ],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/commonbehaviorI.cpp",
+			"MU"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/genericmonitor.cpp",
+			"MU"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/genericworker.cpp",
+			"MU"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/main.cpp",
+			"MU"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/movetowardsI.cpp",
+			"MU"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/specificmonitor.cpp",
+			"MU"
+		],
+		[
+			"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/specificworker.cpp",
+			"MU"
+		]
+	],
+	"UIC_OPTIONS" : [],
+	"UIC_SEARCH_PATHS" : [],
+	"UIC_SKIP" : 
+	[
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/BillCoppelia.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/CommonBehavior.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/DifferentialRobot.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/FullPoseEstimation.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/GenericBase.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/Laser.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/MoveTowards.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/OmniRobot.cpp",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/mainUI.ui",
+		"/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/src/ui_mainUI.h"
+	],
+	"UIC_UI_FILES" : [],
+	"VERBOSITY" : 0
+}

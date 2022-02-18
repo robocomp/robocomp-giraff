@@ -1,0 +1,96 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-38d288cb4289ecbe41d3.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "2.8"
+					},
+					"projectIndex" : 0,
+					"source" : "."
+				},
+				{
+					"build" : "src",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-src-Debug-38ac5a208d8238e1a423.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "src",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "dwa_dsr",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 1,
+					"id" : "ICES__home_javier_robocomp_components_robocomp-giraff_agentes_dwa_dsr_src::@145eef247bfb46b6828c",
+					"jsonFile" : "target-ICES__home_javier_robocomp_components_robocomp-giraff_agentes_dwa_dsr_src-Debug-936503898f9a07773a06.json",
+					"name" : "ICES__home_javier_robocomp_components_robocomp-giraff_agentes_dwa_dsr_src",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "dwa_dsr::@145eef247bfb46b6828c",
+					"jsonFile" : "target-dwa_dsr-Debug-7152bbbbed3728a6cab8.json",
+					"name" : "dwa_dsr",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "dwa_dsr_autogen::@145eef247bfb46b6828c",
+					"jsonFile" : "target-dwa_dsr_autogen-Debug-625400528ebeb1b6187b.json",
+					"name" : "dwa_dsr_autogen",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr/cmake-build-debug",
+		"source" : "/home/javier/robocomp/components/robocomp-giraff/agentes/dwa_dsr"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}
