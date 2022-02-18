@@ -34,13 +34,14 @@
 #include <CameraRGBDSimple.h>
 #include <HumanCameraBody.h>
 #include <JointMotorSimple.h>
+#include <RealSenseFaceID.h>
 
 
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
 
 
-using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompHumanCameraBody::HumanCameraBodyPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr>;
+using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompHumanCameraBody::HumanCameraBodyPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr,RoboCompRealSenseFaceID::RealSenseFaceIDPrxPtr>;
 
 
 class GenericWorker : public QMainWindow, public Ui_guiDlg
@@ -59,6 +60,7 @@ public:
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompHumanCameraBody::HumanCameraBodyPrxPtr humancamerabody_proxy;
 	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
+	RoboCompRealSenseFaceID::RealSenseFaceIDPrxPtr realsensefaceid_proxy;
 
 
 protected:

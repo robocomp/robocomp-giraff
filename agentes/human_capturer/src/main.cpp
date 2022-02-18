@@ -132,6 +132,7 @@ int ::human_capturer::run(int argc, char* argv[])
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompHumanCameraBody::HumanCameraBodyPrxPtr humancamerabody_proxy;
 	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;
+	RoboCompRealSenseFaceID::RealSenseFaceIDPrxPtr realsensefaceid_proxy;
 
 	string proxy, tmp;
 	initialize();
@@ -184,7 +185,23 @@ int ::human_capturer::run(int argc, char* argv[])
 	rInfo("JointMotorSimpleProxy initialized Ok!");
 
 
-	tprx = std::make_tuple(camerargbdsimple_proxy,humancamerabody_proxy,jointmotorsimple_proxy);
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "RealSenseFaceIDProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy RealSenseFaceIDProxy\n";
+		}
+		realsensefaceid_proxy = Ice::uncheckedCast<RoboCompRealSenseFaceID::RealSenseFaceIDPrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy RealSenseFaceID: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("RealSenseFaceIDProxy initialized Ok!");
+
+
+	tprx = std::make_tuple(camerargbdsimple_proxy,humancamerabody_proxy,jointmotorsimple_proxy,realsensefaceid_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx, startup_check_flag);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());

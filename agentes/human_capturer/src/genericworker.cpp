@@ -26,6 +26,7 @@ GenericWorker::GenericWorker(TuplePrx tprx) : Ui_guiDlg()
 	camerargbdsimple_proxy = std::get<0>(tprx);
 	humancamerabody_proxy = std::get<1>(tprx);
 	jointmotorsimple_proxy = std::get<2>(tprx);
+	realsensefaceid_proxy = std::get<3>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 
