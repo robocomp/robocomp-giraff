@@ -19,16 +19,19 @@ class Plan
         Plan(Actions action_)
         {
             this->action = action_;
-            planJ.insert(QString::fromStdString(convert_action_to_string(action_)), QVariantMap());
+            planJ.insert(QString::fromStdString("type"), convert_action_to_qstring(action_));
+            /* TODO: give each new plan an unique id */
+            planJ.insert(QString::fromStdString("id"), 0);
             state = PlanState::CREATING;
         }
         Plan(const std::string &plan_string)
         {
             try
             {
+                /* Asumimos un plan compuesto, pero con una única primitiva */
                 QJsonDocument doc = QJsonDocument::fromJson(QString::fromStdString(plan_string).toUtf8());
-                planJ = qvariant_cast<QVariantMap>(doc.toVariant());
-                QString act = planJ.keys().front();  // OJO ES SOLO LA PRIMERA KEY DEL MAPA
+                planJ = qvariant_cast<QVariantMap>(qvariant_cast<QVariantList>(doc.toVariant()).first());
+                QString act = planJ["type"].toString();
                 this->action = convert_string_to_action(act.toStdString());
                 state = PlanState::CREATING;
             }
@@ -41,20 +44,19 @@ class Plan
         void new_plan(Actions action_)
         {
             planJ.clear();
-            planJ.insert(convert_action_to_qstring(action_), QVariantMap());
+            planJ.insert(QString::fromStdString("type"), convert_action_to_qstring(action_));
+            /* TODO: give each new plan an unique id */
+            planJ.insert(QString::fromStdString("id"), 0);
             this->action = action_;
             state = PlanState::CREATING;
         }
         void insert_attribute(const std::string &key, QVariant value)
         {
-            auto p = qvariant_cast<QVariantMap>(planJ[convert_action_to_qstring(this->action)]);
-            p.insert(QString::fromStdString(key), value);
-            planJ[convert_action_to_qstring(this->action)].setValue(p);
+            planJ.insert(QString::fromStdString(key), value);
         }
         QVariant get_attribute(const std::string &key)
         {
-            auto p = qvariant_cast<QVariantMap>(planJ[convert_action_to_qstring(this->action)]);
-            return p.value(QString::fromStdString(key));
+            return planJ[QString::fromStdString(key)];
         }
         void reset()
         {
@@ -65,7 +67,9 @@ class Plan
         QString get_action() const { return convert_action_to_qstring(this->action); };
         std::string to_json() const
         {
-            QJsonDocument json = QJsonDocument::fromVariant(planJ);
+            QVariantList list = QVariantList();
+            list.append(planJ);
+            QJsonDocument json = QJsonDocument::fromVariant(list);
             //QTextStream ts(stdout);
             //ts << json.toJson();
             return QString(json.toJson()).toStdString();
@@ -75,11 +79,11 @@ class Plan
             std::stringstream ss;
             ss << "Plan:" << std::endl;
             ss << "\t" << "Action: " << convert_action_to_string(action) << std::endl;
-            for(const auto p : planJ.keys())
-                for(const auto e : qvariant_cast<QVariantMap>(planJ[p]).keys())
-                {
-                    ss << "\t\t" << e.toStdString() << " : " << qvariant_cast<QVariantMap>(planJ[p])[e].toString().toStdString() << std::endl;
-                }
+            for(const auto p : planJ.keys()) {
+                if (p == QString::fromStdString("type"))
+                    continue;
+                ss << "\t\t" << p.toStdString() << " : " << planJ[p].toString().toStdString() << std::endl;
+            }
            return ss.str();
         };
         bool is_running() const {return state == PlanState::RUNNING;};
@@ -163,7 +167,7 @@ class Plan
         typedef bool (Plan::*Test)();
         bool GOTO_test()
         {
-            auto params = qvariant_cast<QVariantMap>(planJ["GOTO"]);
+            auto params = planJ;
             if(not params.contains("x"))
             { qWarning() << __FUNCTION__ << "Missing x"; return false; }
             if(not params.contains("y"))
