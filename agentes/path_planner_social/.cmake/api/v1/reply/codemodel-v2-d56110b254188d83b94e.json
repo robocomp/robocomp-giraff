@@ -1,0 +1,96 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-bd7d37b43e0ab1f6e95e.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "2.8"
+					},
+					"projectIndex" : 0,
+					"source" : "."
+				},
+				{
+					"build" : "src",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-src-Debug-229064e6e19e4e1e433c.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "2.8.11"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "src",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "path_planner_astar",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 1,
+					"id" : "ICES__home_robo02_robocomp_components_dsr-graph_components_path_planner_astar_src::@145eef247bfb46b6828c",
+					"jsonFile" : "target-ICES__home_robo02_robocomp_components_dsr-graph_components_path_planner_astar_src-Debug-5a7c29187656145a300d.json",
+					"name" : "ICES__home_robo02_robocomp_components_dsr-graph_components_path_planner_astar_src",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "path_planner_astar::@145eef247bfb46b6828c",
+					"jsonFile" : "target-path_planner_astar-Debug-751fa3f85a1be3cc49a0.json",
+					"name" : "path_planner_astar",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "path_planner_astar_autogen::@145eef247bfb46b6828c",
+					"jsonFile" : "target-path_planner_astar_autogen-Debug-adf42449a298653e0efe.json",
+					"name" : "path_planner_astar_autogen",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/robo02/robocomp/components/dsr-graph/components/path_planner_astar",
+		"source" : "/home/robo02/robocomp/components/dsr-graph/components/path_planner_astar"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}
