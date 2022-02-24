@@ -19,10 +19,6 @@ Ice.loadSlice("-I ./src/ --all ./src/JointMotorSimple.ice")
 import RoboCompJointMotorSimple
 Ice.loadSlice("-I ./src/ --all ./src/MoveTowards.ice")
 import RoboCompMoveTowards
-Ice.loadSlice("-I ./src/ --all ./src/SoundRotation.ice")
-import RoboCompSoundRotation
-Ice.loadSlice("-I ./src/ --all ./src/SoundRotationPub.ice")
-import RoboCompSoundRotationPub
 
 class ImgType(list):
     def __init__(self, iterable=list()):
@@ -186,45 +182,8 @@ class People(list):
         super(People, self).insert(index, item)
 
 setattr(RoboCompHumanCameraBody, "People", People)
-class positions(list):
-    def __init__(self, iterable=list()):
-        super(positions, self).__init__(iterable)
-
-    def append(self, item):
-        assert isinstance(item, RoboCompSoundRotation.Position)
-        super(positions, self).append(item)
-
-    def extend(self, iterable):
-        for item in iterable:
-            assert isinstance(item, RoboCompSoundRotation.Position)
-        super(positions, self).extend(iterable)
-
-    def insert(self, index, item):
-        assert isinstance(item, RoboCompSoundRotation.Position)
-        super(positions, self).insert(index, item)
-
-setattr(RoboCompSoundRotation, "positions", positions)
-class positions(list):
-    def __init__(self, iterable=list()):
-        super(positions, self).__init__(iterable)
-
-    def append(self, item):
-        assert isinstance(item, RoboCompSoundRotationPub.Position)
-        super(positions, self).append(item)
-
-    def extend(self, iterable):
-        for item in iterable:
-            assert isinstance(item, RoboCompSoundRotationPub.Position)
-        super(positions, self).extend(iterable)
-
-    def insert(self, index, item):
-        assert isinstance(item, RoboCompSoundRotationPub.Position)
-        super(positions, self).insert(index, item)
-
-setattr(RoboCompSoundRotationPub, "positions", positions)
 
 import followerI
-import soundrotationpubI
 
 
 
@@ -274,8 +233,6 @@ class Requires:
 
         self.MoveTowards = self.create_proxy("MoveTowardsProxy", RoboCompMoveTowards.MoveTowardsPrx)
 
-        self.SoundRotation = self.create_proxy("SoundRotationProxy", RoboCompSoundRotation.SoundRotationPrx)
-
     def get_proxies_map(self):
         return self.mprx
 
@@ -302,8 +259,6 @@ class Subscribes:
     def __init__(self, ice_connector, topic_manager, default_handler):
         self.ice_connector = ice_connector
         self.topic_manager = topic_manager
-
-        self.SoundRotationPub = self.create_adapter("SoundRotationPubTopic", soundrotationpubI.SoundRotationPubI(default_handler))
 
     def create_adapter(self, property_name, interface_handler):
         adapter = self.ice_connector.createObjectAdapter(property_name)
@@ -346,7 +301,7 @@ class InterfaceManager:
         # TODO: Make ice connector singleton
         self.ice_config_file = ice_config_file
         self.ice_connector = Ice.initialize(self.ice_config_file)
-        needs_rcnode = True
+        needs_rcnode = False
         self.topic_manager = self.init_topic_manager() if needs_rcnode else None
 
         self.status = 0

@@ -30,6 +30,7 @@ sys.path.append('/opt/robocomp/lib')
 console = Console(highlight=False)
 import matplotlib.pyplot as plt
 from pydsr import *
+import math
 
 
 # If RoboComp was compiled with Python bindings you can use InnerModel in Python
@@ -38,7 +39,7 @@ from pydsr import *
 # import librobocomp_innermodel
 
 MIN_VELOCITY = 0.05
-TOLERANCE = 0.001
+TOLERANCE = 0.02
 
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
@@ -62,14 +63,21 @@ class SpecificWorker(GenericWorker):
         self.k3 = 0.9
         self.k4 = 1
         self.k5 = 0.7
-        self.k6 = 2
-        self.k7 = 5
+        self.k6 = 1
+        self.k7 = 1
 
         self.error_ant = 0
         self.rad_old = 0
+        self.last_motor_pos = 0
+
+        self.distance_avg = 0
+        self.distance_limit = 1.2
 
         self.rotational_speed_coefficients=[0,0,0]
         self.rotational_speed_avg=0
+
+        self.lineal_speed_coefficients=[0,0,0]
+        self.lineal_speed_avg = 0
 
         with open('human_pose.json', 'r') as f:
             self.human_pose = json.load(f)
@@ -82,7 +90,7 @@ class SpecificWorker(GenericWorker):
         # YOU MUST SET AN UNIQUE ID FOR THIS AGENT IN YOUR DEPLOYMENT. "_CHANGE_THIS_ID_" for a valid unique integer
         self.agent_id = 968
         self.g = DSRGraph(0, "eye_control", self.agent_id)
-
+        self.rt_api = rt_api(self.g)
 
         try:
             signals.connect(self.g, signals.UPDATE_NODE_ATTR, self.update_node_att)
@@ -128,63 +136,133 @@ class SpecificWorker(GenericWorker):
         people_nodes = self.g.get_nodes_by_type('person')
         if len(people_nodes) == 0:
             pass
-
         for person in people_nodes:
-            is_followed = person.attrs['followed'].value
-            is_lost = person.attrs['lost'].value
-            print(is_followed)
-            if is_followed:
-                if is_lost:
+            following = False
+            lost = False
+            object_edges = self.g.get_edges_to_id(person.id)
+            for ed in object_edges:
+                if ed.type == 'following':
+                    following = True
+                if ed.type == 'lost':
+                    lost = True
+            if following:
+                if lost:
+                    robot_node = self.g.get_node('robot')
                     goal = ifaces.RoboCompJointMotorSimple.MotorGoalPosition()
                     goal.maxSpeed = 0
                     goal.position = 0
                     self.jointmotorsimple_proxy.setPosition("", goal)
+                    if(robot_node.attrs['robot_ref_adv_speed'].value != 0 and robot_node.attrs['robot_ref_rot_speed'].value != 0):
+                        self.rotational_speed_coefficients.append(0)
+                        self.rotational_speed_coefficients.pop(0)
+                        self.rotational_speed_avg = sum(self.rotational_speed_coefficients) / len(
+                            self.rotational_speed_coefficients)
+
+                        # Filtering lineal speeds
+                        self.lineal_speed_coefficients.append(0)
+                        self.lineal_speed_coefficients.pop(0)
+                        self.lineal_speed_avg = sum(self.lineal_speed_coefficients) / len(self.lineal_speed_coefficients)
+
+                        robot_node.attrs['robot_ref_adv_speed'] = Attribute(float(self.lineal_speed_avg), self.agent_id)
+                        robot_node.attrs['robot_ref_rot_speed'] = Attribute(float(self.rotational_speed_avg), self.agent_id)
+                        self.g.update_node(robot_node)
                 else:
-                    self.tracker_camera(color, person.attrs['pixel_x'].value)
-            elif abs(self.motor.pos > 0.05):
-                goal = ifaces.RoboCompJointMotorSimple.MotorGoalPosition()
-                goal.maxSpeed = 0
-                goal.position = 0
-                self.jointmotorsimple_proxy.setPosition("", goal)
+                    self.tracker_camera(color, person)
 
 
 
         self.refesco_ventana(color, image)
 
-    def tracker_camera(self, color, puntoMedioX):
+    def tracker_camera(self, color, person):
+        # object_edges = self.g.get_edges_to_id(person.id)
+        # for ed in object_edges:
+        #     if ed.type == 'almost_lost':
+        #         last_person_point = np.array(self.rt_api.get_translation(self.g.get_node('world').id, person.id))
+        #         last_person_point = inner.transform("robot", last_person_point, "world", 0)
+        #         arrived = False
+        #         while not arrived:
+        #             act_robot_position = np.array(self.rt_api.get_translation(self.g.get_node('world').id, self.g.get_node('robot').id))
+        #             act_robot_position = inner.transform("robot", act_robot_position, "world", 0)
+        #             distance_to_target = math.sqrt((last_person_point[0]) ** 2 + (last_person_point[1]) ** 2)
+        #             angle_respect_to_point = np.arctan2(last_person_point[1], last_person_point[0])
+        #             print("DISTANCE: ", distance_to_target)
+        #             print("ANGLE: ", angle_respect_to_point)
+        #             self.rotational_speed_coefficients.append(self.k3 * angle_respect_to_point)
+        #             self.rotational_speed_coefficients.pop(0)
+        #             self.rotational_speed_avg = sum(self.rotational_speed_coefficients) / len(self.rotational_speed_coefficients)
+        #             self.lineal_speed_coefficients.append(distance_to_target)
+        #             self.lineal_speed_coefficients.pop(0)
+        #             self.lineal_speed_avg = sum(self.lineal_speed_coefficients) / len(self.lineal_speed_coefficients)
+        #             robot_node.attrs['robot_ref_adv_speed'] = Attribute(float(self.lineal_speed_avg), self.agent_id)
+        #             robot_node.attrs['robot_ref_rot_speed'] = Attribute(float(self.rotational_speed_avg), self.agent_id)
+        #             if distance_to_target < 100:
+        #                 arrived = True
+
+        puntoMedioX = person.attrs['pixel_x'].value
+        distance = person.attrs['distance_to_robot'].value
+
         error = puntoMedioX - color.width / 2
         goal = ifaces.RoboCompJointMotorSimple.MotorGoalPosition()
         der_error = -(error - self.error_ant)
         error_rads = np.arctan2(error, color.focalx)
         der_error_rads = np.arctan2(der_error, color.focalx)
 
-        # goal_rad = self.motor.pos - error_rads - self.rotational_speed_avg * (self.Period_camera/1000)
-        # goal_rad = self.motor.pos - (
-        #             self.k1 * error_rads + self.k2 * der_error_rads) + self.rotational_speed_avg * (
-        #                        self.Period / 1000)
+        goal_rad = self.motor.pos - (
+                    self.k1 * error_rads + self.k2 * der_error_rads) + self.rotational_speed_avg * (
+                               self.Period / 1000)
 
-        goal_rad = self.motor.pos - (self.k1 * error_rads + self.k2 * der_error_rads)
-        print("GOAL RADS: ", goal_rad)
+        # print("GOAL RADS: ", goal_rad)
 
         # Se mueve el sujeto?
-        if self.rad_old > goal_rad + TOLERANCE or self.rad_old < goal_rad - TOLERANCE:
-            rad_seg = self.k5 * error_rads + self.k2 * der_error_rads
-            print(rad_seg)
-            # filtramos velicidad, ya que 0 es maxima
-            print("error rads: ", error_rads)
-            if abs(error_rads) > 0.1:
-                goal.maxSpeed = 0
+        # if abs(self.error_ant) > TOLERANCE:
+        rad_seg = self.k5 * error_rads + self.k2 * der_error_rads
+        print(rad_seg)
+        # filtramos velicidad, ya que 0 es maxima
+        print("error rads: ", error_rads)
+        if abs(error_rads) > 0.1:
+            goal.maxSpeed = 0
+        else:
+            if abs(rad_seg) < MIN_VELOCITY:
+                goal.maxSpeed = MIN_VELOCITY
             else:
-                if abs(rad_seg) < MIN_VELOCITY:
-                    goal.maxSpeed = MIN_VELOCITY
-                else:
-                    goal.maxSpeed = rad_seg
-            print("max speed: ", goal.maxSpeed)
-            goal.position = goal_rad
-            # mandamos al motor el objetivo
-            self.jointmotorsimple_proxy.setPosition("", goal)
-            self.error_ant = error
-            self.rad_old = goal_rad
+                goal.maxSpeed = rad_seg
+        print("max speed: ", goal.maxSpeed)
+        goal.position = goal_rad
+        # mandamos al motor el objetivo
+        self.jointmotorsimple_proxy.setPosition("", goal)
+
+        robot_node = self.g.get_node('robot')
+        pos_error = self.motor.pos - self.last_motor_pos
+        self.rotational_speed_coefficients.append(-self.k3 * self.motor.pos + self.k4 * pos_error)
+        self.rotational_speed_coefficients.pop(0)
+        self.rotational_speed_avg = sum(self.rotational_speed_coefficients) / len(
+            self.rotational_speed_coefficients)
+
+        robot_node.attrs['robot_ref_rot_speed'] = Attribute(float(self.rotational_speed_avg), self.agent_id)
+
+        self.last_motor_pos = self.motor.pos
+        # print("COEFICIENTES BASE: ", self.rotational_speed_coefficients)
+        # print("VELOCIDAD DE LA BASE: ", self.rotational_speed_avg)
+
+        distance_difference = self.k6 * (distance/1000 - self.distance_limit)
+        print(distance_difference)
+        # print("DISTANCE DEPENDENT COEFFICIENT: ", ((math.exp(distance_difference) - math.exp(-distance_difference)) / (math.exp(distance_difference) + math.exp(-distance_difference))))
+        # print("ROTATION DEPENDENT COEFFICIENT: ", (math.exp(-self.k7 * (self.rotational_speed_avg ** 2))))
+
+        base_speed_lin = 700 * ((math.exp(distance_difference) - math.exp(-distance_difference)) / (math.exp(distance_difference) + math.exp(-distance_difference))) * (math.exp(-self.k7 * (self.rotational_speed_avg ** 2)))
+
+        # Filtering lineal speeds
+        self.lineal_speed_coefficients.append(base_speed_lin)
+        self.lineal_speed_coefficients.pop(0)
+        self.lineal_speed_avg = sum(self.lineal_speed_coefficients) / len(self.lineal_speed_coefficients)
+
+        # print("VELOCIDAD DE LA BASE: ", self.rotational_speed_avg, " ", self.lineal_speed_avg)
+
+        robot_node.attrs['robot_ref_adv_speed'] = Attribute(float(self.lineal_speed_avg), self.agent_id)
+        self.g.update_node(robot_node)
+
+        self.error_ant = error
+        self.rad_old = goal_rad
 
     def obtencion_datos(self):
         try:
