@@ -1,0 +1,16 @@
+import "Conversation.idsl";
+import "AgenteConversacional.idsl";
+import "Follower.idsl";
+
+Component conversationalAgent
+{
+    Communications
+    {
+    	implements AgenteConversacional;
+        requires Conversation, Follower;
+    };
+    language Cpp11;
+    gui Qt(QMainWindow);
+    options dsr;
+};
+
