@@ -1,0 +1,11 @@
+
+Component human_observer
+{
+    Communications
+    {
+    };
+    language Cpp11;
+    gui Qt(QMainWindow);
+    options dsr;
+};
+
