@@ -2,8 +2,6 @@
 Follower.Endpoints=tcp -p 18917
 
 
-# Endpoints for subscriptions interfaces
-SoundRotationPubTopic.Endpoints=tcp -p 17267
 
 
 # Proxies for required interfaces
@@ -12,7 +10,6 @@ DifferentialRobotProxy = differentialrobot:tcp -h 192.168.3.5 -p 10004
 HumanCameraBodyProxy = humancamerabody:tcp -h 192.168.3.6 -p 14213
 JointMotorSimpleProxy = jointmotorsimple:tcp -h 192.168.3.5 -p 17193
 MoveTowardsProxy = movetowards:tcp -h localhost -p 14084
-SoundRotationProxy = soundrotation:tcp -h 192.168.3.5 -p 13075
 
 
 
