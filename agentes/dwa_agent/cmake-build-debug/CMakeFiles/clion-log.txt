@@ -1,0 +1,34 @@
+/snap/clion/184/bin/cmake/linux/bin/cmake -DCMAKE_BUILD_TYPE=Debug -G "Unix Makefiles" /home/javier/robocomp/components/optimizer/dwa_agent
+CMake Deprecation Warning at CMakeLists.txt:1 (cmake_minimum_required):
+  Compatibility with CMake < 2.8.12 will be removed from a future version of
+  CMake.
+
+  Update the VERSION argument <min> value or use a ...<max> suffix to tell
+  CMake that the project does not need compatibility with older versions.
+
+
+CMake Warning at src/CMakeLists.txt:5 (MESSAGE):
+  ROBOCOMP variable not set.  Using the default value: /opt/robocomp
+
+
+-- COMPILING WITH QT5
+-- Ice version: 3.7.3
+-- Found the following Ice libraries:
+--   Ice++11 (required)
+--   IceStorm++11 (required)
+-- Found Ice: /usr/bin/slice2cpp (found version "3.7.3") 
+-- RoboComp root is now set to /opt/robocomp//
+-- 
+-- Ice version: 3.7.3
+-- Found the following Ice libraries:
+--   Ice (required)
+--   IceStorm (required)
+-- The following Ice libraries were not found:
+--   IceUtil (optional)
+-- Found Ice: /usr/bin/slice2cpp (found version "3.7.3") 
+-- BU Adding rule to generate /home/javier/robocomp/components/optimizer/dwa_agent/src/CommonBehavior.ice from /opt/robocomp//interfaces/IDSLs/CommonBehavior.idsl
+-- BU ice=>h/cpp: Adding rule to generate CommonBehavior.h and CommonBehavior.cpp from /home/javier/robocomp/components/optimizer/dwa_agent/src/CommonBehavior.ice
+-- Generating header file from mainUI.ui
+-- Configuring done
+-- Generating done
+-- Build files have been written to: /home/javier/robocomp/components/optimizer/dwa_agent

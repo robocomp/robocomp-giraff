@@ -56,7 +56,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
-	this->Period = 10;
+	this->Period = 50;
 	if(this->startup_check_flag)
 	{
 		this->startup_check();
@@ -159,6 +159,7 @@ void SpecificWorker::compute()
 
     const auto &[l_poly, ldata] = read_laser();
     laser_poly = l_poly;
+    draw_laser(laser_poly);
 
     if(auto robot_node = G->get_node("robot"); robot_node.has_value())
     {
@@ -173,27 +174,19 @@ void SpecificWorker::compute()
                 {
                     if(auto robot_person_RT = G->get_edge(robot_node.value().id(), p.id(), "RT"); robot_person_RT.has_value())
                     {
-                        std::cout << "1" << std::endl;
-                        auto person_pos = G->get_attrib_by_name<rt_translation_att>(robot_person_RT.value()).value().get();
-                        std::cout << "2" << std::endl;
-                        target_in_robot = {person_pos[0], person_pos[1]};
-                        std::cout << "3" << std::endl;
-                        Eigen::Vector2f target {person_pos[0], person_pos[1]};
-                        std::cout << "4" << std::endl;
-                        auto dist = target_in_robot.norm();
-                        std::cout << "5" << std::endl;
-                        if( dist > constants.final_distance_to_target)
+                        if(auto person_pos = G->get_attrib_by_name<rt_translation_att>(robot_person_RT.value()); person_pos.has_value())
                         {
-                            std::cout << "6" << std::endl;
-                            // compute the closest point to target inside laser as a provisional target
+                        target_in_robot = {person_pos.value().get()[0], person_pos.value().get()[1]};
+                        Eigen::Vector2f target {person_pos.value().get()[0], person_pos.value().get()[1]};
+                        auto dist = target_in_robot.norm();
 
+                            // compute the closest point to target inside laser as a provisional target
                             Eigen::Vector2f s_target = sub_target(target, l_poly, ldata );
 
-                            for (int i = 0; i < laser_poly.size(); ++i)
-                            {
-                                std::cout << "VALOR LASER: " << laser_poly.value(i).x() << " " << laser_poly.value(i).y() << std::endl;
-                            }
-                            std::cout << "7" << std::endl;
+//                            for (int i = 0; i < laser_poly.size(); ++i)
+//                            {
+//                                std::cout << "VALOR LASER: " << laser_poly.value(i).x() << " " << laser_poly.value(i).y() << std::endl;
+//                            }
                             Result res;
                             if( auto res_o =  control(s_target, laser_poly, advance, rotation, &viewer_robot->scene); not res_o.has_value())
                             {   // no control
@@ -202,29 +195,32 @@ void SpecificWorker::compute()
                                 if(stuck = do_if_stuck(0, 0,  lhit, rhit); stuck == true)
                                     return;
                                 else  // no stuck. Probably an osbtacle appeared suddenly.
-                                move_robot(0, 0);
+                                    move_robot(0, 0);
                             }
                             else
                                 res = res_o.value();
                             auto [_, __, adv, rot, ___] = res;
-                            std::cout << "8" << std::endl;
-                            rot = 0.8 * rot;
-                            adv = 0.8 * adv;
+//                            std::cout << "ROT: " << rot << std::endl;
+//                            std::cout << "ROTATION: " << rotation << std::endl;
+                            std::cout << "ROTATION DIFFERENCE: " << 0.5 * (rot - rotation) << std::endl;
+                            rot += 0.3 * (rot - rotation);
+
                             lateral_bumpers(rot, lhit, rhit);   // check lateral collisions
-                            std::cout << "9" << std::endl;
+//                            std::cout << "9" << std::endl;
 //                            adv = adv * gaussian(rot);          // slow down if rotating
-                            std::cout << "10" << std::endl;
-                            move_robot(adv,  rot);
-                            std::cout << "11" << std::endl;
+//                            std::cout << "10" << std::endl;
+
+                            if(dist < constants.final_distance_to_target * 2)
+                            {
+                                adv = adv * (dist - constants.final_distance_to_target)/constants.final_distance_to_target;
+                            }
+
+                            move_robot(adv * 1.5,  rot);
+//                            std::cout << "11" << std::endl;
                             qInfo() << __FUNCTION__ << adv << rot;
                             //stuck = do_if_stuck(adv_n, rot, r_state, lhit, rhit);
 //                            draw_timeseries(rot*5, adv/100, (int)lhit*5, (int)rhit*5, (int)stuck*5);
                         }
-                        else
-                        {
-                            move_robot(0, 0);
-                        }
-
                     }
                 }
             }
@@ -235,7 +231,6 @@ void SpecificWorker::compute()
 
 Eigen::Vector2f SpecificWorker::sub_target(Eigen::Vector2f &target, const QPolygonF &poly, const SpecificWorker::ldata &ldata)
 {
-    qInfo() << __FUNCTION__ << "fuck";
     static QGraphicsRectItem *former_draw = nullptr;
     if(former_draw != nullptr)
         viewer_robot->scene.removeItem(former_draw);
@@ -293,7 +288,7 @@ Eigen::Vector2f SpecificWorker::sub_target(Eigen::Vector2f &target, const QPolyg
 // lateral bumpers
 void SpecificWorker::lateral_bumpers(float &rot, bool &lhit, bool &rhit)
 {
-    qInfo() << __FUNCTION__ << "fuck";
+//    qInfo() << __FUNCTION__ << "fuck";
     static float delta_rot_l = constants.initial_delta_rot;
     static float delta_rot_r = constants.initial_delta_rot;
     auto linl = laser_draw_polygon->mapFromParent(laser_poly);
@@ -357,21 +352,24 @@ std::optional<SpecificWorker::Result> SpecificWorker::control(const Eigen::Vecto
 {
 //    qInfo() << __FUNCTION__ << "fuck";
     // compute future positions of the robot
-    std::cout << "a" << std::endl;
+//    std::cout << "a" << std::endl;
     auto point_list = compute_predictions(advance, rot, laser_poly);
 
     // compute best value
-    std::cout << "b" << std::endl;
+//    std::cout << "b" << std::endl;
     auto best_choice = compute_optimus(point_list, target_r);
 
-//    if(scene != nullptr)
-//        draw_dwa(robot, point_list, best_choice, scene);
+
 
     if (best_choice.has_value())
     {
-        std::cout << "c" << std::endl;
+//        std::cout << "c" << std::endl;
         auto[x, y, v, w, alpha]= best_choice.value();  // x,y coordinates of best point, v,w velocities to reach that point, alpha robot's angle at that point
+        if(scene != nullptr)
+            draw_dwa(target_r, point_list, best_choice, scene, v, w);
+        std::cout << "SPEEEEDS: " << v << " " << w << std::endl;
         return best_choice.value();
+
     }
     else
         return {};
@@ -397,8 +395,10 @@ std::vector<SpecificWorker::Result> SpecificWorker::compute_predictions(float cu
             if (fabs(w) > 0.001)  // avoid division by zero to compute the radius
             {
 //                std::cout << "a2" << std::endl;
+
                 float r = new_adv / new_rot; // radio de giro ubicado en el eje x del robot
                 float arc_length = new_rot * constants.time_ahead * r;
+//                std::cout << "ARC LENGHT: " << arc_length << std::endl;
                 for (float t = constants.step_along_arc; t < arc_length; t += constants.step_along_arc)
                 {
 //                    std::cout << "a3" << std::endl;
@@ -412,7 +412,7 @@ std::vector<SpecificWorker::Result> SpecificWorker::compute_predictions(float cu
             {
                 for (float t = constants.step_along_arc; t < new_adv * constants.time_ahead; t += constants.step_along_arc)
                 {
-                    std::cout << "a4" << std::endl;
+//                    std::cout << "a4" << std::endl;
                     auto point = std::make_tuple(0.f, t, new_adv, new_rot, new_rot * constants.time_ahead);
                     if (t > constants.robot_semi_width and point_reachable_by_robot(point, laser_poly))
                         list_points.emplace_back(std::make_tuple(0.f, t, new_adv, new_rot, new_rot * constants.time_ahead));
@@ -453,7 +453,6 @@ bool SpecificWorker::point_reachable_by_robot(const Result &point, const QPolygo
 std::optional<SpecificWorker::Result> SpecificWorker::compute_optimus(const std::vector<Result> &points,
                                                                       const Eigen::Vector2f &tr)
 {
-//    qInfo() << __FUNCTION__ << "fuck";
     static float prev_advance = 0, prev_rot = 0;
     std::vector<std::tuple<float, Result>> values(points.size());
     for(auto &&[k, point] : iter::enumerate(points))
@@ -478,34 +477,53 @@ std::optional<SpecificWorker::Result> SpecificWorker::compute_optimus(const std:
     else
         return {};
 }
-//void SpecificWorker::draw_dwa(const Eigen::Vector3f &robot, const std::vector <Result> &puntos,
-//                              const std::optional<Result> &best, QGraphicsScene *scene)
-//{
-//    static std::vector<QGraphicsEllipseItem *> arcs_vector;
-//    // remove current arcs
-//    for (auto arc: arcs_vector)
-//        scene->removeItem(arc);
-//    arcs_vector.clear();
-//
-//    QColor col("Blue");
-//    for (auto &[x, y, vx, wx, a] : puntos)
-//    {
-//        //QPointF centro = robot_draw_polygon_draw->mapToScene(x, y);
-//        QPointF centro = to_qpointf(from_robot_to_world(Eigen::Vector2f(x, y), robot));
-//        auto arc = scene->addEllipse(centro.x(), centro.y(), 50, 50, QPen(col, 10));
-//        arc->setZValue(30);
-//        arcs_vector.push_back(arc);
-//    }
-//
-//    if(best.has_value())
-//    {
-//        auto &[x, y, _, __, ___] = best.value();
-//        QPointF selected = to_qpointf(from_robot_to_world(Eigen::Vector2f(x, y), robot));
-//        auto arc = scene->addEllipse(selected.x(), selected.y(), 180, 180, QPen(Qt::black), QBrush(Qt::black));
-//        arc->setZValue(30);
-//        arcs_vector.push_back(arc);
-//    }
-//}
+void SpecificWorker::draw_dwa(Eigen::Vector2f target, const std::vector <Result> &puntos,
+                              const std::optional<Result> &best, QGraphicsScene *scene, double advance, double rot)
+{
+
+
+    static std::vector<QGraphicsEllipseItem *> arcs_vector;
+    static std::vector<QGraphicsLineItem*> lines;
+//    QLine l_rot(toQPointF(0, 0), toQPointF(rot * 1000, 0));
+//    scene->addLine(l_rot);
+//    scene->addLine(l_adv);
+    // remove current arcs
+    for (auto arc: arcs_vector)
+        scene->removeItem(arc);
+    arcs_vector.clear();
+
+    for (auto line: lines)
+        scene->removeItem(line);
+    lines.clear();
+
+    auto adv_vector = scene->addLine(0, 0, 0, advance * 2, QPen(QColor("Blue"), 50));
+    auto rot_vector = scene->addLine(0, 0, rot*2000, 0, QPen(QColor("Red"), 50));
+    adv_vector->setZValue(30);
+    rot_vector->setZValue(30);
+    lines.push_back(adv_vector);
+    lines.push_back(rot_vector);
+
+    auto target_point = scene->addEllipse(target.x(), target.y(), 180, 180, QPen(Qt::red), QBrush(Qt::red));
+    target_point->setZValue(30);
+    arcs_vector.push_back(target_point);
+
+    QColor col("Blue");
+    for (auto &[x, y, vx, wx, a] : puntos)
+    {
+        QPointF centro = robot_draw_polygon->mapToScene(x, y);
+        auto arc = scene->addEllipse(centro.x(), centro.y(), 50, 50, QPen(col, 10));
+        arc->setZValue(30);
+        arcs_vector.push_back(arc);
+    }
+
+    if(best.has_value())
+    {
+        auto &[x, y, _, __, ___] = best.value();
+        auto arc = scene->addEllipse(x, y, 180, 180, QPen(Qt::black), QBrush(Qt::black));
+        arc->setZValue(30);
+        arcs_vector.push_back(arc);
+    }
+}
 
 std::tuple<double, double> SpecificWorker::read_base()
 {
@@ -590,10 +608,15 @@ void SpecificWorker::move_robot(float adv, float rot)
     {
         if(auto robot_node = G->get_node("robot"); robot_node.has_value())
         {
-//            std::cout << "SPEEEED: " << adv << " " << rot << std::endl;
-            G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), adv);
-            G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), rot);
+            std::cout << "SPEEEED: " << adv << " " << rot << std::endl;
+//            G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float)1.5 * adv);
+            G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (adv + last_adv_value) / 2);
+            if(rot > 1.57) rot = 1.57;
+//            rot = rot * 0.7;
+            G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float)1 *  (rot + last_rot_value) / 2);
             G->update_node(robot_node.value());
+            last_adv_value = adv;
+            last_rot_value = rot;
         }
     }
     catch (const Ice::Exception &e)
@@ -703,8 +726,8 @@ void SpecificWorker::ramer_douglas_peucker_rec(const vector<Point> &pointList, d
 //}
 float SpecificWorker::gaussian(float x)
 {
-    const double xset = 0.5;
-    const double yset = 0.4;
+    const double xset = 0.9;
+    const double yset = 0.2;
     const double s = -xset*xset/log(yset);
     return exp(-x*x/s);
 }

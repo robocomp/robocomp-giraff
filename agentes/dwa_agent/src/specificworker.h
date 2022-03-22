@@ -81,14 +81,14 @@ private:
         const float max_laser_range = 4000;
         const float robot_length = 500;
         const float robot_width = 500;
-        const float laser_x_offset = 100.0;
+        const float laser_x_offset = 0.0;
         const float laser_y_offset = 0.0;
         const float robot_semi_width = robot_width/2;
         const float robot_semi_length = robot_length/2;
-        const float final_distance_to_target = 1200; //mm
-        const float step_along_arc = 200;      // advance step along arc
+        const float final_distance_to_target = 1000; //mm
+        const float step_along_arc = 200;      // advance step  along arc
         const float time_ahead = 1.4;         // time ahead ahead
-        const float initial_delta_rot = 0.1;
+        const float initial_delta_rot = 0.3;
         const float MAX_RDP_DEVIATION_mm  =  600;       // in laser polygon simplification
         const float backward_speed = 250;               // mm/sg when going backwards after stuck
         const float A_dist_factor = 1;                  // weight for distance to target factor in optimun selection
@@ -144,7 +144,7 @@ private:
     std::vector<Result> compute_predictions(float current_adv, float current_rot, const QPolygonF &laser_poly);
     bool point_reachable_by_robot(const Result &point, const QPolygonF &laser_poly);
     std::optional<Result> compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &tr);
-//    void draw_dwa(const Eigen::Vector3f &robot, const std::vector <Result> &puntos, const std::optional<Result> &best, QGraphicsScene *scene);
+    void draw_dwa(Eigen::Vector2f target, const std::vector <Result> &puntos, const std::optional<Result> &best, QGraphicsScene *scene, double advance, double rot);
     inline QPointF to_qpointf(const Eigen::Vector2f &p) const {return QPointF(p.x(), p.y());}
 
     bool do_if_stuck(float adv, float rot, bool lhit, bool rhit);
@@ -153,6 +153,10 @@ private:
     void lateral_bumpers(float &rot, bool &lhit, bool &rhit);
 
     Eigen::Vector2f sub_target(Eigen::Vector2f &target, const QPolygonF &poly, const ldata &ldata);
+
+    // Speed filters
+    float last_adv_value = 0;
+    float last_rot_value = 0;
 };
 
 #endif

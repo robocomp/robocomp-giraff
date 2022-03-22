@@ -1,0 +1,96 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-c5f7900710dc09c97a58.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "2.8"
+					},
+					"projectIndex" : 0,
+					"source" : "."
+				},
+				{
+					"build" : "src",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-src-Debug-ef4005aeb6e927660162.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "src",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "dwa_agent",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 1,
+					"id" : "ICES__home_javier_robocomp_components_optimizer_dwa_agent_src::@145eef247bfb46b6828c",
+					"jsonFile" : "target-ICES__home_javier_robocomp_components_optimizer_dwa_agent_src-Debug-d68b844d33b032e7c744.json",
+					"name" : "ICES__home_javier_robocomp_components_optimizer_dwa_agent_src",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "dwa_agent::@145eef247bfb46b6828c",
+					"jsonFile" : "target-dwa_agent-Debug-67a8377b47950bd9f6a2.json",
+					"name" : "dwa_agent",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "dwa_agent_autogen::@145eef247bfb46b6828c",
+					"jsonFile" : "target-dwa_agent_autogen-Debug-6b946a383ead604efae7.json",
+					"name" : "dwa_agent_autogen",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/javier/robocomp/components/optimizer/dwa_agent",
+		"source" : "/home/javier/robocomp/components/optimizer/dwa_agent"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}
