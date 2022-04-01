@@ -50,7 +50,8 @@ void SpecificWorker::initialize(int period)
 
     this->dimensions = QRectF(-5100, -2600, 10200, 5200);
     viewer_robot = new AbstractGraphicViewer(this->frame_robot, this->dimensions);
-    robot_polygon = viewer_robot->add_robot(ROBOT_LENGTH);
+    const auto &[rp, ep] = viewer_robot->add_robot(ROBOT_LENGTH, ROBOT_LENGTH);
+    robot_polygon = rp;
     laser_in_robot_polygon = new QGraphicsRectItem(-10, 10, 20, 20, robot_polygon);
     laser_in_robot_polygon->setPos(0, 190);     // move this to abstract
 
