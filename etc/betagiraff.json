@@ -569,7 +569,7 @@
             "220": {
                 "attribute": {
                     "battery_load": {
-                        "type": 1,
+                        "type": 2,
                         "value": 100
                     },
                     "color": {
