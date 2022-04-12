@@ -27,7 +27,7 @@
 #ifndef SPECIFICWORKER_H
 #define SPECIFICWORKER_H
 
-#include "../../etc/graph_names.h"
+#include "../../../../../dsr-graph/etc/graph_names.h"
 #include <genericworker.h>
 #include "dsr/api/dsr_api.h"
 #include "dsr/gui/dsr_gui.h"
@@ -36,10 +36,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
-#include <RemoteAPIClient.h>
-//#include "RemoteAPIObjects.h"
-#include <iostream>
-#include <iomanip>
+#include "RemoteAPIClient.h"
 
 
 class SpecificWorker : public GenericWorker

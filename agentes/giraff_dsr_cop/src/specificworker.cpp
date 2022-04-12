@@ -111,10 +111,10 @@ void SpecificWorker::initialize(int period)
     }
     //Coppelia Conexion
     RemoteAPIClient client;
-    auto sim = client.getObject().sim();
     client.setStepping(true);
-    sim.simLoadScene("/home/robo02/robocomp-giraff-forked/etc/salabeta.ttt")
-    sim.startSimulation();
+    client.call("sim.startSimulation",nullptr);
+    client.call("simLoadScene","/home/robo02/robocomp-giraff-forked/etc/salabeta.ttt");
+    client.call("sim.startSimulation", nullptr);
 
 
 	this->Period = period;
@@ -132,7 +132,7 @@ void SpecificWorker::compute()
         auto is_simulation = G->get_attrib_by_name<simulation_att>(mind.value());
         if (is_simulation.value() == simulation) {
             update_robot_localization();
-            read_battery();
+//            read_battery();
             //    auto camera_rgbd_frame = compute_camera_rgbd_frame();
             //    update_camera_rgbd(giraff_camera_realsense_name,camera_rgbd_frame, focalx, focaly);
             auto camera_simple_frame = compute_camera_simple_frame();
@@ -156,19 +156,19 @@ void SpecificWorker::compute()
     }
 
 }
-void SpecificWorker::read_battery()
-{
-    try
-    {
-        auto battery_level = batterystatus_proxy->getBatteryState();
-        if( auto battery = G->get_node(battery_name); battery.has_value())
-        {
-            G->add_or_modify_attrib_local<battery_load_att>(battery.value(), (int)(100*battery_level.percentage));
-            G->update_node(battery.value());
-        }
-    }
-    catch(const Ice::Exception &e) { std::cout << e.what() << std::endl;}
-}
+//void SpecificWorker::read_battery()
+//{
+//    try
+//    {
+//        auto battery_level = batterystatus_proxy->getBatteryState();
+//        if( auto battery = G->get_node(battery_name); battery.has_value())
+//        {
+//            G->add_or_modify_attrib_local<battery_load_att>(battery.value(), (int)(100*battery_level.percentage));
+//            G->update_node(battery.value());
+//        }
+//    }
+//    catch(const Ice::Exception &e) { std::cout << e.what() << std::endl;}
+//}
 void SpecificWorker::update_robot_localization()
 {
     static RoboCompFullPoseEstimation::FullPoseEuler last_state;
