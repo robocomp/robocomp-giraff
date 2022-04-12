@@ -128,32 +128,32 @@ void SpecificWorker::initialize(int period)
 }
 void SpecificWorker::compute()
 {
-    if( auto mind = G->get_node(robot_mind_name); mind.has_value()){
-        auto is_simulation = G->get_attrib_by_name<simulation_att>(mind.value());
-        if (is_simulation.value() == simulation) {
-            update_robot_localization();
-//            read_battery();
-            //    auto camera_rgbd_frame = compute_camera_rgbd_frame();
-            //    update_camera_rgbd(giraff_camera_realsense_name,camera_rgbd_frame, focalx, focaly);
-            auto camera_simple_frame = compute_camera_simple_frame();
-            update_camera_simple(giraff_camera_usb_name, camera_simple_frame);
-            //auto camera_simple1_frame = compute_camera_simple1_frame();
-            //update_camera_simple1(giraff_camera_face_id_name, camera_simple1_frame);
-            auto laser = read_laser_from_robot();
-            update_laser(laser);
-        }
-        else{
-            try {
-                differentialrobot_proxy->setSpeedBase(0, 0);
-            }
-            catch (const RoboCompGenericBase::HardwareFailedException &re) {
-                std::cout << __FUNCTION__ << "Exception setting base speed " << re << '\n';
-            }
-            catch (const Ice::Exception &e) {
-                std::cout << e.what() << '\n';
-            }
-        }
-    }
+//    if( auto mind = G->get_node(robot_mind_name); mind.has_value()){
+//        auto is_simulation = G->get_attrib_by_name<simulation_att>(mind.value());
+//        if (is_simulation.value() == simulation) {
+//            update_robot_localization();
+////            read_battery();
+//            //    auto camera_rgbd_frame = compute_camera_rgbd_frame();
+//            //    update_camera_rgbd(giraff_camera_realsense_name,camera_rgbd_frame, focalx, focaly);
+//            auto camera_simple_frame = compute_camera_simple_frame();
+//            update_camera_simple(giraff_camera_usb_name, camera_simple_frame);
+//            //auto camera_simple1_frame = compute_camera_simple1_frame();
+//            //update_camera_simple1(giraff_camera_face_id_name, camera_simple1_frame);
+//            auto laser = read_laser_from_robot();
+//            update_laser(laser);
+//        }
+//        else{
+//            try {
+//                differentialrobot_proxy->setSpeedBase(0, 0);
+//            }
+//            catch (const RoboCompGenericBase::HardwareFailedException &re) {
+//                std::cout << __FUNCTION__ << "Exception setting base speed " << re << '\n';
+//            }
+//            catch (const Ice::Exception &e) {
+//                std::cout << e.what() << '\n';
+//            }
+//        }
+//    }
 
 }
 //void SpecificWorker::read_battery()
@@ -500,49 +500,50 @@ void SpecificWorker::ramer_douglas_peucker(const std::vector<Point> &pointList, 
 /// Asynchronous changes on G nodes from G signals
 ///////////////////////////////////////////////////////////////////
 
-void SpecificWorker::add_or_assign_node_slot(const std::uint64_t id, const std::string &type) {
-    if (auto mind = G->get_node(robot_mind_name); mind.has_value()) {
-        auto is_simulation = G->get_attrib_by_name<simulation_att>(mind.value());
-        if (is_simulation.value() == simulation) {
-            if (type == differentialrobot_type_name)   // pasar al SLOT the change attrib
-            {
-                qInfo() << __FUNCTION__ << " Dentro " << id << QString::fromStdString(type);
-                if (auto robot = G->get_node(robot_name); robot.has_value()) {
-                    // speed
-                    auto ref_adv_speed = G->get_attrib_by_name<robot_ref_adv_speed_att>(robot.value());
-                    auto ref_rot_speed = G->get_attrib_by_name<robot_ref_rot_speed_att>(robot.value());
-                    qInfo() << __FUNCTION__ << ref_adv_speed.has_value() << ref_rot_speed.has_value();
-                    if (ref_adv_speed.has_value() and ref_rot_speed.has_value()) {
-                        //comprobar si la velocidad ha cambiado y el cambio es mayor de 10mm o algo así, entonces entra y tiene que salir estos mensajes
-                        std::cout << __FUNCTION__ << endl;
-                        // Check de values are within robot's accepted range. Read them from config
-                        //const float lowerA = -10, upperA = 10, lowerR = -10, upperR = 5, lowerS = -10, upperS = 10;
-                        //std::clamp(ref_adv_speed.value(), lowerA, upperA);
-                        float adv = ref_adv_speed.value();
-                        float rot = ref_rot_speed.value();
-                        //float inc = 10.0;
-                        cout << __FUNCTION__ << "adv " << adv << " rot " << rot << endl;
-                        if (adv != av_anterior or rot != rot_anterior) {
-                            std::cout << "..................................." << endl;
-                            std::cout << __FUNCTION__ << " " << ref_adv_speed.value() << " " << ref_rot_speed.value()
-                                      << std::endl;
-                            av_anterior = adv;
-                            rot_anterior = rot;
-                            try {
-                                differentialrobot_proxy->setSpeedBase(ref_adv_speed.value(), ref_rot_speed.value());
-                            }
-                            catch (const RoboCompGenericBase::HardwareFailedException &re) {
-                                std::cout << __FUNCTION__ << "Exception setting base speed " << re << '\n';
-                            }
-                            catch (const Ice::Exception &e) {
-                                std::cout << e.what() << '\n';
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+void SpecificWorker::add_or_assign_node_slot(const std::uint64_t id, const std::string &type)
+{
+//    if (auto mind = G->get_node(robot_mind_name); mind.has_value()) {
+//        auto is_simulation = G->get_attrib_by_name<simulation_att>(mind.value());
+//        if (is_simulation.value() == simulation) {
+//            if (type == differentialrobot_type_name)   // pasar al SLOT the change attrib
+//            {
+//                qInfo() << __FUNCTION__ << " Dentro " << id << QString::fromStdString(type);
+//                if (auto robot = G->get_node(robot_name); robot.has_value()) {
+//                    // speed
+//                    auto ref_adv_speed = G->get_attrib_by_name<robot_ref_adv_speed_att>(robot.value());
+//                    auto ref_rot_speed = G->get_attrib_by_name<robot_ref_rot_speed_att>(robot.value());
+//                    qInfo() << __FUNCTION__ << ref_adv_speed.has_value() << ref_rot_speed.has_value();
+//                    if (ref_adv_speed.has_value() and ref_rot_speed.has_value()) {
+//                        //comprobar si la velocidad ha cambiado y el cambio es mayor de 10mm o algo así, entonces entra y tiene que salir estos mensajes
+//                        std::cout << __FUNCTION__ << endl;
+//                        // Check de values are within robot's accepted range. Read them from config
+//                        //const float lowerA = -10, upperA = 10, lowerR = -10, upperR = 5, lowerS = -10, upperS = 10;
+//                        //std::clamp(ref_adv_speed.value(), lowerA, upperA);
+//                        float adv = ref_adv_speed.value();
+//                        float rot = ref_rot_speed.value();
+//                        //float inc = 10.0;
+//                        cout << __FUNCTION__ << "adv " << adv << " rot " << rot << endl;
+//                        if (adv != av_anterior or rot != rot_anterior) {
+//                            std::cout << "..................................." << endl;
+//                            std::cout << __FUNCTION__ << " " << ref_adv_speed.value() << " " << ref_rot_speed.value()
+//                                      << std::endl;
+//                            av_anterior = adv;
+//                            rot_anterior = rot;
+//                            try {
+//                                differentialrobot_proxy->setSpeedBase(ref_adv_speed.value(), ref_rot_speed.value());
+//                            }
+//                            catch (const RoboCompGenericBase::HardwareFailedException &re) {
+//                                std::cout << __FUNCTION__ << "Exception setting base speed " << re << '\n';
+//                            }
+//                            catch (const Ice::Exception &e) {
+//                                std::cout << e.what() << '\n';
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////
