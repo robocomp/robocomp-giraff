@@ -37,7 +37,7 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/imgcodecs.hpp>
 #include <opencv2/highgui.hpp>
-#include "RemoteAPIClient.h"
+#include <RemoteAPIClient.h>
 
 
 class SpecificWorker : public GenericWorker
