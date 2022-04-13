@@ -72,7 +72,15 @@ private:
     Constants constants;
 
     //robot
-    const int ROBOT_LENGTH = 400;
+    //robot
+    struct Pose2D
+    {
+        float ang;
+        Eigen::Vector2f pos;
+        QPointF toQpointF() const { return QPointF(pos.x(), pos.y());};
+        Eigen::Vector3d to_vec3_meters() const { return Eigen::Vector3d(pos.x()/1000.0, pos.y()/1000.0, ang);};
+    };
+
     QGraphicsPolygonItem *robot_polygon;
     QGraphicsRectItem *laser_in_robot_polygon;
     void draw_laser(const RoboCompLaser::TLaserData &ldata);
@@ -93,14 +101,29 @@ private:
     bool estimate_rooms();
 
     // grid
-    int TILE_SIZE = 50;
     QRectF dimensions;
-    Grid grid;
+    Grid local_grid;
     void update_map(const RoboCompLaser::TLaserData &ldata);
+    Pose2D grid_world_pose;
+    std::atomic_bool local_grid_is_active = false;
 
     // coordinates
     Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p);
     Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
+    Eigen::Vector2f from_grid_to_world(const Eigen::Vector2f &p);
+    Eigen::Vector2f from_world_to_grid(const Eigen::Vector2f &p);
+    Eigen::Vector2f from_robot_to_grid(const Eigen::Vector2f &p);
+    Eigen::Vector2f from_grid_to_robot(const Eigen::Vector2f &p);
+    Eigen::Matrix3f from_grid_to_robot_matrix();
+    Eigen::Matrix3f from_grid_to_world_matrix();
+    Eigen::Matrix3f from_robot_to_grid_matrix();
+    Eigen::Matrix3f from_robot_to_world_matrix();
+    Eigen::Matrix3f from_world_to_grid_matrix();
+
+    inline QPointF e2q(const Eigen::Vector2f &p) const {return QPointF(p.x(), p.y());};
+    inline Eigen::Vector2f q2e(const QPointF &p) const {return Eigen::Vector2f(p.x(), p.y());};
+    Pose2D robot_pose;
+
     void fit_rectangle();
     void check_free_path_to_target(const RoboCompLaser::TLaserData &ldata,
                                    const Eigen::Vector2f &goal);

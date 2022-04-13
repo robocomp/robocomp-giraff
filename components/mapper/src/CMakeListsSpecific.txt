@@ -17,6 +17,7 @@ SET ( HEADERS
   $ENV{ROBOCOMP}/classes/grid2d/grid.h
 )
 
+set(CMAKE_CXX_STANDARD 20)
 add_definitions(-O3 -march=native  -fmax-errors=5 )
 SET (LIBS ${LIBS}  )
 

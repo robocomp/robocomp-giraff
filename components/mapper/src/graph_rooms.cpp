@@ -18,8 +18,8 @@ void Graph_Rooms::draw_doors(QGraphicsScene *scene)
     nodes.clear();
 
     for (auto &r: rooms)
-        for(auto &d : r.doors)
-            d.draw(scene);
+        for(auto &d : r.doors_ids)
+            doors.at(d).draw(scene);
 }
 void Graph_Rooms::draw_rooms(QGraphicsScene *scene)
 {
@@ -71,8 +71,9 @@ void Graph_Rooms::draw_edges(QGraphicsScene *scene)
     edges.clear();
 
     for(const auto &r: rooms)
-        for(const auto &d : r.doors)
+        for(const auto &d_id : r.doors_ids)
         {
+            const auto &d = doors.at(d_id);
             if( d.to_room != -1)
             {
                 qInfo() << __FUNCTION__ << "......................." << d.id << d.to_room;
@@ -121,35 +122,52 @@ void Graph_Rooms::flip_text(QGraphicsTextItem *text)
 
 void Graph_Rooms::add_door_to_current_room(const Eigen::Vector2f &p1, const Eigen::Vector2f &p2)
 {
-    Graph_Rooms::Door new_door{p1, p2};
-    Room &room = current_room();
-    bool door_found = false;
-    for (auto &r: rooms)
-        for (auto &d: r.doors)
-            if (new_door == d)
-            {
-                if (r.id != room.id  and d.to_room == -1) // exists a free connecting door in a nearby room
-                {
-                    d.to_room = room.id;
-                    d.from_room = r.id;
-                    new_door.to_room = r.id;
-                    new_door.from_room = room.id;
-                    new_door.id = d.id;
-                    room.doors.emplace_back(new_door);
-                    qInfo() << __FUNCTION__ << "REPLICATED door " << new_door.id << "added to room" << room.id;
-                    new_door.print();
-                }
-                door_found = true;
-                break;
-            }
-    if( not door_found)
+    // a door can only be added if it does not already exist
+    // we need a == operator to compare the candidate with the new existing one
+    // we only have the coordinates in the local_grid RS
+    Graph_Rooms::Door new_door{p1, p2, (int)doors.size()};
+    auto res = std::ranges::find_if(current_room().doors_ids, [ds = doors, new_door ](int d)mutable{ return new_door == ds.at(d);});
+    if(res != std::end(current_room().doors_ids)) // found
+        return;  // not adding an axisting door
+    else
     {
-        new_door.id = number_of_doors++;
-        new_door.from_room = current_room().id;
-        room.doors.emplace_back(new_door);
-        qInfo() << __FUNCTION__ << "NEW door " << new_door.id << "added to room" << room.id;
-        new_door.print();
+        new_door.rooms.first = current_room().id;
+        doors.push_back(new_door);
+        current_room().doors_ids.emplace_back(new_door.id);
+        qInfo() << __FUNCTION__ << "NEW door " << new_door.id << " connected to current_room [" << p1.x() << p1.y() << "]"
+                << "[" << p2.x() << p2.y() << "]" ;
     }
+
+//    bool door_found = false;
+//    // search for an existing door in other rooms with the same coordinates
+//    for (auto &r: rooms)
+//        for (auto &d_id: r.doors_ids)
+//        {
+//            auto &d = doors.at(d_id);
+//            if (new_door == d)
+//            {
+//                if (r.id != room.id  and d.to_room == -1) // exists a free connecting door in a nearby room
+//                {
+//                    d.to_room = room.id;
+//                    d.from_room = r.id;
+//                    //                    new_door.to_room = r.id;
+//                    //                    new_door.from_room = room.id;
+//                    //                    new_door.id = d.id;
+//                    room.doors_ids.emplace_back(new_door.id);
+//                    qInfo() << __FUNCTION__ << "RECOGNIZED door " << new_door.id << "added to room" << room.id;
+//                    d.print();
+//                }
+//                door_found = true;
+//                break;
+//            }
+//    if( not door_found)
+//    {
+//        new_door.id = number_of_doors++;
+//        new_door.from_room = current_room().id;
+//        room.doors_ids.emplace_back(new_door.id);
+//        qInfo() << __FUNCTION__ << "NEW door " << new_door.id << "added to room" << room.id;
+//        new_door.print();
+//    }
 }
 Eigen::Matrix<double, 4, 3> Graph_Rooms::get_room_sides_matrix(const Room &r)
 {
@@ -202,10 +220,11 @@ float  Graph_Rooms::min_distance_from_point_to_closest_side(const Room &r, const
 }
 void Graph_Rooms::project_doors_on_room_side(Room &r,QGraphicsScene *scene)
 {
-    for(auto &d: r.doors)
+    for(auto &d_id: r.doors_ids)
     {
+        auto &d = doors.at(d_id);
         d.p1 = project_point_on_closest_side(r, d.p1);
         d.p2 = project_point_on_closest_side(r, d.p2);
-        d.draw(scene);
+        //d.draw(scene);
     }
 }
