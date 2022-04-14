@@ -13,11 +13,12 @@
 #include <chrono>
 #include "graph_rooms.h"
 #include <tuple>
+#include <opencv2/core/types.hpp>
 
 class Room_Detector_Grad_Stochastic
 {
     public:
-        QRectF compute_room(Eigen::MatrixX3d &points);  // 1.0 ended points
+        cv::RotatedRect compute_room(Eigen::MatrixX3d &points);  // 1.0 ended points
         template <typename T> std::string type_name();
         QRectF minimize_door_distances(Graph_Rooms &G);
 

@@ -7,8 +7,7 @@
 #include <random>
 #include <cppitertools/enumerate.hpp>
 
-
-QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
+cv::RotatedRect Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
 {
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     // initial values  points_raw: 300 x 3
@@ -59,7 +58,9 @@ QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
     qInfo() << __FUNCTION__ << "Final error:" << *hit;
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     qInfo() << __FUNCTION__ << "Elapsed time (ms):" << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();;
-    return QRectF(rcx-rsw, rcy-rsh, rsw*2, rsh*2);
+    //return cv::RotatedRect(rcx-rsw, rcy-rsh, rsw*2, rsh*2);
+    return cv::RotatedRect(cv::Point2f{rcx, rcy}, cv::Point2f{rsw*2, rsh*2}, 0.f);
+
 }
 std::tuple<std::vector<double>, double, size_t, Eigen::ArrayXd>
 Room_Detector_Grad_Stochastic::optimize(const Eigen::MatrixX3d &points, const std::vector<double> &params,

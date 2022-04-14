@@ -39,6 +39,9 @@
 #include <chrono>
 #include <thread>
 #include <future>
+#include <opencv2/core/types.hpp>
+#include <opencv2/imgproc.hpp>
+
 
 class SpecificWorker : public GenericWorker
 {
@@ -68,6 +71,7 @@ private:
         float robot_length = 450;
         const float robot_semi_length = robot_length/2.0;
         const float final_distance_to_target = 150; //mm
+        const float door_peak_threshold = 800; //mm
     };
     Constants constants;
 
@@ -97,7 +101,7 @@ private:
     // behaviors
     bool explore();
     bool change_room();
-    void detect_doors();
+    std::vector<Eigen::Vector2f> detect_doors(const std::vector<Eigen::Vector2f> &peaks_);
     bool estimate_rooms();
 
     // grid
