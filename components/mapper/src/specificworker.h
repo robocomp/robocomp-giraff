@@ -100,8 +100,10 @@ private:
 
     // behaviors
     bool explore();
+    bool explore2(float initial_value, std::vector<Eigen::Vector2f> &peaks);
     bool change_room();
-    std::vector<Eigen::Vector2f> detect_doors(const std::vector<Eigen::Vector2f> &peaks_);
+    bool change_room2(int new_door_id, int new_room_id);
+    std::vector<Eigen::Vector2f> detect_doors();
     bool estimate_rooms();
 
     // grid
@@ -151,6 +153,7 @@ private:
 
     // stocastic room detetor
     Room_Detector_Grad_Stochastic room_detector;
+
 };
 
 #endif

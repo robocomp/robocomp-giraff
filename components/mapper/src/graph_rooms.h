@@ -147,9 +147,9 @@ class Graph_Rooms
                 }
                 void draw(QGraphicsScene *scene, const Eigen::Vector2f &offset=Eigen::Vector2f(0.f,0.f), float ang=0.f)
                 {
-                    if(poly_draw != nullptr)
-                        scene->removeItem(poly_draw);
-                    // auto r = room_rect.translated(offset.x(), offset.y());
+                    //if(poly_draw != nullptr)
+                    //    scene->removeItem(poly_draw);
+
                     auto r = room_rect;
                     r.center = r.center + cv::Point2f(offset.x(), offset.y());
                     r.angle += qRadiansToDegrees(ang);
