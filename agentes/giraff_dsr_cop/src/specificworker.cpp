@@ -110,12 +110,9 @@ void SpecificWorker::initialize(int period)
         std::terminate();
     }
     //Coppelia Conexion
-    RemoteAPIClient client;
+    client.call("sim.loadScene",{"/home/robo02/robocomp-giraff-forked/etc/salabeta.ttt"});
     client.setStepping(true);
-    client.call("sim.startSimulation",nullptr);
-    client.call("simLoadScene","/home/robo02/robocomp-giraff-forked/etc/salabeta.ttt");
-    client.call("sim.startSimulation", nullptr);
-
+    //client.call("sim.startSimulation",nullptr);
 
 	this->Period = period;
 	if(this->startup_check_flag)
@@ -128,32 +125,36 @@ void SpecificWorker::initialize(int period)
 }
 void SpecificWorker::compute()
 {
-//    if( auto mind = G->get_node(robot_mind_name); mind.has_value()){
-//        auto is_simulation = G->get_attrib_by_name<simulation_att>(mind.value());
-//        if (is_simulation.value() == simulation) {
-//            update_robot_localization();
-////            read_battery();
-//            //    auto camera_rgbd_frame = compute_camera_rgbd_frame();
-//            //    update_camera_rgbd(giraff_camera_realsense_name,camera_rgbd_frame, focalx, focaly);
-//            auto camera_simple_frame = compute_camera_simple_frame();
-//            update_camera_simple(giraff_camera_usb_name, camera_simple_frame);
-//            //auto camera_simple1_frame = compute_camera_simple1_frame();
-//            //update_camera_simple1(giraff_camera_face_id_name, camera_simple1_frame);
-//            auto laser = read_laser_from_robot();
-//            update_laser(laser);
-//        }
-//        else{
-//            try {
-//                differentialrobot_proxy->setSpeedBase(0, 0);
-//            }
-//            catch (const RoboCompGenericBase::HardwareFailedException &re) {
-//                std::cout << __FUNCTION__ << "Exception setting base speed " << re << '\n';
-//            }
-//            catch (const Ice::Exception &e) {
-//                std::cout << e.what() << '\n';
-//            }
-//        }
-//    }
+    if( auto mind = G->get_node(robot_mind_name); mind.has_value()){
+        if (auto is_simulation = G->get_attrib_by_name<simulation_att>(mind.value()); is_simulation.has_value()) {
+            if (is_simulation.value() == simulation) {
+                cout<< "LLEGOOOOOOOOOO"<<endl;
+                update_robot_localization();
+    //            read_battery();
+                //    auto camera_rgbd_frame = compute_camera_rgbd_frame();
+                //    update_camera_rgbd(giraff_camera_realsense_name,camera_rgbd_frame, focalx, focaly);
+                auto camera_simple_frame = compute_camera_simple_frame();
+                update_camera_simple(giraff_camera_usb_name, camera_simple_frame);
+                //auto camera_simple1_frame = compute_camera_simple1_frame();
+                //update_camera_simple1(giraff_camera_face_id_name, camera_simple1_frame);
+                auto laser = read_laser_from_robot();
+                update_laser(laser);
+                }
+                else{
+                try {
+                    differentialrobot_proxy->setSpeedBase(0, 0);
+                }
+                catch (const RoboCompGenericBase::HardwareFailedException &re) {
+                    std::cout << __FUNCTION__ << "Exception setting base speed " << re << '\n';
+                }
+                catch (const Ice::Exception &e) {
+                    std::cout << e.what() << '\n';
+                }
+
+        }
+
+        }
+    }
 
 }
 //void SpecificWorker::read_battery()
@@ -173,12 +174,23 @@ void SpecificWorker::update_robot_localization()
 {
     static RoboCompFullPoseEstimation::FullPoseEuler last_state;
     RoboCompFullPoseEstimation::FullPoseEuler pose;
-    try
-    {
-        pose = fullposeestimation_proxy->getFullPoseEuler();
-        //qInfo() << "X:" << pose.x  << "// Y:" << pose.y << "// Z:" << pose.z << "// RX:" << pose.rx << "// RY:" << pose.ry << "// RZ:" << pose.rz;
+    if(simulation==true){
+        auto robot = client.call("sim.getObject", {"/Giraff"})[0];
+        cout << "LLegooooooo"<<endl;
+        auto pose_2 = client.call("sim.getObjectPose",{robot,-1});
+
+//        cout << pose_2[0] <<endl;
+
     }
-    catch(const Ice::Exception &e){ std::cout << e.what() <<  __FUNCTION__ << std::endl;};
+    else{
+        try
+        {
+            pose = fullposeestimation_proxy->getFullPoseEuler();
+            //qInfo() << "X:" << pose.x  << "// Y:" << pose.y << "// Z:" << pose.z << "// RX:" << pose.rx << "// RY:" << pose.ry << "// RZ:" << pose.rz;
+        }
+        catch(const Ice::Exception &e){ std::cout << e.what() <<  __FUNCTION__ << std::endl;};
+
+    }
 
     if( auto robot = G->get_node(robot_name); robot.has_value())
     {

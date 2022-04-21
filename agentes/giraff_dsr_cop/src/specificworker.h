@@ -83,10 +83,12 @@ private:
     void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag){};
 	void del_node_slot(std::uint64_t from){};     
 	bool startup_check_flag;
-	
-	
-	
-	///Remote services
+    RemoteAPIClient client;
+
+
+
+
+    ///Remote services
     void update_robot_localization();
     void read_battery();
     //void read_RSSI();
