@@ -26,6 +26,8 @@
 #include <cppitertools/zip.hpp>
 #include <cppitertools/zip_longest.hpp>
 #include <numeric>
+#include <ranges>
+
 /**
 * \brief Default constructor
 */
@@ -50,7 +52,7 @@ void SpecificWorker::initialize(int period)
 
     this->dimensions = QRectF(-5100, -2600, 10200, 5200);
     viewer_robot = new AbstractGraphicViewer(this->frame_robot, this->dimensions);
-    const auto &[rp, ep] = viewer_robot->add_robot(ROBOT_LENGTH, ROBOT_LENGTH);
+    const auto &[rp, ep] = viewer_robot->add_robot(constants.robot_length, constants.robot_length);
     robot_polygon = rp;
     laser_in_robot_polygon = new QGraphicsRectItem(-10, 10, 20, 20, robot_polygon);
     laser_in_robot_polygon->setPos(0, 190);     // move this to abstract
@@ -61,8 +63,8 @@ void SpecificWorker::initialize(int period)
     connect(viewer_robot, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
 
     // grid
-    grid.initialize(dimensions, TILE_SIZE, &viewer_robot->scene, false);
-    qInfo() << __FUNCTION__ << "Grid initialized to " << this->dimensions;
+//    grid.initialize(dimensions, constants.tile_size, &viewer_robot->scene, false);
+//    qInfo() << __FUNCTION__ << "Grid initialized to " << this->dimensions;
 
             ////////////////////////////////////////////////////
 	this->Period = period;
@@ -72,96 +74,232 @@ void SpecificWorker::initialize(int period)
 		timer.start(Period);
 }
 
+//void SpecificWorker::compute()
+//{
+//    read_base();
+//    read_laser();
+//    static bool EXPLORE = true;
+//
+//        if (EXPLORE and G.current_room().is_unknown) // explore room
+//        {
+//            static std::future<bool> future_explore;
+//            if (not future_explore.valid())
+//                future_explore = std::async(std::launch::async, &SpecificWorker::explore, this);
+//            else if (future_explore.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+//            {
+//                auto res = future_explore.get();
+//                G.current_room().is_unknown = false;
+//                qInfo() << __FUNCTION__ << "Future EXPLORE ended with result:" << res;
+//                // room_detector.minimize_door_distances(G);
+//                // move model room to world ref system to draw it
+//                auto const &rc = G.current_room().room_rect.center;
+//                auto g2w = from_grid_to_world(Eigen::Vector2f{rc.x, rc.y});
+//                G.current_room().draw(&viewer_robot->scene, g2w, grid_world_pose.ang);
+//
+//                for (const auto &d: G.current_room().doors_ids)
+//                    G.doors.at(d).draw(&viewer_robot->scene, grid_world_pose.pos, grid_world_pose.ang);
+//                local_grid_is_active = false;
+//                EXPLORE = false;
+//                //G.draw_nodes(&viewer_graph->scene);
+//                //G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
+//            }
+//        }
+//        else  // change room
+//        {
+//            static std::future<bool> future_visit;
+//            if (not future_visit.valid())
+//                future_visit = std::async(std::launch::async, &SpecificWorker::change_room, this);
+//            else if (future_visit.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+//            {
+//                auto res = future_visit.get();
+//                qInfo() << __FUNCTION__ << "Future VISIT ended with " << res;
+//                G.current_room().print();
+//                EXPLORE = true;
+//                //room_detector.minimize_door_distances(G);
+//                //G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
+//                //G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
+//                // if known room check if it matches the prediction. If not, set it as unknown so it is explored again
+//               // active = false;
+//            }
+//        }
+//}
 void SpecificWorker::compute()
 {
     read_base();
     read_laser();
 
-    if(G.current_room().is_unknown) // explore room
+    static bool EXPLORE = true;
+    static std::vector<Eigen::Vector2f> peaks;
+
+    if (EXPLORE and G.current_room().is_unknown) // explore room
     {
-        static std::future<bool> future_explore;
-        if(not future_explore.valid())
-            future_explore = std::async(std::launch::async, &SpecificWorker::explore, this );
-        else
-            if(future_explore.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
-            {
-                auto res = future_explore.get();
-                G.current_room().is_unknown = false;
-                qInfo() << __FUNCTION__ << "Future EXPLORE ended with result:" << res;
-                room_detector.minimize_door_distances(G);
-                G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
-            }
+        static bool explore_first_time = true;
+        static float initial_angle;
+        if (explore_first_time)
+        {
+            // do before
+            qInfo() << __FUNCTION__ << "Starting explore with new local_gric...";
+            QRectF dim(-2000, -2000, 4000, 4000);  //compute from laser max
+            grid_world_pose = {.ang=robot_pose.ang, .pos=robot_pose.pos};
+            local_grid.initialize(dim, constants.tile_size, &viewer_robot->scene, false,
+                                  std::string(), grid_world_pose.toQpointF(), grid_world_pose.ang);
+            local_grid_is_active = true;  // to synchronize with updatemap
+            move_robot(0, 0.4);
+            initial_angle = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
+            peaks.clear();
+            explore_first_time = false;
+        }
+        else if(explore2(initial_angle, peaks))  // do meanwhile
+        {
+            // do after
+            // pairwise comparison of peaks to filter in doors
+            for (auto &&c: iter::combinations_with_replacement(peaks, 2))
+                if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 550)
+                    G.add_door_to_current_room(c[0], c[1]);
+
+            move_robot(0, 0);
+            estimate_rooms();
+
+            G.current_room().is_unknown = false;
+            qInfo() << __FUNCTION__ << "Future EXPLORE ended with result:";
+            // room_detector.minimize_door_distances(G);
+            // move model room to world ref system to draw it
+            auto const &rc = G.current_room().room_rect.center;
+            auto g2w = from_grid_to_world(Eigen::Vector2f{rc.x, rc.y});
+            G.current_room().draw(&viewer_robot->scene, g2w, grid_world_pose.ang);
+
+            for (const auto &d: G.current_room().doors_ids)
+                G.doors.at(d).draw(&viewer_robot->scene, grid_world_pose.pos, grid_world_pose.ang);
+            local_grid_is_active = false;
+            EXPLORE = false;
+            //G.draw_nodes(&viewer_graph->scene);
+            //G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
+        }
     }
     else  // change room
     {
-        static std::future<bool> future_visit;
-        if(not future_visit.valid())
-            future_visit = std::async(std::launch::async, &SpecificWorker::change_room, this);
-        else
-            if(future_visit.wait_for(std::chrono::seconds(0)) == std::future_status::ready)
+        static bool visit_first_time = true;
+        static int new_door_id, new_room_id;
+        if (visit_first_time)
+        {
+            // before start
+            qInfo() << __FUNCTION__ << "Entering from room " << G.current_room().id;
+            // Choose an un-explored destination room
+            new_room_id = -1;
+            // door to unknown room
+            for(const auto & d_id : G.current_room().doors_ids)
+                if(G.doors.at(d_id).rooms.size() == 1) // the other room is unknown
+                {
+                    new_door_id = d_id;
+                    break;
+                }
+            //    if( auto hit = std::ranges::find_if(G.current_room().doors_ids,[this](auto id){ auto d = G.doors.at(id); d.rooms[]
+            //        return d.}); hit != G.current_room().doors.end())
+            //    {
+            //        new_door = (*hit);
+            //        new_room_id = -1;
+            //    }
+                else //  door to known room
+                {
+                    std::vector<int> selected_doors;
+                    auto gen = std::mt19937{std::random_device{}()};
+                    std::ranges::sample(G.current_room().doors_ids, std::back_inserter(selected_doors), 1, gen);
+                    if(not selected_doors.empty())
+                    {
+                        new_door_id = selected_doors.front();
+                        for(const auto &[k, v] : G.doors.at(new_door_id).rooms)
+                        {
+                            if(k != G.current_room().id)
+                                new_room_id = v.room_id;
+                        }
+                    }
+                    else
+                    {
+                        qInfo() << "WARNING, no door to choose";
+                    }
+                }
+        }
+        else if (change_room2(new_door_id, new_room_id))  // do meanwhile
+        {
+            // do after
+            if(new_room_id == -1)
             {
-                auto res = future_visit.get();
-                qInfo() << __FUNCTION__ << "Future VISIT ended with " << res;
-                G.current_room().print();
-                room_detector.minimize_door_distances(G);
-                G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
-                G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
-                // if known room check if it matches the prediction. If not, set it as unknown so it is explored again
+                G.rooms.emplace_back(Graph_Rooms::Room(G.rooms.size()));
+                G.current_room_local = G.rooms.back().id;
             }
+            else
+                G.current_room_local = new_room_id;
+
+            qInfo() << __FUNCTION__ << "    Robot reached target room" << G.current_room_local;
+            move_robot(0,0);
+            //grid.set_all_to_free();
+            // if known room, initialize the grid with the room geometry
+
+            qInfo() << __FUNCTION__ << "Future VISIT ended with ";
+            G.current_room().print();
+            EXPLORE = true;
+            //room_detector.minimize_door_distances(G);
+            //G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
+            //G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
+            // if known room check if it matches the prediction. If not, set it as unknown so it is explored again
+            // active = false;
+        }
     }
 }
 ////////////////////////////////////////////////////////////////////////////
 bool SpecificWorker::explore()
 {
-    qInfo() << __FUNCTION__ << "Starting explore...";
-    float initial_angle = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
+    qInfo() << __FUNCTION__ << "Starting explore with new local_gric...";
+    QRectF dim(-2000, -2000, 4000, 4000);  //compute from laser max
+    grid_world_pose = {.ang=robot_pose.ang, .pos=robot_pose.pos};
+    local_grid.initialize(dim, constants.tile_size, &viewer_robot->scene, false,
+                          std::string(), grid_world_pose.toQpointF(), grid_world_pose.ang);
+    local_grid_is_active = true;  // to synchronize with updatemap
+    float initial_angle = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;  // CAMBIAR
     move_robot(0, 0.4);
     float current = initial_angle;
+    std::vector<Eigen::Vector2f> peaks;
     while (not (fabs(current - initial_angle) < (M_PI + 0.1) and fabs(current - initial_angle) > (M_PI - 0.1)))
     {
-        detect_doors();
+        update_map(ldata);
+        auto new_peaks = detect_doors();
+        peaks.insert(std::end(peaks), std::begin(new_peaks), std::end(new_peaks));
         current = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+
+    // pairwise comparison of peaks to filter in doors
+    for (auto &&c: iter::combinations_with_replacement(peaks, 2))
+        if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 550)
+            G.add_door_to_current_room(c[0], c[1]);
+
     move_robot(0, 0);
     return  estimate_rooms();
 }
-bool SpecificWorker::change_room()
+bool SpecificWorker::explore2(float initial_angle, std::vector<Eigen::Vector2f> &peaks)
 {
-    qInfo() << __FUNCTION__ << "Entering change in room " << G.current_room().id;
-    // Choose an un-explored destination room
-    Graph_Rooms::Door new_door;
-    int new_room_id = -1;
-    // door to unknown room
-    if( auto hit = std::ranges::find_if(G.current_room().doors, [](auto d){ return d.to_room == -1;}); hit != G.current_room().doors.end())
+    float current = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
+    if(not (fabs(current - initial_angle) < (M_PI + 0.1) and fabs(current - initial_angle) > (M_PI - 0.1)))
     {
-        new_door = (*hit);
-        new_room_id = -1;
+        update_map(ldata);
+        auto new_peaks = detect_doors();
+        peaks.insert(std::end(peaks), std::begin(new_peaks), std::end(new_peaks));
+        return false;
     }
-    else //  door to known room
-    {
-        std::vector<Graph_Rooms::Door> selected_doors;
-        auto gen = std::mt19937{std::random_device{}()};
-        std::ranges::sample(G.current_room().doors, std::back_inserter(selected_doors), 1, gen);
-        if(not selected_doors.empty())
-        {
-            new_door = selected_doors.front();
-            new_room_id = new_door.to_room;
-        }
-        else
-        {
-            qInfo() << "WARNING, no door to choose";
-            return false;
-        }
-    }
+    else
+        return true;
+}
+bool SpecificWorker::change_room2(int new_door_id, int new_room_id)
+{
     // move to the new room
     // pick a point 1 meter ahead of center of door position and in the other room
-    auto mid_point = new_door.get_external_midpoint(Eigen::Vector2f(r_state.x, r_state.y));
-    float dist = from_world_to_robot(mid_point).norm();
+    auto &new_door = G.doors.at(new_door_id);
+    auto mid_point = new_door.get_external_midpoint(from_robot_to_grid(Eigen::Vector2f(0.f, 0.f)));
+    float dist = from_grid_to_robot(mid_point).norm();
 
-    while( dist > constants.final_distance_to_target) // until target is reached
+    if( dist > constants.final_distance_to_target) // until target is reached
     {
-        auto tr = from_world_to_robot(mid_point);
+        auto tr = from_grid_to_robot(mid_point);
         dist = tr.norm();
 
         // call dynamic window
@@ -174,7 +312,75 @@ bool SpecificWorker::change_room()
                                                  nullptr /*&viewer_robot->scene*/);
         const float rgain = 0.8;
         float rotation = rgain*rot;
-        float dist_break = std::clamp(from_world_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
+        float dist_break = std::clamp(from_grid_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
+        float advance = constants.max_advance_speed * dist_break * gaussian(rotation);
+        move_robot(advance, rotation);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        return false;
+    }
+    return true;
+}
+bool SpecificWorker::change_room()
+{
+    qInfo() << __FUNCTION__ << "Entering from room " << G.current_room().id;
+    // Choose an un-explored destination room
+    int new_door_id;
+    int new_room_id = -1;
+    // door to unknown room
+    for(const auto & d_id : G.current_room().doors_ids)
+        if(G.doors.at(d_id).rooms.size() == 1) // the other room is unknown
+        {
+            new_door_id = d_id;
+            break;
+        }
+//    if( auto hit = std::ranges::find_if(G.current_room().doors_ids,[this](auto id){ auto d = G.doors.at(id); d.rooms[]
+//        return d.}); hit != G.current_room().doors.end())
+//    {
+//        new_door = (*hit);
+//        new_room_id = -1;
+//    }
+        else //  door to known room
+        {
+            std::vector<int> selected_doors;
+            auto gen = std::mt19937{std::random_device{}()};
+            std::ranges::sample(G.current_room().doors_ids, std::back_inserter(selected_doors), 1, gen);
+            if(not selected_doors.empty())
+            {
+                new_door_id = selected_doors.front();
+                for(const auto &[k, v] : G.doors.at(new_door_id).rooms)
+                {
+                    if(k != G.current_room().id)
+                        new_room_id = v.room_id;
+                }
+            }
+            else
+            {
+                qInfo() << "WARNING, no door to choose";
+                return false;
+            }
+        }
+    // move to the new room
+    // pick a point 1 meter ahead of center of door position and in the other room
+    auto &new_door = G.doors.at(new_door_id);
+    auto mid_point = new_door.get_external_midpoint(from_robot_to_grid(Eigen::Vector2f(0.f, 0.f)));
+    float dist = from_grid_to_robot(mid_point).norm();
+
+    while( dist > constants.final_distance_to_target) // until target is reached
+    {
+        auto tr = from_grid_to_robot(mid_point);
+        dist = tr.norm();
+
+        // call dynamic window
+        QPolygonF laser_poly;
+        for(auto &&l : ldata)
+            laser_poly << QPointF(l.dist*sin(l.angle), l.dist*cos(l.angle));
+        auto [_, __, adv, rot, ___] = dw.compute(tr, laser_poly,
+                                                 Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
+                                                 Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz),
+                                                 nullptr /*&viewer_robot->scene*/);
+        const float rgain = 0.8;
+        float rotation = rgain*rot;
+        float dist_break = std::clamp(from_grid_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
         float advance = constants.max_advance_speed * dist_break * gaussian(rotation);
         move_robot(advance, rotation);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -189,14 +395,16 @@ bool SpecificWorker::change_room()
 
     qInfo() << __FUNCTION__ << "    Robot reached target room" << G.current_room_local;
     move_robot(0,0);
-    grid.set_all_to_free();
+    //grid.set_all_to_free();
     // if known room, initialize the grid with the room geometry
     return true;
 }
-
-void SpecificWorker::detect_doors()
+std::vector<Eigen::Vector2f> SpecificWorker::detect_doors()
 {
+    // get peaks from former iteration and add the new ones
+    std::vector<Eigen::Vector2f> peaks;
     move_robot(0, 0.5);
+
     // search for corners. Compute derivative wrt distance
     std::vector<float> derivatives(ldata.size());
     derivatives[0] = 0;
@@ -204,33 +412,27 @@ void SpecificWorker::detect_doors()
         derivatives[k + 1] = l[1].dist - l[0].dist;
 
     // filter derivatives greater than a threshold
-    std::vector<Eigen::Vector2f> peaks;
     for (const auto &&[k, der]: iter::enumerate(derivatives))
     {
         RoboCompLaser::TData l;
-        if (der > 800)
+        if (der > constants.door_peak_threshold)
         {
             l = ldata.at(k - 1);
-            peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
+            peaks.push_back(from_robot_to_grid(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
         }
-        else if (der < -800)
+        else if (der < -constants.door_peak_threshold)
         {
             l = ldata.at(k);
-            peaks.push_back(from_robot_to_world(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
+            peaks.push_back(from_robot_to_grid(Eigen::Vector2f(l.dist * sin(l.angle), l.dist * cos(l.angle))));
         }
     }
-    //qInfo() << __FUNCTION__  << "  peaks " << peaks.size();
-
-    // pairwise comparison of peaks to filter in doors
-    for (auto &&c: iter::combinations_with_replacement(peaks, 2))
-        if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 550)
-            G.add_door_to_current_room(c[0], c[1]);
+    return peaks;
 }
 bool SpecificWorker::estimate_rooms()
 {
     // create list of occuppied points
     RoboCompRoomDetection::ListOfPoints points;
-    for (const auto &[key, val]: std::ranges::filter_view(grid, [](auto a) { return not a.second.free; }))
+    for (const auto &[key, val]: std::ranges::filter_view(local_grid, [](auto a) { return not a.second.free; }))
         points.emplace_back(RoboCompRoomDetection::Corner{(float)key.x, (float)key.z});
 
     // filter out points beyond room doors
@@ -238,18 +440,19 @@ bool SpecificWorker::estimate_rooms()
     bool skip=false;
     for (const auto &c : points)
     {
-        for (const auto &d: G.current_room().doors)
+        for (const auto &d_id: G.current_room().doors_ids)
         {
+            const auto &d = G.doors.at(d_id);
             // all in robot's reference system
             QPointF robot_rq(0, 0);
-            auto point_r = from_world_to_robot(Eigen::Vector2f(c.x, c.y));
+            auto point_r = from_grid_to_robot(Eigen::Vector2f(c.x, c.y));
             auto point_rq = to_qpointf(point_r);
             auto point_r_distance = point_r.norm();
-            auto mid_door_distance = from_world_to_robot(d.get_midpoint()).norm();
+            auto mid_door_distance = from_grid_to_robot(d.get_midpoint()).norm();
             // line from point to robot
             auto l_point = QLineF(point_rq, robot_rq);
             // door line
-            auto l_door = QLineF(to_qpointf(from_world_to_robot(d.p1)), to_qpointf(from_world_to_robot(d.p2)));
+            auto l_door = QLineF(to_qpointf(from_grid_to_robot(d.p1)), to_qpointf(from_grid_to_robot(d.p2)));
             // compute intersection
             // NoIntersection	Indicates that the lines do not intersect; i.e. they are parallel.
             // UnboundedIntersection	The two lines intersect, but not within the range defined by their lengths.
@@ -260,7 +463,7 @@ bool SpecificWorker::estimate_rooms()
             auto res = l_door.intersect(l_point, &inter_point);
             if (res == QLineF::BoundedIntersection and point_r_distance > mid_door_distance) // outside the door
             {
-                grid.set_free(c.x, c.y);
+                local_grid.set_free(c.x, c.y);
                 skip = true;
                 continue;
             }
@@ -280,19 +483,29 @@ bool SpecificWorker::estimate_rooms()
 
     Eigen::MatrixX3d my_points;
     my_points.resize(inside_points.size(), 3);
+    std::vector<cv::Point2f> cv_points(inside_points.size());
     for(auto &&[i, p] : inside_points | iter::enumerate)
     {
         my_points(i, 0) = p.x; my_points(i, 1) = p.y; my_points(i, 2) = 1.0;
+        cv_points[i] = cv::Point2f{p.x, p.y};
     }
 
     // call optimizer
-    QRectF ro = room_detector.compute_room(my_points);
-    IOU::Quad max(IOU::Point(ro.left(), ro.top()), IOU::Point(ro.right(), ro.top()), IOU::Point(ro.right(), ro.bottom()), IOU::Point(ro.left(), ro.bottom()));
+    cv::RotatedRect ro = cv::minAreaRect(cv_points);
+
+//    cv::RotatedRect ro = room_detector.compute_room(my_points);
+//    cv::Point2f ro_points[4];
+//    ro.points(ro_points);
+//    IOU::Quad max(IOU::Point(ro_points[0].x, ro_points[0].y),
+//                  IOU::Point(ro_points[1].x, ro_points[1].y),
+//                  IOU::Point(ro_points[2].x, ro_points[2].y),
+//                  IOU::Point(ro_points[3].x, ro_points[3].y));
 
     // update current room
     Graph_Rooms::Room &room = G.current_room();
-    room.quad = max;
+    //room.quad = max;
     room.room_rect = ro;
+    room.print();
     G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
     return true;
 }
@@ -307,8 +520,10 @@ void SpecificWorker::read_base()
     try
     {
         r_state = fullposeestimation_proxy->getFullPoseEuler();
+        robot_pose = {.ang=r_state.rz, .pos=Eigen::Vector2f(r_state.x, r_state.y)};
         robot_polygon->setRotation(r_state.rz * 180 / M_PI);
         robot_polygon->setPos(r_state.x, r_state.y);
+        robot_polygon->setZValue(55);
     }
     catch (const Ice::Exception &e)
     { std::cout << e.what() << std::endl; }
@@ -319,8 +534,9 @@ void SpecificWorker::read_laser()
     try
     {
         ldata = laser_proxy->getLaserData();
+//        if(local_grid_is_active)
+//            update_map(ldata);
         draw_laser(ldata);
-        update_map(ldata);
     }
     catch (const Ice::Exception &e)
     { std::cout << e.what() << std::endl; }
@@ -339,37 +555,38 @@ float SpecificWorker::gaussian(float x)
     const double s = -xset*xset/log(yset);
     return exp(-x*x/s);
 }
-void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
+void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)/**/
 {
-    // grid
-    Eigen::Vector2f lw;
+    // get the matrix to transform from robot to local_grid
+    Eigen::Matrix3f r2g = from_robot_to_grid_matrix();
     for(const auto &l : ldata)
     {
         if(l.dist > constants.robot_semi_length)
         {
-            Eigen::Vector2f tip(l.dist*sin(l.angle), l.dist*cos(l.angle));
-            Eigen::Vector2f p = from_robot_to_world(tip);
-            int target_kx = (p.x() - grid.dim.left()) / grid.TILE_SIZE;
-            int target_kz = (p.y() - grid.dim.bottom()) / grid.TILE_SIZE;
-            int last_kx = -1000000;
-            int last_kz = -1000000;
+            Eigen::Vector3f tip(l.dist*sin(l.angle), l.dist*cos(l.angle), 1.0);
+            tip = r2g * tip;
+            int target_kx = (tip.x() - local_grid.dim.left()) / local_grid.TILE_SIZE;
+            int target_kz = (tip.y() - local_grid.dim.bottom()) / local_grid.TILE_SIZE;
+            int last_kx = std::numeric_limits<int>::min();
+            int last_kz = std::numeric_limits<int>::min();
 
             int num_steps = ceil(l.dist/(constants.tile_size/2.0));
             for(const auto &&step : iter::range(0.0, 1.0-(1.0/num_steps), 1.0/num_steps))
             {
-                Eigen::Vector2f p = from_robot_to_world(tip*step);
-                int kx = (p.x() - grid.dim.left()) / grid.TILE_SIZE;
-                int kz = (p.y() - grid.dim.bottom()) / grid.TILE_SIZE;
+                Eigen::Vector3f p = tip*step;
+                int kx = (p.x() - local_grid.dim.left()) / local_grid.TILE_SIZE;
+                int kz = (p.y() - local_grid.dim.top()) / local_grid.TILE_SIZE;
                 if(kx != last_kx and kx != target_kx and kz != last_kz and kz != target_kz)
-                    grid.add_miss(from_robot_to_world(tip * step));
+                    local_grid.add_miss(p.head(2));
                 last_kx = kx;
                 last_kz = kz;
             }
+            //qInfo() << __FUNCTION__ << tip.x()  << tip.y();
             if(l.dist <= constants.max_laser_range)
-                grid.add_hit(from_robot_to_world(tip));
+                local_grid.add_hit(tip.head(2));
             // else
             //     grid.add_miss(from_robot_to_world(tip));
-        }
+         }
     }
 }
 Eigen::Vector2f SpecificWorker::from_robot_to_world(const Eigen::Vector2f &p)
@@ -384,6 +601,80 @@ Eigen::Vector2f SpecificWorker::from_world_to_robot(const Eigen::Vector2f &p)
     matrix << cos(r_state.rz) , -sin(r_state.rz) , sin(r_state.rz) , cos(r_state.rz);
     return (matrix.transpose() * (p - Eigen::Vector2f(r_state.x, r_state.y)));
 }
+Eigen::Vector2f SpecificWorker::from_grid_to_world(const Eigen::Vector2f &p)
+{
+    // build the matrix to transform from grid to world knowing robot and grid pose in world
+    Eigen::Matrix2f g2w;
+    g2w <<  cos(grid_world_pose.ang), -sin(grid_world_pose.ang),
+            sin(grid_world_pose.ang), cos(grid_world_pose.ang);
+    return g2w * p + grid_world_pose.pos;
+}
+Eigen::Vector2f SpecificWorker::from_world_to_grid(const Eigen::Vector2f &p)
+{
+    // build the matrix to transform from world to local_grid, knowing robot and grid pose in world
+    Eigen::Matrix2f w2g;
+    w2g <<  cos(grid_world_pose.ang), sin(grid_world_pose.ang),
+            -sin(grid_world_pose.ang), cos(grid_world_pose.ang);
+    return w2g * (p - grid_world_pose.pos);
+}
+Eigen::Vector2f SpecificWorker::from_robot_to_grid(const Eigen::Vector2f &p)
+{
+    return (from_robot_to_grid_matrix() * Eigen::Vector3f(p.x(), p.y(), 1.f)).head(2);
+}
+Eigen::Vector2f SpecificWorker::from_grid_to_robot(const Eigen::Vector2f &p)
+{
+    return (from_robot_to_grid_matrix().inverse() * Eigen::Vector3f(p.x(), p.y(), 1.f)).head(2);
+}
+Eigen::Matrix3f SpecificWorker::from_robot_to_world_matrix()
+{
+    Eigen::Matrix3f matrix;
+    matrix << cos(robot_pose.ang) , -sin(robot_pose.ang) , robot_pose.pos.x(),
+              sin(robot_pose.ang) , cos(robot_pose.ang), robot_pose.pos.y(),
+              0.f, 0.f, 1.f;
+    return matrix;
+}
+Eigen::Matrix3f SpecificWorker::from_world_to_grid_matrix()
+{
+    Eigen::Matrix2f w2g_2d_matrix;
+    w2g_2d_matrix <<  cos(grid_world_pose.ang), sin(grid_world_pose.ang),
+                     -sin(grid_world_pose.ang), cos(grid_world_pose.ang);
+    auto tr = w2g_2d_matrix * grid_world_pose.pos;
+    Eigen::Matrix3f matrix;
+    matrix << cos(grid_world_pose.ang), sin(grid_world_pose.ang), -tr.x(),
+           -sin(grid_world_pose.ang), cos(grid_world_pose.ang), -tr.y(),
+           0.f, 0.f, 1.f;
+    return matrix;
+}
+Eigen::Matrix3f SpecificWorker::from_robot_to_grid_matrix()
+{
+    // build the matrix to transform from robot to local_grid, knowing robot and grid pose in world
+    Eigen::Matrix3f r2w = from_robot_to_world_matrix();
+//    Eigen::Matrix2f w2g_2d_matrix;
+//    w2g_2d_matrix <<  cos(grid_world_pose.ang), sin(grid_world_pose.ang),
+//            -sin(grid_world_pose.ang), cos(grid_world_pose.ang);
+//    auto tr = w2g_2d_matrix * grid_world_pose.pos;
+//    Eigen::Matrix3f w2g;
+//    w2g << cos(grid_world_pose.ang), sin(grid_world_pose.ang), -tr.x(),
+//            -sin(grid_world_pose.ang), cos(grid_world_pose.ang), -tr.y(),
+//            0.f, 0.f, 1.f;
+    Eigen::Matrix3f w2g = from_world_to_grid_matrix();
+    Eigen::Matrix3f r2g = w2g * r2w;  // from r to world and then from world to grid
+    return r2g;
+}
+Eigen::Matrix3f SpecificWorker::from_grid_to_robot_matrix()
+{
+    return from_robot_to_grid_matrix().inverse();
+}
+Eigen::Matrix3f SpecificWorker::from_grid_to_world_matrix()
+{
+    //return from_world_to_grid_matrix().inverse();
+    Eigen::Matrix3f g2w;
+    g2w <<  cos(grid_world_pose.ang), -sin(grid_world_pose.ang), grid_world_pose.pos.x(),
+            sin(grid_world_pose.ang), cos(grid_world_pose.ang), grid_world_pose.pos.y(),
+            0.f, 0.f, 1.f;
+    return g2w;
+}
+
 void SpecificWorker::draw_laser(const RoboCompLaser::TLaserData &ldata) // robot coordinates
 {
     static QGraphicsItem *laser_polygon = nullptr;
@@ -399,7 +690,7 @@ void SpecificWorker::draw_laser(const RoboCompLaser::TLaserData &ldata) // robot
     QColor color("LightGreen");
     color.setAlpha(40);
     laser_polygon = viewer_robot->scene.addPolygon(laser_in_robot_polygon->mapToScene(poly), QPen(QColor("DarkGreen"), 30), QBrush(color));
-    laser_polygon->setZValue(3);
+    laser_polygon->setZValue(20);
 }
 void SpecificWorker::new_target_slot(QPointF t)
 {
