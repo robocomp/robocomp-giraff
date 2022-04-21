@@ -18,7 +18,7 @@ tree_view = false
 graph_view = true
 2d_view = true
 3d_view = false
-simulation = false
+simulation = true
 #Ice.MessageSizeMax=20004800
 
 InnerModelPath = innermodel.xml
