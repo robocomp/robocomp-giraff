@@ -295,9 +295,10 @@ class SpecificWorker(GenericWorker):
             converted = self.convert_base_speed_to_motors_speed(adv, rot)
             # move Bill
             if self.WITH_BILL:
-                bill_target = Dummy("Bill_goalDummy")
-                current_pos = bill_target.get_position()
-                bill_target.set_position([current_pos[0]+bill_rotate*0.5, current_pos[1]+bill_advance*0.5, current_pos[2]])
+                pass
+                #bill_target = Dummy("Bill_goalDummy")
+                #current_pos = bill_target.get_position()
+                #bill_target.set_position([current_pos[0]+bill_rotate*0.5, current_pos[1]+bill_advance*0.5, current_pos[2]])
                 # if bill_advance > 0:
                 #     self.pr.script_call("walk_straight@Bill", 1)
                 # elif bill_advance < 0:
