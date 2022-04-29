@@ -1,0 +1,13 @@
+import "CameraRGBDSimple.idsl";
+import "HumanCameraBody.idsl";
+
+Component skeleton_detector
+{
+    Communications
+    {
+        implements HumanCameraBody;
+        requires CameraRGBDSimple;
+    };
+    language python;
+};
+
