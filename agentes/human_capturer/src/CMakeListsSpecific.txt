@@ -3,12 +3,16 @@ find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 SET ( SOURCES
   specificworker.cpp
   specificmonitor.cpp
+  Hungarian.cpp
+  custom_widget.h
+  $ENV{ROBOCOMP}/classes/qcustomplot/qcustomplot.cpp
 )
 
 # Headers set
 SET ( HEADERS
   specificworker.h
   specificmonitor.h
+  Hungarian.h
 )
 
 
@@ -20,3 +24,6 @@ set(CMAKE_CXX_STANDARD 20)
 add_definitions(-O3 -march=native -fmax-errors=5 )
 SET (LIBS ${LIBS} tbb)
 INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv4.cmake )
+
+find_package( Qt5PrintSupport )
+SET (LIBS ${LIBS}  Qt5::PrintSupport)

@@ -58,7 +58,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
-	this->Period = period;
+	this->Period = 80;
 	if(this->startup_check_flag)
 	{
 		this->startup_check();
@@ -115,6 +115,7 @@ void SpecificWorker::initialize(int period)
         custom_widget.list_plan->addItem("Goto x");
         custom_widget.list_plan->addItem("Path p"); //cargar un plan con diferentes puntos y más adelante, más planes
         custom_widget.list_plan->addItem("Bouncer");
+        custom_widget.list_plan->addItem("Follow people");
         connect(custom_widget.list_plan, SIGNAL(currentIndexChanged(int)), this , SLOT(slot_change_mission_selector(int)));
 
         // stacked widgets
@@ -186,6 +187,7 @@ void SpecificWorker::initialize(int period)
 void SpecificWorker::compute()
 {
     static std::chrono::steady_clock::time_point begin, lastPathStep;
+    static QGraphicsEllipseItem *target_scene;
 
     // check for existing missions
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
@@ -219,13 +221,85 @@ void SpecificWorker::compute()
                 qInfo() << __FUNCTION__ << " Plan finished!";
             }
         }
-    }
+        if(current_plan.get_action()=="FOLLOW_PEOPLE")
+        {
+            auto start = std::chrono::steady_clock::now();
+            auto duration=(start-begin) / 1ms ;
+            // std::cout << "DURATION: " << duration << std::endl;
+            if(duration > 400){
+                if(auto intention= G->get_node(current_intention_name);intention.has_value()){
+                    if(auto path=G->get_node(current_path_name);path.has_value()) {
+                        auto x_values = G->get_attrib_by_name<path_x_values_att>(path.value());
+                        auto y_values = G->get_attrib_by_name<path_y_values_att>(path.value());
+                        if (x_values.has_value() and y_values.has_value()) {
+                            if (auto people = G->get_nodes_by_type(person_type_name);not people.empty())
+                            {
+                                for(auto person : people)
+                                {
+                                    if (auto followed_node = G->get_attrib_by_name<followed_att>(person); followed_node.has_value() && followed_node.value() == true)
+                                    {
+//                                        auto last_person_pose = inner_eigen->transform(world_name,person.name(), );
+                                        auto person_pose = inner_eigen->transform(world_name,person.name()).value();
 
+                                        auto x = x_values.value().get();
+                                        auto y = y_values.value().get();
+                                        cout<<x.size()<<endl;
+                                        cout << "PERSON POSE: " << person_pose[0] << " " << person_pose[1] << endl;
+
+
+
+                                        if(sqrt(pow(x.back()-person_pose.x(),2)+ pow(y.back()-person_pose.y(),2))>500){
+
+                                            auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
+                                            Mat::Vector2d pp(int(x.back()), int(y.back()));
+                                            Mat::Vector2d hp(int(person_pose.x()),int(person_pose.y()));
+
+                                            Mat::Vector2d point;
+
+                                            float segmento = (hp - pp).norm() / 150;
+                                            auto vector_dir = (hp - pp) / segmento;
+
+                                            for (int i = 1; i < int(segmento); ++i) {
+                                                auto point = pp + (vector_dir * i);
+                                                x.push_back(point.x());
+                                                y.push_back(point.y());
+                                            }
+
+                                            x.push_back(person_pose[0]);
+                                            y.push_back(person_pose[1]);
+
+                                            G->add_or_modify_attrib_local<path_x_values_att>(path.value(), x);
+                                            G->add_or_modify_attrib_local<path_target_x_att>(path.value(),float(person_pose[0]));
+                                            G->add_or_modify_attrib_local<path_y_values_att>(path.value(), y);
+                                            G->add_or_modify_attrib_local<path_target_y_att>(path.value(),float(person_pose[1]));
+                                            G->update_node(path.value());
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+//                        if (not temporary_plan.is_valid()) //resetea el valor de la y cuando pones la x
+//                            temporary_plan.new_plan(Plan::Actions::FOLLOW_PEOPLE);
+//                        temporary_plan.insert_attribute("x",int(person_pose[0]));
+//                        temporary_plan.insert_attribute("y",int(person_pose[1]));
+//                        temporary_plan.insert_attribute("destiny", "floor");
+//                            if (target_scene != nullptr)
+//                                widget_2d->scene.removeItem(target_scene);
+//                            target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
+//                                                                       QBrush(QColor("Orange")));
+//                            target_scene->setPos(person_pose[0], person_pose[1]);
+//                            target_scene->setZValue(100);
+                    }
+                begin=std::chrono::steady_clock::now();
+                  }
+
+        }
+
+    }
     else
     { // there should be a plan after a few seconds
     }
-
-
     read_camera();
     // path trail
     if(custom_widget.path_trail_button->isChecked())
@@ -448,6 +522,130 @@ void SpecificWorker::create_goto_mission() {
 
     });
 }
+void SpecificWorker::create_follow_people_mission() {
+    static QGraphicsEllipseItem *target_scene;
+    custom_widget.stacked_widget->setCurrentIndex(3);
+    temporary_plan.new_plan(Plan::Actions::FOLLOW_PEOPLE);
+    custom_widget.textedit_current_plan->appendPlainText("-> New temporary plan: FOLLOW PEOPLE");
+    custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
+
+    if(auto people =G->get_nodes_by_type(person_type_name);not people.empty()){
+
+        auto person_pose = inner_eigen->transform(world_name, people[people.size()-1].name()).value();
+        if (not temporary_plan.is_valid()) //resetea el valor de la y cuando pones la x
+            temporary_plan.new_plan(Plan::Actions::FOLLOW_PEOPLE);
+
+//        Eigen::ParametrizedLine segment = Eigen::ParametrizedLine<double, 2>::Through(a_point, b_point);
+        Mat::Vector2d hp(int(person_pose.x()),int(person_pose.y()));
+
+        auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
+        Mat::Vector2d rp(int(robot_pose.x()),int(robot_pose.y()));
+
+        Mat::Vector2d point, target;
+        auto vector_dir = (hp - rp) / 10;
+        target = rp + vector_dir;
+        for (int i = 0; i < 10; ++i) {
+            point = rp + (vector_dir * i);
+            if ((hp-point).norm()> 1000){
+                target = point;
+                std::cout << "TARGET: " << target.x() << " "<< target.y() << std::endl;
+            }
+            else
+                break;
+        }
+
+
+        temporary_plan.insert_attribute("x",int(target.x()));
+        temporary_plan.insert_attribute("y",int(target.y()));
+
+        temporary_plan.insert_attribute("destiny", "floor");
+        cout<<person_pose[0]<<"   "<<person_pose[1]<< endl;
+        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'x' in Follow People plan");
+        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'y' in Follow People plan");
+        if (target_scene != nullptr)
+            widget_2d->scene.removeItem(target_scene);
+        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
+                                                   QBrush(QColor("Orange")));
+        target_scene->setPos(person_pose[0], person_pose[1]);
+        target_scene->setZValue(100);
+
+//        temporary_plan.insert_attribute("x",int(person_pose[0]));
+//        temporary_plan.insert_attribute("y",int(person_pose[1]));
+//        temporary_plan.insert_attribute("destiny", "floor");
+//        cout<<person_pose[0]<<"   "<<person_pose[1]<< endl;
+//        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'x' in Follow People plan");
+//        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'y' in Follow People plan");
+//        if (target_scene != nullptr)
+//            widget_2d->scene.removeItem(target_scene);
+//        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
+//                                                   QBrush(QColor("Orange")));
+//        target_scene->setPos(person_pose[0], person_pose[1]);
+//        target_scene->setZValue(100);
+    }
+    else{
+
+    }
+}
+
+
+//    connect(point_dialog.goto_spinbox_coordX, qOverload<int>(&QSpinBox::valueChanged), [this](int v) {
+//        if (not temporary_plan.is_valid()) //resetea el valor de la y cuando pones la x
+//            temporary_plan.new_plan(Plan::Actions::GOTO);
+//
+//        temporary_plan.insert_attribute("x", v);
+//        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'x' in GOTO plan");
+//        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
+//        // redraw target
+//        if (target_scene != nullptr)
+//            widget_2d->scene.removeItem(target_scene);
+//        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
+//                                                   QBrush(QColor("Orange")));
+//        target_scene->setPos(v, point_dialog.goto_spinbox_coordY->value());
+//        target_scene->setZValue(100);
+//    });
+//
+//    connect(point_dialog.goto_spinbox_coordY, qOverload<int>(&QSpinBox::valueChanged), [this](int v) {
+////        if (not temporary_plan.is_valid())
+////            temporary_plan.new_plan(Plan::Actions::GOTO);
+//
+//        temporary_plan.insert_attribute("y", v);
+//        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'y' in GOTO plan");
+//        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
+//        //redraw target
+//        if (target_scene != nullptr)
+//            widget_2d->scene.removeItem(target_scene);
+//        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
+//                                                   QBrush(QColor("Orange")));
+//        target_scene->setPos(point_dialog.goto_spinbox_coordX->value(), v);
+//        target_scene->setZValue(100);
+//    });
+//
+//    connect(point_dialog.goto_spinbox_angle, qOverload<int>(&QSpinBox::valueChanged), [this](int v) {
+//        temporary_plan.insert_attribute("destiny", v);
+//        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'destiny' in GOTO plan");
+//        custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
+//    });
+//
+//    connect(widget_2d, &DSR::QScene2dViewer::mouse_right_click, [this](int x, int y, std::uint64_t obj) {
+//        if (not temporary_plan.is_valid())
+//            temporary_plan.new_plan(Plan::Actions::GOTO);
+//
+//        if (auto node = G->get_node(obj); node.has_value())
+//            temporary_plan.insert_attribute("destiny", QString::fromStdString(node.value().name()));
+//
+//        point_dialog.goto_spinbox_coordX->setValue(x);
+//        point_dialog.goto_spinbox_coordY->setValue(y);
+//
+//        // redraw target
+//        if (target_scene != nullptr)
+//            widget_2d->scene.removeItem(target_scene);
+//        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
+//                                                   QBrush(QColor("Orange")));
+//        target_scene->setPos(x, y);
+//        target_scene->setZValue(100);
+
+//    });
+//}
 
 ////////////////////////////////////////////////////////////////////////////////////////////
 /// Asynchronous changes on G nodes from G signals
@@ -616,9 +814,23 @@ void SpecificWorker::slot_stop_mission()
     send_command_to_robot(std::make_tuple(0.f,0.f,0.f));   //adv, rot, side
     if(auto intention = G->get_node(current_intention_name); intention.has_value())
     {
+
         if(auto path = G->get_node(current_path_name); path.has_value())
+        {
+            if (auto edge_thinks = G->get_edge(path.value().id(),intention.value().id(),"thinks");edge_thinks.has_value())
+                G->delete_edge(path.value().id(),intention.value().id(), "thinks");
+
+
             G->delete_node(path.value().id());
+        }
+
+        auto mind = G->get_node(robot_mind_name);
+
+        if (auto has_mind_intention = G->get_edge(mind.value().id(),intention.value().id(),"has");has_mind_intention.has_value())
+            G->delete_edge(mind.value().id(),intention.value().id(), "has");
+
         G->delete_node(intention.value().id());
+
     }
     else
         qWarning() << __FUNCTION__ << "No intention node found";
@@ -654,6 +866,8 @@ void SpecificWorker::slot_change_mission_selector(int index)
         case 3:
             create_bouncer_mission();
             break;
+        case 4:
+            create_follow_people_mission();
     }
 }
 /////////////////////////////////////////////////////////////////////////////////////////////

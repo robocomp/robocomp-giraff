@@ -30,10 +30,10 @@
          <item>
           <widget class="QSpinBox" name="goto_spinbox_coordX">
            <property name="minimum">
-            <number>-1750</number>
+            <number>-13000</number>
            </property>
            <property name="maximum">
-            <number>1750</number>
+            <number>13000</number>
            </property>
           </widget>
          </item>
@@ -47,10 +47,10 @@
          <item>
           <widget class="QSpinBox" name="goto_spinbox_coordY">
            <property name="minimum">
-            <number>-1900</number>
+            <number>-13000</number>
            </property>
            <property name="maximum">
-            <number>1900</number>
+            <number>13000</number>
            </property>
           </widget>
          </item>

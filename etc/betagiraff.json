@@ -209,11 +209,7 @@
                     "pos_y": {
                         "type": 2,
                         "value": -445.151031
-                    },
-                    "simulation": {
-                    	 "type": 4,
-                    	 "value": "True"
-                    } 
+                    }
                 },
                 "id": "1000",
                 "links": [

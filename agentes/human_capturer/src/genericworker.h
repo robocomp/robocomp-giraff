@@ -31,6 +31,7 @@
 #include <ui_mainUI.h>
 #include <CommonBehavior.h>
 
+#include <AprilTagsServer.h>
 #include <CameraRGBDSimple.h>
 #include <HumanCameraBody.h>
 #include <JointMotorSimple.h>
@@ -41,7 +42,7 @@
 #define BASIC_PERIOD 100
 
 
-using TuplePrx = std::tuple<RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompHumanCameraBody::HumanCameraBodyPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr,RoboCompRealSenseFaceID::RealSenseFaceIDPrxPtr>;
+using TuplePrx = std::tuple<RoboCompAprilTagsServer::AprilTagsServerPrxPtr,RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompHumanCameraBody::HumanCameraBodyPrxPtr,RoboCompJointMotorSimple::JointMotorSimplePrxPtr,RoboCompRealSenseFaceID::RealSenseFaceIDPrxPtr>;
 
 
 class GenericWorker : public QMainWindow, public Ui_guiDlg
@@ -57,6 +58,7 @@ public:
 	QMutex *mutex;
 
 
+	RoboCompAprilTagsServer::AprilTagsServerPrxPtr apriltagsserver_proxy;
 	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompHumanCameraBody::HumanCameraBodyPrxPtr humancamerabody_proxy;
 	RoboCompJointMotorSimple::JointMotorSimplePrxPtr jointmotorsimple_proxy;

@@ -16,8 +16,6 @@
 #include <set>
 #include <vector>
 #include <cppitertools/range.hpp>
-#include <iostream>
-#include <opencv2/core/types.hpp>
 
 class Graph_Rooms
 {
@@ -26,15 +24,8 @@ class Graph_Rooms
         struct Door
         {
             public:
-                Eigen::Vector2f p1,p2;   // line coordinates
+                Eigen::Vector2f p1,p2;
                 int id;
-                struct From_Room
-                {
-                    int room_id = -1;
-                    Eigen::Vector2f p1,p2;   // line coordinates in this room RS
-                };
-                std::map<int, From_Room> rooms;
-
                 int to_room = -1;
                 int from_room = -1;
                 const float diff = 400;
@@ -75,27 +66,12 @@ class Graph_Rooms
 //                    for (const auto &r: to_rooms)
 //                        qInfo() << "    to room -> " << r;
                 }
-               void draw(QGraphicsScene *scene, const Eigen::Vector2f &pos = Eigen::Vector2f(0.f,0.f), float ang=0.f)
+                void draw(QGraphicsScene *scene)
                 {
                     if(poly_draw != nullptr)
                         scene->removeItem(poly_draw);
-
-                    // rect to grid
-//                    Eigen::Matrix2f matrix;
-//                    matrix << cos(ang), -sin(ang), sin(ang) ,cos(ang);
-//                    auto pp1 = matrix * rooms.at(0).p1 + Eigen::Vector2f(room_center.x, room_Center.y);
-//                    auto pp2 = matrix * rooms.at(0).p2 + Eigen::Vector2f(room_center.x, room_Center.y);
-
-                    // grid to world
-                    Eigen::Matrix2f g2w;
-                    g2w <<  cos(ang), -sin(ang),
-                            sin(ang), cos(ang);
-                    auto pp1 = g2w * p1 + pos;
-                    auto pp2 = g2w * p2 + pos;
-                    //std::cout << __FUNCTION__ << "p1 " << p1 << " p2 " << p2 << std::endl;
-                    //std::cout << __FUNCTION__ << "mat " << g2w << "pp1 " << pp1 << " pp2 " << pp2 << std::endl;
-                    poly_draw = scene->addLine(pp1.x(), pp1.y(), pp2.x(), pp2.y(), QPen(QColor("Magenta"), 50));
-                    poly_draw->setZValue(10);
+                    poly_draw = scene->addLine(p1.x(), p1.y(), p2.x(), p2.y(), QPen(QColor("Magenta"), 50));
+                    poly_draw->setZValue(200);
                 }
         };
         struct Room
@@ -103,27 +79,27 @@ class Graph_Rooms
            public:
                 IOU::Quad quad;   //eliminate
                 int id;
-                cv::RotatedRect room_rect;
+                QRectF room_rect;
                 IOU::Vertexes points;
                 QPointF graph_pos;
                 QGraphicsItem *poly_draw = nullptr;
-                std::vector<int> doors_ids;
+                std::vector<Door> doors;
                 bool is_unknown = true;
-                double get_witdh() const { return room_rect.size.width;};
-                double get_height() const { return room_rect.size.height;};
-                double get_semi_witdh() const { return room_rect.size.width/2.0;};
-                double get_semi_height() const { return room_rect.size.height/2.0;};
+                double get_witdh() const { return room_rect.width();};
+                double get_height() const { return room_rect.height();};
+                double get_semi_witdh() const { return room_rect.width()/2.0;};
+                double get_semi_height() const { return room_rect.height()/2.0;};
                 bool operator == (const Room &d)
                 {
                     double iou = IOU::iou(quad, d.quad);
                     return iou > 0.9;
                 }
                 Room(int id_) : id(id_) {};
-//                Room(const IOU::Quad &quad_, int id_, const QRectF &rect) : quad(quad_), id(id_), room_rect(rect)
-//                {
-//                    quad.beInClockWise();
-//                    quad.getVertList(points);
-//                };
+                Room(const IOU::Quad &quad_, int id_, const QRectF &rect) : quad(quad_), id(id_), room_rect(rect)
+                {
+                    quad.beInClockWise();
+                    quad.getVertList(points);
+                };
                 Room(Room const&) = default;
                 Room& operator=(Room other)
                 {
@@ -132,7 +108,7 @@ class Graph_Rooms
                     std::swap(points, other.points);
                     std::swap(graph_pos, other.graph_pos);
                     std::swap(room_rect, other.room_rect);
-                    std::swap(doors_ids, other.doors_ids);
+                    std::swap(doors, other.doors);
                     is_unknown = other.is_unknown;
                     poly_draw = other.poly_draw;
                     return *this;
@@ -141,40 +117,26 @@ class Graph_Rooms
                 {
                     qInfo() << "Room:" << id;
                     qInfo() << "    graph_pos:" << graph_pos;
-                    qInfo() << "    rect:" << room_rect.center.x << room_rect.center.y << room_rect.size.width << room_rect.size.height;
-//                    for(auto &d: doors_ids)
-//                        doors[id].print();
+                    qInfo() << "    rect:" << room_rect;
+                    for(auto &d: doors)
+                        d.print();
                 }
-                void draw(QGraphicsScene *scene, const Eigen::Vector2f &offset=Eigen::Vector2f(0.f,0.f), float ang=0.f)
+                void draw(QGraphicsScene *scene)
                 {
-                    //if(poly_draw != nullptr)
-                    //    scene->removeItem(poly_draw);
-
-                    auto r = room_rect;
-                    r.center = r.center + cv::Point2f(offset.x(), offset.y());
-                    r.angle += qRadiansToDegrees(ang);
-                    //poly_draw = scene->addRect(r, QPen(QColor("Blue"), 90));
-                    cv::Point2f rect_points[4];
-                    r.points(rect_points);
-                    QPolygonF pol;
-                    for(const auto &p: rect_points)
-                        pol << QPointF(p.x, p.y);
-                    poly_draw = scene->addPolygon(pol, QPen(QColor("Blue"), 90));
-                    graph_pos = QPointF(r.center.x, r.center.y);
-                    poly_draw->setZValue(10);
+                    if(poly_draw != nullptr)
+                        scene->removeItem(poly_draw);
+                    poly_draw = scene->addRect(room_rect, QPen(QColor("Blue"), 90));
+                    graph_pos = room_rect.center();
+                    poly_draw->setZValue(100);
                 }
-                void add_step_to_width(double step) { room_rect.size.width = room_rect.size.width + step;};
-                void add_step_to_height(double step) { room_rect.size.height = room_rect.size.height + step;};
-                void add_step_to_center_x(double step) { room_rect.center = room_rect.center + cv::Point2f{(float)step, 0.f};};
-                void add_step_to_center_y(double step) { room_rect.center = room_rect.center + cv::Point2f{0.f, (float)step};};
-            //void add_step_to_width(double step) { room_rect.setWidth(room_rect.width() + step);};
-            //                void add_step_to_height(double step) {room_rect.setHeight(room_rect.height() + step);};
-            //                void add_step_to_center_x(double step) { room_rect.moveCenter(room_rect.center() + QPointF(step, 0.f));};
-            //                void add_step_to_center_y(double step) {room_rect.moveCenter(room_rect.center() + QPointF(0.f, step));};
+                void add_step_to_width(double step) { room_rect.setWidth(room_rect.width() + step);};
+                void add_step_to_height(double step) {room_rect.setHeight(room_rect.height() + step);};
+                void add_step_to_center_x(double step) { room_rect.moveCenter(room_rect.center() + QPointF(step, 0.f));};
+                void add_step_to_center_y(double step) {room_rect.moveCenter(room_rect.center() + QPointF(0.f, step));};
         };
 
+        //std::vector<Door> doors;
         std::vector<Room> rooms;
-        std::vector<Door> doors;
         int current_room_local = 0;
         bool is_current_room_unknown = true;
         int number_of_doors = 0;

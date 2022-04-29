@@ -7,7 +7,8 @@
 #include <random>
 #include <cppitertools/enumerate.hpp>
 
-cv::RotatedRect Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
+
+QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
 {
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     // initial values  points_raw: 300 x 3
@@ -58,9 +59,7 @@ cv::RotatedRect Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &po
     qInfo() << __FUNCTION__ << "Final error:" << *hit;
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     qInfo() << __FUNCTION__ << "Elapsed time (ms):" << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();;
-    //return cv::RotatedRect(rcx-rsw, rcy-rsh, rsw*2, rsh*2);
-    return cv::RotatedRect(cv::Point2f{rcx, rcy}, cv::Point2f{rsw*2, rsh*2}, 0.f);
-
+    return QRectF(rcx-rsw, rcy-rsh, rsw*2, rsh*2);
 }
 std::tuple<std::vector<double>, double, size_t, Eigen::ArrayXd>
 Room_Detector_Grad_Stochastic::optimize(const Eigen::MatrixX3d &points, const std::vector<double> &params,
@@ -260,18 +259,14 @@ double Room_Detector_Grad_Stochastic::door_distance_error(const Graph_Rooms &G, 
     // error = sum of distance from room r to doors at the neighboor rooms' doores
     double total_dist = 0.0;
     for(const auto &r: local_rooms)
-        for(const auto &d_id: r.doors_ids)
-        {
-            const auto &d = G.doors.at(d_id);
-            if (d.to_room != -1)
-                if (auto res = std::ranges::find_if(G.rooms.at(d.to_room).doors_ids, [id = d.id, G](auto d)
-                        { return G.doors.at(id).id == id; }); res != G.rooms.at(d.to_room).doors_ids.end())
+        for(const auto &d: r.doors)
+            if(d.to_room != -1)
+                if(auto res = std::ranges::find_if(G.rooms.at(d.to_room).doors, [id = d.id](auto d){ return d.id == id;}); res != G.rooms.at(d.to_room).doors.end())
                 {
-                    double dist = G.min_distance_from_point_to_closest_side(r, G.doors.at((*res)).p1) +
-                                  G.min_distance_from_point_to_closest_side(r, G.doors.at((*res)).p2);
+                    double dist = G.min_distance_from_point_to_closest_side(r, (*res).p1) +
+                                  G.min_distance_from_point_to_closest_side(r, (*res).p2);
                     total_dist += dist;
 
                 }
-        }
     return total_dist;
 };
