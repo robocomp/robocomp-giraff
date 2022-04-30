@@ -93,7 +93,8 @@ class SpecificWorker(GenericWorker):
                                                         "rgb": np.array(0),
                                                         "depth": np.ndarray(0),
                                                         "is_ready": False,
-                                                        "is_rgbd": False
+                                                        "is_rgbd": False,
+                                                        "rotated": False
                                                     }
 
         self.top_camera_name = "camera_top"
@@ -108,7 +109,8 @@ class SpecificWorker(GenericWorker):
                                                      "rgb": np.array(0),
                                                      "depth": np.ndarray(0),
                                                      "is_ready": False,
-                                                     "is_rgbd": True
+                                                     "is_rgbd": True,
+                                                     "rotated": True
                                                     }
         self.cameras_read = self.cameras_write.copy()
 
@@ -248,28 +250,53 @@ class SpecificWorker(GenericWorker):
     ### CAMERAS get and publish cameras data
     ###########################################
     def read_cameras(self, camera_names):
-        for camera_name in camera_names:
-            cam = self.cameras_write[camera_name]
+         if self.tablet_camera_name in camera_names:  # RGB not-rotated
+            cam = self.cameras_write[self.tablet_camera_name]
             image_float = cam["handle"].capture_rgb()
             image = cv2.normalize(src=image_float, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
                                   dtype=cv2.CV_8U)
-            if cam["is_rgbd"]:
-                depth = cam["handle"].capture_depth(True)
-                #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                cam["depth"] = RoboCompCameraRGBDSimple.TDepth(cameraID=cam["id"], width=cam["handle"].get_resolution()[0],
-                                                              height=cam["handle"].get_resolution()[1],
-                                                              focalx=cam["focal"], focaly=cam["focal"],
-                                                              alivetime=time.time(), depthFactor=1.0,
-                                                              depth=depth.tobytes())
-                cam["rgb"] = RoboCompCameraRGBDSimple.TImage(cameraID=cam["id"], width=cam["width"], height=cam["height"],
-                                                              depth=3, focalx=cam["focal"], focaly=cam["focal"],
-                                                              alivetime=time.time(), image=image.tobytes())
-            else:
-                cam["rgb"] = RoboCompCameraSimple.TImage(width=cam["width"], height=cam["height"],
-                                                              depth=3, image=image.tobytes(), compressed=False)
+            cam["rgb"] = RoboCompCameraRGBDSimple.TImage(cameraID=cam["id"],
+                                                         width=cam["width"],
+                                                         height=cam["height"],
+                                                         depth=3,
+                                                         focalx=cam["focal"],
+                                                         focaly=cam["focal"],
+                                                         alivetime=time.time(),
+                                                         image=image.tobytes(),
+                                                         compressed=False)
+
             cam["is_ready"] = True
 
-        self.cameras_write, self.cameras_read = self.cameras_read, self.cameras_write
+         if self.top_camera_name in camera_names:  # RGBD rotated
+            cam = self.cameras_write[self.top_camera_name]
+            image_float = cam["handle"].capture_rgb()
+            image = cv2.normalize(src=image_float, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
+                                   dtype=cv2.CV_8U)
+            image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            depth = cam["handle"].capture_depth(True)
+            depth = np.frombuffer(depth, dtype=np.float32).reshape((cam["height"], cam["width"]))
+            depth = cv2.rotate(depth, cv2.ROTATE_90_COUNTERCLOCKWISE)
+            # we change width and height here to follow the rotation operation
+            cam["depth"] = RoboCompCameraRGBDSimple.TDepth( cameraID=cam["id"],
+                                                            width=cam["height"],  # cambiados
+                                                            height=cam["width"],
+                                                            focalx=cam["focal"],
+                                                            focaly=cam["focal"],
+                                                            alivetime=time.time(),
+                                                            depthFactor=1.0,
+                                                            depth=depth.tobytes())
+            cam["rgb"] = RoboCompCameraRGBDSimple.TImage( cameraID=cam["id"],
+                                                          width=cam["height"],          #cambiados
+                                                          height=cam["width"],
+                                                          depth=3,
+                                                          focalx=cam["focal"],
+                                                          focaly=cam["focal"],
+                                                          alivetime=time.time(),
+                                                          image=image.tobytes(),
+                                                          compressed=False)
+            cam["is_ready"] = True
+
+         self.cameras_write, self.cameras_read = self.cameras_read, self.cameras_write
 
     ###########################################
     ### JOYSITCK read and move the robot
@@ -365,7 +392,6 @@ class SpecificWorker(GenericWorker):
         # swap
         self.robot_full_pose_write, self.robot_full_pose_read = self.robot_full_pose_read, self.robot_full_pose_write
 
-
     ###########################################
     ### MOVE ROBOT from Omnirobot interface
     ###########################################
@@ -384,6 +410,7 @@ class SpecificWorker(GenericWorker):
             self.tablet_motor.set_joint_position(self.tablet_new_pos)  # radians
             self.tablet_new_pos = None
 
+    #################################################################
     ##################################################################################
     # SUBSCRIPTION to sendData method from JoystickAdapter interface
     ###################################################################################
