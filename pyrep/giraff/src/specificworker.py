@@ -30,6 +30,7 @@ import numpy as np
 import numpy_indexed as npi
 import cv2
 import itertools as it
+from math import *
 
 class TimeControl:
     def __init__(self, period_):
@@ -114,6 +115,23 @@ class SpecificWorker(GenericWorker):
                                                     }
         self.cameras_read = self.cameras_write.copy()
 
+        # Read existing people
+        self.people = {}
+        if Dummy.exists("Bill_base"):
+            self.people["Bill"] = Dummy("Bill_base")
+        elif Dummy.exists("Bill"):
+            self.people["Bill"] = Dummy("Bill")
+
+
+
+        for i in range(0, 2):
+            name = "Bill#" + str(i)
+            name_base = "Bill_base#" + str(i)
+            if Dummy.exists(name_base):
+                self.people[name] = Dummy(name_base)
+            elif Dummy.exists(name):
+                self.people[name] = Dummy(name)
+
         # laser
         self.lasers = {}
         self.hokuyo_front_left_name = "Hokuyo_sensor2"
@@ -167,6 +185,7 @@ class SpecificWorker(GenericWorker):
             self.pr.step()
             self.read_laser_raw()
             self.read_cameras([self.tablet_camera_name, self.top_camera_name])
+            self.read_people()
             self.read_joystick()
             self.read_robot_pose()
             self.move_robot()
@@ -204,6 +223,26 @@ class SpecificWorker(GenericWorker):
             #     self.laserpub_proxy.pushLaserData(self.ldata_read)
             # except Ice.Exception as e:
             #     print(e)
+
+    ###########################################
+    ### PEOPLE get and publish people position
+    ###########################################
+    def read_people(self):
+        people_data = RoboCompHumanToDSRPub.PeopleData()
+        people_data.timestamp = time.time()
+        people = []  # RoboCompHumanToDSRPub.People()
+        for name, handle in self.people.items():
+            pos = handle.get_position()
+            rot = handle.get_orientation()
+            person = RoboCompHumanToDSRPub.Person(len(people), pos[0] * 1000, pos[1] * 1000, pos[2] * 1000,
+                                                  pi - rot[2] - pi / 2,
+                                                  {})
+            people.append(person)
+        try:
+            people_data.peoplelist = people
+            self.humantodsrpub_proxy.newPeopleData(people_data)
+        except Ice.Exception as e:
+            print(e)
 
     def read_laser(self):
         data = self.pr.script_call("get_depth_data@Hokuyo", 1)
@@ -322,10 +361,9 @@ class SpecificWorker(GenericWorker):
             converted = self.convert_base_speed_to_motors_speed(adv, rot)
             # move Bill
             if self.WITH_BILL:
-                pass
-                #bill_target = Dummy("Bill_goalDummy")
-                #current_pos = bill_target.get_position()
-                #bill_target.set_position([current_pos[0]+bill_rotate*0.5, current_pos[1]+bill_advance*0.5, current_pos[2]])
+                bill_target = Dummy("Bill_goalDummy")
+                current_pos = bill_target.get_position()
+                bill_target.set_position([current_pos[0]+bill_rotate*0.5, current_pos[1]+bill_advance*0.5, current_pos[2]])
                 # if bill_advance > 0:
                 #     self.pr.script_call("walk_straight@Bill", 1)
                 # elif bill_advance < 0:
@@ -736,6 +774,7 @@ class SpecificWorker(GenericWorker):
     def BillCoppelia_getPose(self):
         ret = RoboCompBillCoppelia.Pose()
         bill = Dummy("/Bill/Bill")
+        #bill = Dummy("Bill")
         pos = bill.get_position()
         print(pos)
         ret.x = pos[0] * 1000.0

@@ -8,7 +8,7 @@
 class Plan
 {
     public:
-        enum class Actions {NONE, GOTO, BOUNCE, FOLLOW_PATH};
+        enum class Actions {NONE, GOTO, BOUNCE, FOLLOW_PATH,FOLLOW_PEOPLE};
         enum class PlanState {INACTIVE, RUNNING, CREATING, FINISHED, READY};
         Plan()
         {
@@ -125,14 +125,16 @@ class Plan
             {Actions::GOTO, "GOTO"},
             {Actions::BOUNCE, "BOUNCE"},
             {Actions::FOLLOW_PATH, "FOLLOW_PATH"},
-            {Actions::NONE, "NONE"}
+            {Actions::NONE, "NONE"},
+            {Actions::FOLLOW_PEOPLE,"FOLLOW_PEOPLE"}
          };
         std::map<std::string, Actions> strings_to_actions
         {
             {"GOTO", Actions::GOTO},
             {"BOUNCE", Actions::BOUNCE},
             {"FOLLOW_PATH", Actions::FOLLOW_PATH},
-            {"NONE", Actions::NONE}
+            {"NONE", Actions::NONE},
+            {"FOLLOW_PEOPLE", Actions::FOLLOW_PEOPLE}
         };
         std::string convert_action_to_string(Actions action) const
         {
@@ -180,11 +182,14 @@ class Plan
             else
                 return false;
         };
+        bool FOLLOW_PEOPLE_test() { return true; };
+
         std::map <Actions, Test> action_to_tests
         {
             {Actions::GOTO, &Plan::GOTO_test},
             {Actions::BOUNCE, &Plan::BOUNCE_test},
-            {Actions::FOLLOW_PATH, &Plan::FOLLOW_PATH_test}
+            {Actions::FOLLOW_PATH, &Plan::FOLLOW_PATH_test},
+            {Actions::FOLLOW_PEOPLE, &Plan::FOLLOW_PEOPLE_test}
         };
 
 

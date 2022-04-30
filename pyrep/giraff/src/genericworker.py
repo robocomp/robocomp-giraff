@@ -44,6 +44,8 @@ Ice.loadSlice("-I ./src/ --all ./src/DifferentialRobot.ice")
 import RoboCompDifferentialRobot
 Ice.loadSlice("-I ./src/ --all ./src/CoppeliaUtils.ice")
 import RoboCompCoppeliaUtils
+Ice.loadSlice("-I ./src/ --all ./src/HumanToDSRPub.ice")
+import RoboCompHumanToDSRPub
 Ice.loadSlice("-I ./src/ --all ./src/BillCoppelia.ice")
 import RoboCompBillCoppelia
 Ice.loadSlice("-I ./src/ --all ./src/FullPoseEstimation.ice")
@@ -73,5 +75,7 @@ class GenericWorker():
 
     def __init__(self, mprx):
         super(GenericWorker, self).__init__()
+
+        self.humantodsrpub_proxy = mprx["HumanToDSRPubPub"]
 
 

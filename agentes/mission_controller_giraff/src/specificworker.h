@@ -111,6 +111,7 @@ private:
     Plan current_plan;
     void insert_intention_node(const Plan &plan);
     void create_goto_mission();
+    void create_follow_people_mission();
     void create_bouncer_mission();
     void create_path_mission();
     AbstractGraphicViewer *pathfollow_draw_widget;

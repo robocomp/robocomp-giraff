@@ -152,7 +152,7 @@ void SpecificWorker::initialize(int period)
 
         fichero.open("datos.csv");
         iter = 0;
-        this->Period = 200;
+        this->Period = 100;
         std::cout<< __FUNCTION__ << "Initialization finished" << std::endl;
         timer.start(Period);
     }
@@ -418,15 +418,19 @@ std::vector<QPointF> SpecificWorker::get_points_along_extended_robot_polygon(int
 std::tuple<float, float, float> SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds) //adv, side, rot
 {
     auto &[adv_, side_, rot_] = speeds;
-    if(auto robot_node = G->get_node(robot_name); robot_node.has_value())
+    if(abs(adv_) < 1200 && abs(rot_) < 1)
     {
-        G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) adv_);
-        G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) rot_);
-        G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(), (float) side_);
-        G->update_node(robot_node.value());
+        if(auto robot_node = G->get_node(robot_name); robot_node.has_value())
+        {
+            G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) adv_);
+            G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) rot_);
+            G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(), (float) side_);
+            G->update_node(robot_node.value());
+        }
+        else qWarning() << __FUNCTION__ << "No robot node found";
+        return std::make_tuple(adv_, side_, rot_);
     }
-    else qWarning() << __FUNCTION__ << "No robot node found";
-    return std::make_tuple(adv_, side_, rot_);
+    else return std::make_tuple( 0.0, 0.0, 0.0);
 }
 
 // compute max de gauss(value) where gauss(x)=y  y min

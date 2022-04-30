@@ -23,6 +23,7 @@ from PySide2.QtCore import QTimer
 from PySide2.QtWidgets import QApplication
 from rich.console import Console
 from genericworker import *
+import time
 import interfaces as ifaces
 import numpy as np
 import cv2, json
@@ -47,15 +48,22 @@ TOLERANCE = 0.02
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
+        self.last_timestamp = 0
+        self.last_person_position = 240
         self.Period = 10
 
         QObject.connect(self.ui.horizontalSlider_pos, SIGNAL('valueChanged(int)'), self.slot_change_pos)
         QObject.connect(self.ui.horizontalSlider_max_speed, SIGNAL('valueChanged(int)'), self.slot_change_max_speed)
         QObject.connect(self.ui.pushButton_center, SIGNAL('clicked()'), self.slot_center)
         QObject.connect(self.ui.pushButton, SIGNAL('clicked()'), self.slot_track)
-        self.motor = self.jointmotorsimple_proxy.getMotorState("")
+        self.motor = ifaces.RoboCompJointMotorSimple.MotorState()
+        self.last_goal = ifaces.RoboCompJointMotorSimple.MotorGoalPosition()
+        self.last_goal.maxSpeed = 0
+        self.last_goal.pos = 0
+        self.last_puntoMedioX = 0
         self.current_max_speed = 0.0
         self.ui.horizontalSlider_pos.setSliderPosition(self.motor.pos)
+        self.rad_old = self.motor.pos
 
         self.faceList = ["0", "1", "2", "3", "4"]
         self.hipList = ["12", "13"]
@@ -68,11 +76,6 @@ class SpecificWorker(GenericWorker):
         self.k5 = 4
         self.k6 = 1
         self.k7 = 1
-
-        # self.error_dict = {
-        #     "camera_position_error" : [],
-        #     "camera_audio_angle_error" : [],
-        # }
 
         self.error_ant = 0
         self.rad_old = 0
@@ -95,6 +98,8 @@ class SpecificWorker(GenericWorker):
         self.x_pos = 0
         self.y_pos = 0
         self.z_pos = 0
+
+        self.sacadic = False
 
         plt.ion()
         # self.visible = 120
@@ -140,12 +145,12 @@ class SpecificWorker(GenericWorker):
         self.inner_api = inner_api(self.g)
 
         try:
-            signals.connect(self.g, signals.UPDATE_NODE_ATTR, self.update_node_att)
-            signals.connect(self.g, signals.UPDATE_NODE, self.update_node)
-            signals.connect(self.g, signals.DELETE_NODE, self.delete_node)
-            signals.connect(self.g, signals.UPDATE_EDGE, self.update_edge)
-            signals.connect(self.g, signals.UPDATE_EDGE_ATTR, self.update_edge_att)
-            signals.connect(self.g, signals.DELETE_EDGE, self.delete_edge)
+            # signals.connect(self.g, signals.UPDATE_NODE_ATTR, self.update_node_att)
+            # signals.connect(self.g, signals.UPDATE_NODE, self.update_node)
+            # signals.connect(self.g, signals.DELETE_NODE, self.delete_node)
+            # signals.connect(self.g, signals.UPDATE_EDGE, self.update_edge)
+            # signals.connect(self.g, signals.UPDATE_EDGE_ATTR, self.update_edge_att)
+            # signals.connect(self.g, signals.DELETE_EDGE, self.delete_edge)
             console.print("signals connected")
         except RuntimeError as e:
             print(e)
@@ -172,29 +177,99 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def compute(self):
         #obtenemos datos
-        color, people_data = self.obtencion_datos()
+        # color, people_data = self.obtencion_datos()
+        self.obtencion_datos()
         #
-        # print("FOCAL: ", color.focalx, color.focaly)
-        image = np.frombuffer(color.image, np.uint8).reshape(color.width, color.height, color.depth)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        cv2.line(image, (240, 0), (240, 640), (0, 255, 0), 1)
-        image = self.print_angle_ball(image)
+        # print("FOCAL: ", color.focalx, color.focaly, color.height)
+        # self.act_timestamp = people_data.timestamp
+        # print("Timestamp: ", act_timestamp)
+
+        camera_node = self.g.get_node('giraff_camera_realsense')
+        image_data = camera_node.attrs['cam_rgb'].value
+        image_width = camera_node.attrs['cam_rgb_width'].value
+        image_height = camera_node.attrs['cam_rgb_height'].value
+        image = np.frombuffer(image_data, np.uint8).reshape(image_width, image_height, 3)
+
+        # cv2.line(image, (240, 0), (240, 640), (0, 255, 0), 1)
+        # image = self.print_angle_ball(image)
         robot_node = self.g.get_node('robot')
         # print("LEN: ", len(people_data.peoplelist))
-        if len(people_data.peoplelist) == 0:
-            robot_node.attrs['robot_ref_rot_speed'] = Attribute(float(0), self.agent_id)
-            robot_node.attrs['robot_ref_adv_speed'] = Attribute(float(0), self.agent_id)
-            self.g.update_node(robot_node)
+        # if len(people_data.peoplelist) == 0:
+        #     robot_node.attrs['robot_ref_rot_speed'] = Attribute(float(0), self.agent_id)
+        #     robot_node.attrs['robot_ref_adv_speed'] = Attribute(float(0), self.agent_id)
+        #     self.g.update_node(robot_node)
+        #
+        # else:
+        # image = self.proceso_esqueleto(image, people_data)
+        people_nodes = self.g.get_nodes_by_type('person')
+        # print(self.sacadic)
 
-        else:
-            image = self.proceso_esqueleto(image, people_data)
-            people_nodes = self.g.get_nodes_by_type('person')
-            for person in people_nodes:
-                if person.attrs["followed"].value == True:
-                    self.tracker_camera(color, person)
+        # print("self.motor.pos: ", self.motor.pos)
+        # print("self.rad_old: ", self.rad_old)
+        # print("abs(self.motor.pos - self.rad_old): ", abs(self.motor.pos - self.rad_old))
+        for person in people_nodes:
+            if person.attrs["followed"].value == True:
 
-        self.refesco_ventana(color, image)
-        self.plot_data()
+                puntoMedioX = person.attrs['pixel_x'].value
+                if(puntoMedioX!=self.last_puntoMedioX):
+                    self.last_puntoMedioX = puntoMedioX
+                    distance = person.attrs['distance_to_robot'].value
+
+                    # print("POSICION PERSONA EN IMAGEN: ", puntoMedioX)
+                    # print("POSICION SERVO: ", self.motor.pos)
+                    # print("POSICION ASIGNADA A SERVO ANTERIOR: ", self.rad_old)
+
+                    robot_node = self.g.get_node("robot")
+
+                    error = puntoMedioX - 240
+                    error_rads = np.arctan2(error, 382)
+
+                    # Rotational speed given by odometry
+                    act_rot_speed = robot_node.attrs["robot_local_rotational_speed"].value
+
+                    goal_rad = self.motor.pos - error_rads
+                    rad_seg = self.k5 * error_rads
+                    # print("POSICION ASIGNADA A SERVO: ", goal_rad)
+
+                    tracker_data = {
+                        "goal_rads" : goal_rad,
+                        "error_rads": rad_seg,
+                        "act_rot_speed": act_rot_speed,
+                        "distance": distance,
+                    }
+
+                    # if (not self.jointmotorsimple_proxy.getMotorState("").isMoving):
+                    goal = self.tracker_camera(tracker_data)
+                    # print("GOALS, LAST -> NEW: ", self.last_goal, goal)
+                    if(abs(self.last_goal.position-goal.position)>0.02):
+                        print("NUEVO SET POSITION")
+                        self.last_goal = goal
+
+                        servo_node = self.g.get_node("servo")
+                        servo_node.attrs['servo_send_pos'] = Attribute(float(goal.position), self.agent_id)
+                        servo_node.attrs['servo_send_speed'] = Attribute(float(goal.maxSpeed), self.agent_id)
+                        self.g.update_node(servo_node)
+                        self.error_ant = error
+                        self.rad_old = goal_rad
+
+
+                    # if self.sacadic and self.last_timestamp < (self.act_timestamp - 250 ) and (abs(self.motor.pos - self.rad_old) < 1):
+                    #     print("IF 1")
+                    #     self.sacadic = False
+                    #     self.last_timestamp = self.act_timestamp
+                    #     self.jointmotorsimple_proxy.setPosition("", goal)
+                    # elif not self.sacadic:
+                    #     print("IF 3")
+                    #     self.jointmotorsimple_proxy.setPosition("", goal)
+                    # else:
+                    #     pass
+
+
+
+        # self.last_motor_pos = self.motor.pos
+        self.refesco_ventana(image_width, image_height, image)
+        # self.plot_data()
+
 
     def draw_error_data(self):
         self.d_camera_position_error.extend([self.error_dict["camera_position_error"][-1]])
@@ -220,57 +295,51 @@ class SpecificWorker(GenericWorker):
         s = -(val_1 ** 2) / np.log(val_2)
         return np.exp(-(x ** 2)/s)
 
-    def tracker_camera(self, color, person):
-
-        puntoMedioX = person.attrs['pixel_x'].value
-        distance = person.attrs['distance_to_robot'].value
-
-        robot_node = self.g.get_node("robot")
-
-        error = puntoMedioX - color.height / 2
+    def tracker_camera(self, data):
         goal = ifaces.RoboCompJointMotorSimple.MotorGoalPosition()
-        der_error = -(error - self.error_ant)
-        error_rads = np.arctan2(error, color.focalx)
-
-        der_error_rads = np.arctan2(der_error, color.focalx)
-
-        # Rotational speed given by odometry
-        act_rot_speed = robot_node.attrs["robot_local_rotational_speed"].value
-        # act_rot_speed = max(min(act_rot_speed, 0.8), 0)
-
-        goal_rad = self.motor.pos - error_rads
-
-        rad_seg = self.k5 * error_rads
-
-        goal.maxSpeed = abs((((rad_seg + MIN_VELOCITY) * 2)) * (1.5/(distance/1000))) - 0.7 * abs(act_rot_speed)
-        if goal.maxSpeed < 0:
+        if abs(data["error_rads"]) > 0.1:
+            self.sacadic = True
+            print("SACADIC IN")
             goal.maxSpeed = 0
+        else:
+            # self.sacadic = False
+            print("SACADIC OUT")
+            goal.maxSpeed = abs(abs((((data["error_rads"] + MIN_VELOCITY) * 2.5)) * (1.5/(data["distance"]/1000))) - 0.3 * abs(data["act_rot_speed"]))
+            # goal.maxSpeed = 0
 
-        goal.position = goal_rad
+        goal.position = data["goal_rads"]
 
-        self.jointmotorsimple_proxy.setPosition("", goal)
+        return goal
 
-        self.error_ant = error
-        self.rad_old = goal_rad
+
+
+
 
     def obtencion_datos(self):
-        try:
-            self.motor = self.jointmotorsimple_proxy.getMotorState("")
-        except:
-            print("Ice error communicating with JointMotorSimple interface")
+        # try:
+        servo_node = self.g.get_node("servo")
+        servo_pos = servo_node.attrs["servo_pos"].value
+        servo_speed = servo_node.attrs["servo_speed"].value
+        servo_isMoving = servo_node.attrs["servo_moving"].value
+        self.motor.pos = servo_pos
+        self.motor.vel = servo_speed
+        self.motor.isMoving = servo_isMoving
 
-        try:
-            color = self.camerargbdsimple_proxy.getImage("")
-        except:
-            print("Ice error communicating with CameraRGBDSimple interface")
+        # except:
+        #     print("Error reading graph")
 
-        try:
-            people_data = self.humancamerabody_proxy.newPeopleData()
-            # print(list(people_data.peoplelist[0].joints.keys()))
-        except:
-            traceback.print_exc()
-            print("Ice error communicating with HumaCameraBody interface")
-        return color, people_data
+        # try:
+        #     color = self.camerargbdsimple_proxy.getImage("")
+        # except:
+        #     print("Ice error communicating with CameraRGBDSimple interface")
+        #
+        # try:
+        #     people_data = self.humancamerabody_proxy.newPeopleData()
+        #     # print(list(people_data.peoplelist[0].joints.keys()))
+        # except:
+        #     traceback.print_exc()
+        #     print("Ice error communicating with HumaCameraBody interface")
+        # return color
 
     def proceso_esqueleto(self, image, people_data):
 
@@ -359,20 +428,20 @@ class SpecificWorker(GenericWorker):
             distance = 0
         return puntoMedioX, puntoMedioY, distance
 
-    def refesco_ventana(self, color, image):
-        qt_image = QImage(image, color.height, color.width, QImage.Format_RGB888)
+    def refesco_ventana(self, height, width, image):
+        qt_image = QImage(image, height, width, QImage.Format_RGB888)
         pix = QPixmap.fromImage(qt_image).scaled(self.ui.label_image.width(), self.ui.label_image.height())
         self.ui.label_image.setPixmap(pix)
         # image = np.frombuffer(color.image, np.uint8).reshape(color.height, color.width, color.depth)
 
-        self.ui.lcdNumber_pos.display(self.motor.pos)
-        self.ui.lcdNumber_speed.display(self.motor.vel)
-        self.ui.lcdNumber_temp.display(self.motor.temperature)
-        self.ui.lcdNumber_max_speed.display(self.current_max_speed)
-        if self.motor.isMoving:
-            self.ui.radioButton_moving.setChecked(True)
-        else:
-            self.ui.radioButton_moving.setChecked(False)
+        # self.ui.lcdNumber_pos.display(self.motor.pos.value)
+        # self.ui.lcdNumber_speed.display(self.motor.vel.value)
+        # self.ui.lcdNumber_temp.display(self.motor.temperature)
+        # self.ui.lcdNumber_max_speed.display(self.current_max_speed)
+        # if self.motor.isMoving.value:
+        #     self.ui.radioButton_moving.setChecked(True)
+        # else:
+        #     self.ui.radioButton_moving.setChecked(False)
 
     def plot_data(self):
         self.ax.cla()
@@ -496,10 +565,10 @@ class SpecificWorker(GenericWorker):
 
     @QtCore.Slot()
     def slot_change_pos(self, pos):   # comes in degrees -150 .. 150. Sent in radians -2.62 .. 2.62
-        goal = ifaces.RoboCompJointMotorSimple.MotorGoalPosition()
-        goal.position = (2.62/150.0)*pos
-        goal.maxSpeed = self.current_max_speed
-        self.jointmotorsimple_proxy.setPosition("", goal)
+        servo_node = self.g.get_node("servo")
+        servo_node.attrs['servo_send_pos'] = Attribute(float(0), self.agent_id)
+        servo_node.attrs['servo_send_speed'] = Attribute(float(0), self.agent_id)
+        self.g.update_node(servo_node)
 
     @QtCore.Slot()
     def slot_change_max_speed(self, max_speed):
@@ -719,6 +788,7 @@ class SpecificWorker(GenericWorker):
     # =============================================
 
     def update_node_att(self, id: int, attribute_names: [str]):
+
         console.print(f"UPDATE NODE ATT: {id} {attribute_names}", style='green')
 
     def update_node(self, id: int, type: str):
