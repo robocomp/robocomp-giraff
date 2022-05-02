@@ -3,7 +3,7 @@ find_package (Eigen3 3.3 REQUIRED NO_MODULE)
 SET ( SOURCES
   specificworker.cpp
   specificmonitor.cpp
-  Hungarian.cpp
+  hungarian-algorithm-cpp/Hungarian.cpp
   custom_widget.h
   $ENV{ROBOCOMP}/classes/qcustomplot/qcustomplot.cpp
 )
@@ -12,7 +12,7 @@ SET ( SOURCES
 SET ( HEADERS
   specificworker.h
   specificmonitor.h
-  Hungarian.h
+  hungarian-algorithm-cpp/Hungarian.h
 )
 
 

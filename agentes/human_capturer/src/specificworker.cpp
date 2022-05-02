@@ -29,12 +29,9 @@
 #include <Eigen/Geometry>
 
 /* Utility function to print Matrix */
-template<template <typename, typename...> class Container,
-                   typename T,
-                   typename... Args>
+template<template <typename, typename...> class Container, typename T, typename... Args>
 //disable for string, which is std::basic_string<char>, a container itself
-typename std::enable_if<!std::is_convertible<Container<T, Args...>, std::string>::value &&
-                        !std::is_constructible<Container<T, Args...>, std::string>::value,
+typename std::enable_if<!std::is_convertible<Container<T, Args...>, std::string>::value && !std::is_constructible<Container<T, Args...>, std::string>::value,
                             std::ostream&>::type
 operator<<(std::ostream& os, const Container<T, Args...>& con)
 {

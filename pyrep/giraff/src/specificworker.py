@@ -107,7 +107,7 @@ class SpecificWorker(GenericWorker):
                                                      "width": cam.get_resolution()[0],
                                                      "height": cam.get_resolution()[1],
                                                      "focal": (cam.get_resolution()[0] / 2) / np.tan(
-                                                        np.radians(cam.get_perspective_angle() / 2)),
+                                                        np.radians(cam.get_perspective_angle() / 2.0)),
                                                      "rgb": np.array(0),
                                                      "depth": np.ndarray(0),
                                                      "is_ready": False,
@@ -178,6 +178,10 @@ class SpecificWorker(GenericWorker):
         self.tablet_motor = Joint("tablet_joint")
         self.tablet_new_pos = None
 
+        # Eye pan motor
+        self.eye_motor = Joint("camera_joint")
+        self.eye_new_pos = None
+
     def compute(self):
         tc = TimeControl(0.05)
         while True:
@@ -188,7 +192,7 @@ class SpecificWorker(GenericWorker):
             self.read_cameras([self.tablet_camera_name, self.top_camera_name])
             self.read_people()
             self.read_joystick()
-            # self.move_tablet()
+            self.move_eye()
             tc.wait()
 
     ###########################################
@@ -448,6 +452,11 @@ class SpecificWorker(GenericWorker):
         if self.tablet_new_pos:
             self.tablet_motor.set_joint_position(self.tablet_new_pos)  # radians
             self.tablet_new_pos = None
+
+    def move_eye(self):
+        if self.eye_new_pos:
+            self.eye_motor.set_joint_position(self.eye_new_pos)  # radians
+            self.eye_new_pos = None
 
     #################################################################
     ##################################################################################
@@ -725,7 +734,10 @@ class SpecificWorker(GenericWorker):
     # IMPLEMENTATION of getMotorState method from JointMotorSimple interface
     #
     def JointMotorSimple_getMotorState(self, motor):
-        ret = RoboCompJointMotorSimple.MotorState(self.tablet_motor.get_joint_position())  # radians
+        if motor == "tablet_motor":
+            ret = RoboCompJointMotorSimple.MotorState(self.tablet_motor.get_joint_position())  # radians
+        elif motor == "eye_motor":
+            ret = RoboCompJointMotorSimple.MotorState(self.eye_motor.get_joint_position())  # radians
         return ret
 
     #
@@ -734,7 +746,11 @@ class SpecificWorker(GenericWorker):
     def JointMotorSimple_setPosition(self, name, goal):
         print("JointMotorSimple_setPosition: ", name, goal)
         # check position limits -10 to 80
-        self.tablet_new_pos = goal.position
+        if name == "tablet":
+            self.tablet_new_pos = goal.position
+        elif name == "eye":
+            self.eye_new_pos = goal.position
+        else: print("Unknown motor name", name)
 
     #
     # IMPLEMENTATION of setVelocity method from JointMotorSimple interface
