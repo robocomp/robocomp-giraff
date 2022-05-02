@@ -95,7 +95,8 @@ class SpecificWorker(GenericWorker):
                                                         "depth": np.ndarray(0),
                                                         "is_ready": False,
                                                         "is_rgbd": False,
-                                                        "rotated": False
+                                                        "rotated": False,
+                                                        "has_depth": False
                                                     }
 
         self.top_camera_name = "camera_top"
@@ -111,7 +112,8 @@ class SpecificWorker(GenericWorker):
                                                      "depth": np.ndarray(0),
                                                      "is_ready": False,
                                                      "is_rgbd": True,
-                                                     "rotated": True
+                                                     "rotated": True,
+                                                     "has_depth": True
                                                     }
         self.cameras_read = self.cameras_write.copy()
 
@@ -121,8 +123,6 @@ class SpecificWorker(GenericWorker):
             self.people["Bill"] = Dummy("Bill_base")
         elif Dummy.exists("Bill"):
             self.people["Bill"] = Dummy("Bill")
-
-
 
         for i in range(0, 2):
             name = "Bill#" + str(i)
@@ -178,18 +178,17 @@ class SpecificWorker(GenericWorker):
         self.tablet_motor = Joint("tablet_joint")
         self.tablet_new_pos = None
 
-
     def compute(self):
         tc = TimeControl(0.05)
         while True:
             self.pr.step()
+            self.read_robot_pose()
+            self.move_robot()
             self.read_laser_raw()
             self.read_cameras([self.tablet_camera_name, self.top_camera_name])
             self.read_people()
             self.read_joystick()
-            self.read_robot_pose()
-            self.move_robot()
-            self.move_tablet()
+            # self.move_tablet()
             tc.wait()
 
     ###########################################
@@ -294,6 +293,7 @@ class SpecificWorker(GenericWorker):
             image_float = cam["handle"].capture_rgb()
             image = cv2.normalize(src=image_float, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
                                   dtype=cv2.CV_8U)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             cam["rgb"] = RoboCompCameraRGBDSimple.TImage(cameraID=cam["id"],
                                                          width=cam["width"],
                                                          height=cam["height"],
@@ -311,6 +311,7 @@ class SpecificWorker(GenericWorker):
             image_float = cam["handle"].capture_rgb()
             image = cv2.normalize(src=image_float, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
                                    dtype=cv2.CV_8U)
+            image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
             image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
             depth = cam["handle"].capture_depth(True)
             depth = np.frombuffer(depth, dtype=np.float32).reshape((cam["height"], cam["width"]))
@@ -477,7 +478,7 @@ class SpecificWorker(GenericWorker):
     def CameraRGBDSimple_getDepth(self, camera):
         if camera in self.cameras_read.keys() \
                 and self.cameras_read[camera]["is_ready"] \
-                and self.cameras_real[camera]["has_depth"]:
+                and self.cameras_read[camera]["has_depth"]:
             return self.cameras_read[camera]["depth"]
         else:
             e = RoboCompCameraRGBDSimple.HardwareFailedException()
