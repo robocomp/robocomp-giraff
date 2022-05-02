@@ -31,9 +31,6 @@ except KeyError:
 Ice.loadSlice("-I ./src/ --all ./src/CommonBehavior.ice")
 import RoboCompCommonBehavior
 
-Ice.loadSlice("-I ./src/ --all ./src/HumanCameraBody.ice")
-import RoboCompHumanCameraBody
-
 
 
 

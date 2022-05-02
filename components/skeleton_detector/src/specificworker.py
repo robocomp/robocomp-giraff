@@ -25,7 +25,6 @@ from rich.console import Console
 from genericworker import *
 # from filterpy.common import Q_discrete_white_noise
 # from filterpy.kalman import ExtendedKalmanFilter
-from numpy import eye, array, asarray
 import numpy as np
 import os
 import time
@@ -41,21 +40,15 @@ import torchvision.transforms as transforms
 import PIL.Image
 from trt_pose.parse_objects import ParseObjects
 device = torch.device('cuda')
+import interfaces as ifaces
 
 sys.path.append('/opt/robocomp/lib')
 console = Console(highlight=False)
 
-
-# If RoboComp was compiled with Python bindings you can use InnerModel in Python
-# import librobocomp_qmat
-# import librobocomp_osgviewer
-# import librobocomp_innermodel
-
-
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
-        self.Period = 10
+        self.Period = 50
         if startup_check:
             self.startup_check()
         else:
@@ -63,17 +56,13 @@ class SpecificWorker(GenericWorker):
             self.timer.start(self.Period)
 
         self.model = 'densenet'
-        self.IMPUT_WIDTH  = 640
-        self.INPUT_HEIGHT = 480
-        self.rotate = True        
-
+        self.IMPUT_WIDTH = None
+        self.INPUT_HEIGHT = None
         self.pipeline = None
         self.profile = None
         self.depth_profile = None
-        self.MODEL_WIDTH  = None
+        self.MODEL_WIDTH = None
         self.MODEL_HEIGHT = None
-        self.mean = None
-        self.std = None
         self.model_trt = None
         self.parse_objects = None
         self.peoplelist = None
@@ -82,62 +71,6 @@ class SpecificWorker(GenericWorker):
         self.human_pose = None
         self.skeleton_points = []
         self.skeleton_white = []
-
-        # self.v = 1.0/self.Period
-        # self.a = 0.5 * (self.v ** 2)
-        # self.kalman = cv2.KalmanFilter(9, 3, 0)
-        # self.kalman.measurementMatrix = np.array([
-        #     [1, 0, 0, self.v, 0, 0, self.a, 0, 0],
-        #     [0, 1, 0, 0, self.v, 0, 0, self.a, 0],
-        #     [0, 0, 1, 0, 0, self.v, 0, 0, self.a]
-        # ], np.float32)
-        #
-        # self.kalman.transitionMatrix = np.array([
-        #     [1, 0, 0, self.v, 0, 0, self.a, 0, 0],
-        #     [0, 1, 0, 0, self.v, 0, 0, self.a, 0],
-        #     [0, 0, 1, 0, 0, self.v, 0, 0, self.a],
-        #     [0, 0, 0, 1, 0, 0, self.v, 0, 0],
-        #     [0, 0, 0, 0, 1, 0, 0, self.v, 0],
-        #     [0, 0, 0, 0, 0, 1, 0, 0, self.v],
-        #     [0, 0, 0, 0, 0, 0, 1, 0, 0],
-        #     [0, 0, 0, 0, 0, 0, 0, 1, 0],
-        #     [0, 0, 0, 0, 0, 0, 0, 0, 1]
-        # ], np.float32)
-        #
-        # self.kalman.processNoiseCov = np.array([
-        #     [1, 0, 0, 0, 0, 0, 0, 0, 0],
-        #     [0, 1, 0, 0, 0, 0, 0, 0, 0],
-        #     [0, 0, 1, 0, 0, 0, 0, 0, 0],
-        #     [0, 0, 0, 1, 0, 0, 0, 0, 0],
-        #     [0, 0, 0, 0, 1, 0, 0, 0, 0],
-        #     [0, 0, 0, 0, 0, 1, 0, 0, 0],
-        #     [0, 0, 0, 0, 0, 0, 1, 0, 0],
-        #     [0, 0, 0, 0, 0, 0, 0, 1, 0],
-        #     [0, 0, 0, 0, 0, 0, 0, 0, 1]
-        # ], np.float32) * 0.007
-        #
-        # self.kalman.measurementNoiseCov = np.array([
-        #     [1, 0, 0],
-        #     [0, 1, 0],
-        #     [0, 0, 1]
-        # ], np.float32) * 0.1
-        #
-        # self.kalman.statePre = np.array([
-        #       [np.float32(0.)], [np.float32(0.)], [np.float32(0.)]
-        #     , [np.float32(0.)], [np.float32(0.)], [np.float32(0.)]
-        #     , [np.float32(0.)], [np.float32(0.)], [np.float32(0.)]
-        # ])
-
-        # self.dt = 0.05
-        # self.rk = ExtendedKalmanFilter(dim_x=3, dim_z=1)
-        # self.rk.F = eye(3) + array([[0, 1, 0],
-        #                        [0, 0, 0],
-        #                        [0, 0, 0]]) * dt
-        # self.rk.R = np.diag([1 ** 2])
-        # self.rk.Q[0:2, 0:2] = Q_discrete_white_noise(2, dt=dt, var=0.1)
-        # self.rk.Q[2, 2] = 0.1
-        # self.rk.P *= 50
-
         self.act_people = None
 
         self.initialize()   
@@ -196,103 +129,62 @@ class SpecificWorker(GenericWorker):
 
     @QtCore.Slot()
     def compute(self):
-        color = self.camerargbdsimple_proxy.getImage("camera_top")
-        depth = self.camerargbdsimple_proxy.getDepth("camera_top")
-
-        self.act_people = self.peopleObtainer(color, depth)
-
+        rgbd = self.camerargbdsimple_proxy.getAll("camera_top")
+        self.act_people = self.people_obtainer(rgbd.image, rgbd.depth)
+        cv2.imshow("color", self.skeleton_img)
         return True
 
-    def peopleObtainer(self, color, depth):
-        ##random_color = fg(CColor(PMcR))
-        ##print(random_color+"=======================  " +fg(15)+  "computePilar"  +random_color+ "  =======================" + G)
-
+################################################################################
+    def people_obtainer(self, color, depth):
         image = np.frombuffer(color.image, np.uint8).reshape(color.height, color.width, color.depth)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+        #image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        #image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
         depth_image = np.frombuffer(depth.depth, np.float32).reshape(depth.height, depth.width, 1)
-        depth_image = cv2.rotate(depth_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        depth_plot = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        #depth_image = cv2.rotate(depth_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
+        #depth_plot = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
+        #cv2.imshow("color", image)
 
         # self.t1 = time.time()
-        # frames = self.pipeline.wait_for_frames()
-        # color_frame = frames.get_color_frame()
-        # color_image = np.asanyarray(color_frame.get_data())
-        # Rotamos
-        #
-
-        # depth_frame = frames.get_depth_frame()
-        # depth_data = np.asanyarray(depth_frame.get_data())
-        # Rotamos
-        # depth_data = cv2.rotate(depth_data, cv2.ROTATE_90_COUNTERCLOCKWISE)
-
-        # self.skeleton_image = np.zeros([480,640,1],dtype=np.float32)
-
-        # self.depth_img = copy.deepcopy(depth_data)
-        # depth_sensor = self.profile.get_device().first_depth_sensor()
-        # depth_scale = depth_sensor.get_depth_scale()
-
-        Center_X = color.width / 2
-        Center_Y = color.height / 2
-
-
-        # depth_intrin = self.profile.get_stream(rs.stream.depth).as_video_stream_profile().get_intrinsics()
-
-        # color_intrin = self.profile.get_stream(rs.stream.color).as_video_stream_profile().get_intrinsics()
-        # depth_to_color_extrin = self.profile.get_stream(rs.stream.depth).as_video_stream_profile().get_extrinsics_to(
-        #     self.profile.get_stream(rs.stream.color))
-        # color_to_depth_extrin = self.profile.get_stream(rs.stream.color).as_video_stream_profile().get_extrinsics_to(
-        #     self.profile.get_stream(rs.stream.depth))
-
+        center_x = color.width / 2
+        center_y = color.height / 2
         r_s = 0
-        r_w = self.IMPUT_WIDTH
+        r_w = color.width
         c_s = 0
-        c_w = self.INPUT_HEIGHT
+        c_w = color.height
 
-        cropped = image[int(r_s):int(r_s + r_w), int(c_s):int(c_s + c_w)]
-        img = cv2.resize(cropped, dsize=(int(self.MODEL_WIDTH), int(self.MODEL_HEIGHT)), interpolation=cv2.INTER_AREA)
-        self.source_img = img  # candidata para enviar al componente remoto
+        #cropped = image[int(r_s):int(r_s + r_w), int(c_s):int(c_s + c_w)]
+        img = cv2.resize(image, dsize=(int(self.MODEL_WIDTH), int(self.MODEL_HEIGHT)), interpolation=cv2.INTER_AREA)
         counts, objects, peaks = self.execute(img, image)
-
-        # A_matrix = np.array([[depth.focalx, 0, Center_X],
-        #                     [0, depth.focaly, Center_Y],
-        #                     [0, 0, 1]])
 
         keypoints_names = self.human_pose["keypoints"]
         self.skeleton_img = copy.deepcopy(image)
-        # color = (0, 255, 0)
-        people = RoboCompHumanCameraBody.PeopleData()
+        people = ifaces.RoboCompHumanCameraBody.PeopleData()
         people.timestamp = time.time()
         people.peoplelist = []
         for i in range(counts[0]):
-            new_person = RoboCompHumanCameraBody.Person()
+            new_person = ifaces.RoboCompHumanCameraBody.Person()
             new_person.id = i
             TJoints = {}
             keypoints = self.get_keypoint(objects, i, peaks)
 
             for j in range(len(keypoints)):
-                key_point = RoboCompHumanCameraBody.KeyPoint()
+                key_point = ifaces.RoboCompHumanCameraBody.KeyPoint()
                 if keypoints[j][1]:
-                    # print(keypoints_names[j])
-                    key_point.j = int(keypoints[j][1] * r_w + r_s)
-                    key_point.i = int(keypoints[j][2] * c_w + c_s)
+                    #key_point.j = int(keypoints[j][1] * r_w + r_s)
+                    #key_point.i = int(keypoints[j][2] * c_w + c_s)
+                    key_point.i = int(keypoints[j][2] * color.width)
+                    key_point.j = int(keypoints[j][1] * color.height)
 
-                    print(j)
-                    # if(keypoints_names[j] == "nose"):
-
-                        # print("COLOR VALUE: ", self.skeleton_img[key_point.j, key_point.i])
-                        # print("DEPTH VALUE: ", depth_plot[key_point.j, key_point.i])
-                        # print(depth_image[key_point.i, key_point.j])
-
-                    key_point.y = float(depth_image[key_point.j, key_point.i])
-                    key_point.z = (key_point.y / depth.focalx) * (key_point.j - Center_X)
-                    key_point.x = (key_point.y / depth.focaly) * (key_point.i - Center_Y)
-                    print(key_point.x, key_point.y, key_point.z)
+                    # key_point.y = float(depth_image[key_point.j, key_point.i])
+                    # key_point.z = (key_point.y / depth.focalx) * (key_point.j - center_x)
+                    # key_point.x = (key_point.y / depth.focaly) * (key_point.i - center_y)
+                    # print(key_point.x, key_point.y, key_point.z)
                     TJoints[str(j)] = key_point
-                        # cv2.circle(depth_plot, (key_point.i, key_point.j), 1, color, 2)
-                        # cv2.circle(self.skeleton_img, (key_point.i, key_point.j), 1, color, 2)
-                        # cv2.putText(self.skeleton_img, "%d" % int(keypoints[j][0]), (key_point.j + 5, key_point.i),  # 3
-                        #                                    cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
+                    # cv2.circle(depth_plot, (key_point.i, key_point.j), 1, color, 2)
+                    cv2.circle(self.skeleton_img, (key_point.i, key_point.j), 1, [0, 255, 0], 2)
+                    #cv2.putText(self.skeleton_img, "%d" % int(keypoints[j][0]), (key_point.j + 5, key_point.i),  # 3
+                    #                                   cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
 
             # print(x_avg, y_avg, z_avg)
             new_person.joints = TJoints
@@ -302,19 +194,9 @@ class SpecificWorker(GenericWorker):
             people.peoplelist.append(new_person)
         return people
 
-    def draw_arrow(self, image, i_w, i_h, ratio, xa, ya, xC, yC, xb, yb):
-        tlx = int(ratio * (xa)) + int(i_w / 2)
-        tly = int(i_h) - int(ratio * (ya))
-        brx = int(ratio * (xb)) + int(i_w / 2)
-        bry = int(i_h) - int(ratio * (yb))
-        mx = int(ratio * (xC)) + int(i_w / 2)
-        my = int(i_h) - int(ratio * (yC))
-        cv2.line(image, (tlx, tly), (mx, my), (255, 0, 0), 3)
-        cv2.line(image, (mx, my), (brx, bry), (0, 0, 255), 3)
 
     def preprocess(self, image):
         global device
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         image = PIL.Image.fromarray(image)
         image = transforms.functional.to_tensor(image).to(device)
         image.sub_(self.mean[:, None, None]).div_(self.std[:, None, None])
@@ -345,6 +227,16 @@ class SpecificWorker(GenericWorker):
 
     def cam_matrix_from_intrinsics(self, i):
         return np.array([[i.fx, 0, i.ppx], [0, i.fy, i.ppy], [0, 0, 1]])
+
+    def draw_arrow(self, image, i_w, i_h, ratio, xa, ya, xC, yC, xb, yb):
+        tlx = int(ratio * (xa)) + int(i_w / 2)
+        tly = int(i_h) - int(ratio * (ya))
+        brx = int(ratio * (xb)) + int(i_w / 2)
+        bry = int(i_h) - int(ratio * (yb))
+        mx = int(ratio * (xC)) + int(i_w / 2)
+        my = int(i_h) - int(ratio * (yC))
+        cv2.line(image, (tlx, tly), (mx, my), (255, 0, 0), 3)
+        cv2.line(image, (mx, my), (brx, bry), (0, 0, 255), 3)
 
     def ekfilter(self, z, updateNumber):
         dt = 1.0
@@ -491,8 +383,7 @@ class SpecificWorker(GenericWorker):
     def startup_check(self):
         QTimer.singleShot(200, QApplication.instance().quit)
 
-
-
+    ###################################################################
     # =============== Methods for Component Implements ==================
     # ===================================================================
 
@@ -521,3 +412,57 @@ class SpecificWorker(GenericWorker):
     # RoboCompHumanCameraBody.PeopleData
 
 
+# self.v = 1.0/self.Period
+        # self.a = 0.5 * (self.v ** 2)
+        # self.kalman = cv2.KalmanFilter(9, 3, 0)
+        # self.kalman.measurementMatrix = np.array([
+        #     [1, 0, 0, self.v, 0, 0, self.a, 0, 0],
+        #     [0, 1, 0, 0, self.v, 0, 0, self.a, 0],
+        #     [0, 0, 1, 0, 0, self.v, 0, 0, self.a]
+        # ], np.float32)
+        #
+        # self.kalman.transitionMatrix = np.array([
+        #     [1, 0, 0, self.v, 0, 0, self.a, 0, 0],
+        #     [0, 1, 0, 0, self.v, 0, 0, self.a, 0],
+        #     [0, 0, 1, 0, 0, self.v, 0, 0, self.a],
+        #     [0, 0, 0, 1, 0, 0, self.v, 0, 0],
+        #     [0, 0, 0, 0, 1, 0, 0, self.v, 0],
+        #     [0, 0, 0, 0, 0, 1, 0, 0, self.v],
+        #     [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 1, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 0, 1]
+        # ], np.float32)
+        #
+        # self.kalman.processNoiseCov = np.array([
+        #     [1, 0, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 1, 0, 0, 0, 0, 0, 0, 0],
+        #     [0, 0, 1, 0, 0, 0, 0, 0, 0],
+        #     [0, 0, 0, 1, 0, 0, 0, 0, 0],
+        #     [0, 0, 0, 0, 1, 0, 0, 0, 0],
+        #     [0, 0, 0, 0, 0, 1, 0, 0, 0],
+        #     [0, 0, 0, 0, 0, 0, 1, 0, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 1, 0],
+        #     [0, 0, 0, 0, 0, 0, 0, 0, 1]
+        # ], np.float32) * 0.007
+        #
+        # self.kalman.measurementNoiseCov = np.array([
+        #     [1, 0, 0],
+        #     [0, 1, 0],
+        #     [0, 0, 1]
+        # ], np.float32) * 0.1
+        #
+        # self.kalman.statePre = np.array([
+        #       [np.float32(0.)], [np.float32(0.)], [np.float32(0.)]
+        #     , [np.float32(0.)], [np.float32(0.)], [np.float32(0.)]
+        #     , [np.float32(0.)], [np.float32(0.)], [np.float32(0.)]
+        # ])
+
+        # self.dt = 0.05
+        # self.rk = ExtendedKalmanFilter(dim_x=3, dim_z=1)
+        # self.rk.F = eye(3) + array([[0, 1, 0],
+        #                        [0, 0, 0],
+        #                        [0, 0, 0]]) * dt
+        # self.rk.R = np.diag([1 ** 2])
+        # self.rk.Q[0:2, 0:2] = Q_discrete_white_noise(2, dt=dt, var=0.1)
+        # self.rk.Q[2, 2] = 0.1
+        # self.rk.P *= 50
