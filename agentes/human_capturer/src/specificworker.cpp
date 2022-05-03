@@ -28,21 +28,6 @@
 #include <vector>
 #include <Eigen/Geometry>
 
-/* Utility function to print Matrix */
-template<template <typename, typename...> class Container, typename T, typename... Args>
-//disable for string, which is std::basic_string<char>, a container itself
-typename std::enable_if<!std::is_convertible<Container<T, Args...>, std::string>::value && !std::is_constructible<Container<T, Args...>, std::string>::value,
-                            std::ostream&>::type
-operator<<(std::ostream& os, const Container<T, Args...>& con)
-{
-    os << " ";
-    for (auto& elem: con)
-        os << elem << " ";
-
-    os << "\n";
-    return os;
-}
-
 // Values to determine exists in the world 
 int max_lambda_value = 25;
 int min_lambda_value = -25;
@@ -66,512 +51,6 @@ int x_res = 480;
 float y_res_f = 640.0;
 float x_res_f = 480.0;
 float zero = 0;
-
-template<typename T>
-void handle_negatives(std::vector<std::vector<T>>& matrix, 
-                      bool allowed = true)
-{
-    T minval = std::numeric_limits<T>::max();
-    
-    for (auto& elem: matrix)
-        for (auto& num: elem)
-            minval = std::min(minval, num);
-        
-    if (minval < 0) {
-        if (!allowed) { //throw
-            throw std::runtime_error("Only non-negative values allowed");
-        }
-        else { // add abs(minval) to every element to create one zero
-            minval = abs(minval);
-            
-            for (auto& elem: matrix)
-                for (auto& num: elem)
-                    num += minval;
-        }
-    }
-}
-
-/* Ensure that the matrix is square by the addition of dummy rows/columns if necessary */
-template<typename T>
-void pad_matrix(std::vector<std::vector<T>>& matrix)
-{
-    std::size_t i_size = matrix.size();
-    std::size_t j_size = matrix[0].size();
-    
-    if (i_size > j_size) {
-        for (auto& vec: matrix)
-            vec.resize(i_size, std::numeric_limits<T>::max());
-    }
-    else if (i_size < j_size) {
-        while (matrix.size() < j_size)
-            matrix.push_back(std::vector<T>(j_size, std::numeric_limits<T>::max()));
-    }
-}
-
-/* For each row of the matrix, find the smallest element and subtract it from every 
- * element in its row.  
- * For each col of the matrix, find the smallest element and subtract it from every 
- * element in its col. Go to Step 2. */
-template<typename T>
-void step1(std::vector<std::vector<T>>& matrix, 
-           int& step)
-{
-    // process rows
-    for (auto& row: matrix) {
-        auto smallest = *std::min_element(begin(row), end(row));
-        if (smallest > 0)        
-            for (auto& n: row)
-                n -= smallest;
-    }
-    
-    // process cols
-    int sz = matrix.size(); // square matrix is granted
-    for (int j=0; j<sz; ++j) {
-        T minval = std::numeric_limits<T>::max();
-        for (int i=0; i<sz; ++i) {
-            minval = std::min(minval, matrix[i][j]);
-        }
-        
-        if (minval > 0) {
-            for (int i=0; i<sz; ++i) {
-                matrix[i][j] -= minval;
-            }
-        }
-    }
-   
-    step = 2;
-}
-
-/* helper to clear the temporary vectors */
-inline void clear_covers(std::vector<int>& cover) 
-{
-    for (auto& n: cover) n = 0;
-}
-
-/* Find a zero (Z) in the resulting matrix.  If there is no starred zero in its row or 
- * column, star Z. Repeat for each element in the matrix. Go to Step 3.  In this step, 
- * we introduce the mask matrix M, which in the same dimensions as the cost matrix and 
- * is used to star and prime zeros of the cost matrix.  If M(i,j)=1 then C(i,j) is a 
- * starred zero,  If M(i,j)=2 then C(i,j) is a primed zero.  We also define two vectors 
- * RowCover and ColCover that are used to "cover" the rows and columns of the cost matrix.
- * In the nested loop (over indices i and j) we check to see if C(i,j) is a zero value 
- * and if its column or row is not already covered.  If not then we star this zero 
- * (i.e. set M(i,j)=1) and cover its row and column (i.e. set R_cov(i)=1 and C_cov(j)=1).
- * Before we go on to Step 3, we uncover all rows and columns so that we can use the 
- * cover vectors to help us count the number of starred zeros. */
-template<typename T>
-void step2(const std::vector<std::vector<T>>& matrix, 
-           std::vector<std::vector<int>>& M, 
-           std::vector<int>& RowCover,
-           std::vector<int>& ColCover, 
-           int& step)
-{
-    int sz = matrix.size();
-    
-    for (int r=0; r<sz; ++r) 
-        for (int c=0; c<sz; ++c) 
-            if (matrix[r][c] == 0)
-                if (RowCover[r] == 0 && ColCover[c] == 0) {
-                    M[r][c] = 1;
-                    RowCover[r] = 1;
-                    ColCover[c] = 1;
-                }
-            
-    clear_covers(RowCover); // reset vectors for posterior using
-    clear_covers(ColCover);
-    
-    step = 3;
-}
-
-
-/* Cover each column containing a starred zero.  If K columns are covered, the starred 
- * zeros describe a complete set of unique assignments.  In this case, Go to DONE, 
- * otherwise, Go to Step 4. Once we have searched the entire cost matrix, we count the 
- * number of independent zeros found.  If we have found (and starred) K independent zeros 
- * then we are done.  If not we procede to Step 4.*/
-void step3(const std::vector<std::vector<int>>& M, 
-           std::vector<int>& ColCover,
-           int& step)
-{
-    int sz = M.size();
-    int colcount = 0;
-    
-    for (int r=0; r<sz; ++r)
-        for (int c=0; c<sz; ++c)
-            if (M[r][c] == 1)
-                ColCover[c] = 1;
-            
-    for (auto& n: ColCover)
-        if (n == 1)
-            colcount++;
-    
-    if (colcount >= sz) {
-        step = 7; // solution found
-    }
-    else {
-        step = 4;
-    }
-}
-
-// Following functions to support step 4
-template<typename T>
-void find_a_zero(int& row, 
-                 int& col,
-                 const std::vector<std::vector<T>>& matrix,
-                 const std::vector<int>& RowCover,
-                 const std::vector<int>& ColCover)
-{
-    int r = 0;
-    int c = 0;
-    int sz = matrix.size();
-    bool done = false;
-    row = -1;
-    col = -1;
-    
-    while (!done) {
-        c = 0;
-        while (true) {
-            if (matrix[r][c] == 0 && RowCover[r] == 0 && ColCover[c] == 0) {
-                row = r;
-                col = c;
-                done = true;
-            }
-            c += 1;
-            if (c >= sz || done)
-                break;
-        }
-        r += 1;
-        if (r >= sz)
-            done = true;
-    }
-}
-
-bool star_in_row(int row, 
-                 const std::vector<std::vector<int>>& M)
-{
-    bool tmp = false;
-    for (unsigned c = 0; c < M.size(); c++)
-        if (M[row][c] == 1)
-            tmp = true;
-    
-    return tmp;
-}
-
-
-void find_star_in_row(int row,
-                      int& col, 
-                      const std::vector<std::vector<int>>& M)
-{
-    col = -1;
-    for (unsigned c = 0; c < M.size(); c++)
-        if (M[row][c] == 1)
-            col = c;
-}
-
-
-/* Find a noncovered zero and prime it.  If there is no starred zero in the row containing
- * this primed zero, Go to Step 5.  Otherwise, cover this row and uncover the column 
- * containing the starred zero. Continue in this manner until there are no uncovered zeros
- * left. Save the smallest uncovered value and Go to Step 6. */
-template<typename T>
-void step4(const std::vector<std::vector<T>>& matrix, 
-           std::vector<std::vector<int>>& M, 
-           std::vector<int>& RowCover,
-           std::vector<int>& ColCover,
-           int& path_row_0,
-           int& path_col_0,
-           int& step)
-{
-    int row = -1;
-    int col = -1;
-    bool done = false;
-
-    while (!done){
-        find_a_zero(row, col, matrix, RowCover, ColCover);
-        
-        if (row == -1){
-            done = true;
-            step = 6;
-        }
-        else {
-            M[row][col] = 2;
-            if (star_in_row(row, M)) {
-                find_star_in_row(row, col, M);
-                RowCover[row] = 1;
-                ColCover[col] = 0;
-            }
-            else {
-                done = true;
-                step = 5;
-                path_row_0 = row;
-                path_col_0 = col;
-            }
-        }
-    }
-}
-
-// Following functions to support step 5
-void find_star_in_col(int c, 
-                      int& r,
-                      const std::vector<std::vector<int>>& M)
-{
-    r = -1;
-    for (unsigned i = 0; i < M.size(); i++)
-        if (M[i][c] == 1)
-            r = i;
-}
-
-void find_prime_in_row(int r, 
-                       int& c, 
-                       const std::vector<std::vector<int>>& M)
-{
-    for (unsigned j = 0; j < M.size(); j++)
-        if (M[r][j] == 2)
-            c = j;
-}
-
-void augment_path(std::vector<std::vector<int>>& path, 
-                  int path_count, 
-                  std::vector<std::vector<int>>& M)
-{
-    for (int p = 0; p < path_count; p++)
-        if (M[path[p][0]][path[p][1]] == 1)
-            M[path[p][0]][path[p][1]] = 0;
-        else
-            M[path[p][0]][path[p][1]] = 1;
-}
-
-void erase_primes(std::vector<std::vector<int>>& M)
-{
-    for (auto& row: M)
-        for (auto& val: row)
-            if (val == 2)
-                val = 0;
-}
-
-
-/* Construct a series of alternating primed and starred zeros as follows.  
- * Let Z0 represent the uncovered primed zero found in Step 4.  Let Z1 denote the 
- * starred zero in the column of Z0 (if any). Let Z2 denote the primed zero in the 
- * row of Z1 (there will always be one).  Continue until the series terminates at a 
- * primed zero that has no starred zero in its column.  Unstar each starred zero of 
- * the series, star each primed zero of the series, erase all primes and uncover every 
- * line in the matrix.  Return to Step 3.  You may notice that Step 5 seems vaguely 
- * familiar.  It is a verbal description of the augmenting path algorithm (for solving
- * the maximal matching problem). */
-void step5(std::vector<std::vector<int>>& path, 
-           int path_row_0, 
-           int path_col_0, 
-           std::vector<std::vector<int>>& M, 
-           std::vector<int>& RowCover,
-           std::vector<int>& ColCover,
-           int& step)
-{
-    int r = -1;
-    int c = -1;
-    int path_count = 1;
-    path[path_count - 1][0] = path_row_0;
-    path[path_count - 1][1] = path_col_0;
-    bool done = false;
-    while (!done) {
-        find_star_in_col(path[path_count - 1][1], r, M);
-        if (r > -1) {
-            path_count += 1;
-            path[path_count - 1][0] = r;
-            std::cout << "PATH COUNT 1 " << path_count << endl;
-            path[path_count - 1][1] = path[path_count - 2][1];
-        }
-        else {done = true;}
-        if (!done) {
-            find_prime_in_row(path[path_count - 1][0], c, M);
-            path_count += 1;
-            std::cout <<  "PATH COUNT 2 " << path_count << endl;
-            std::cout << path << endl;
-            std::cout << "10 e2" << endl;
-//            std::cout << "VAL 1: " << path[path_count - 2][0];
-//            if(path_count > 1)
-//            {
-//                std::cout << "entra kaka" << path_count << " "<< c endl;
-//                path[path_count - 1][0] = path[path_count - 2][0];
-//                path[path_count - 1][1] = c;
-//            }
-            std::cout << "10 e3" << endl;
-        }
-    }
-    std::cout << "10 f" << endl;
-    augment_path(path, path_count, M);
-    std::cout << "10 g" << endl;
-    clear_covers(RowCover);
-    std::cout << "10 h" << endl;
-    clear_covers(ColCover);
-    std::cout << "10 i" << endl;
-    erase_primes(M);
-    std::cout << "10 j" << endl;
-    
-    step = 3;
-}
-
-// methods to support step 6
-template<typename T>
-void find_smallest(T& minval, 
-                   const std::vector<std::vector<T>>& matrix, 
-                   const std::vector<int>& RowCover,
-                   const std::vector<int>& ColCover)
-{
-    for (unsigned r = 0; r < matrix.size(); r++)
-        for (unsigned c = 0; c < matrix.size(); c++)
-            if (RowCover[r] == 0 && ColCover[c] == 0)
-                if (minval > matrix[r][c])
-                    minval = matrix[r][c];
-}
-
-/* Add the value found in Step 4 to every element of each covered row, and subtract it 
- * from every element of each uncovered column.  Return to Step 4 without altering any
- * stars, primes, or covered lines. Notice that this step uses the smallest uncovered 
- * value in the cost matrix to modify the matrix.  Even though this step refers to the
- * value being found in Step 4 it is more convenient to wait until you reach Step 6 
- * before searching for this value.  It may seem that since the values in the cost 
- * matrix are being altered, we would lose sight of the original problem.  
- * However, we are only changing certain values that have already been tested and 
- * found not to be elements of the minimal assignment.  Also we are only changing the 
- * values by an amount equal to the smallest value in the cost matrix, so we will not
- * jump over the optimal (i.e. minimal assignment) with this change. */
-template<typename T>
-void step6(std::vector<std::vector<T>>& matrix, 
-           const std::vector<int>& RowCover,
-           const std::vector<int>& ColCover,
-           int& step)
-{
-    T minval = std::numeric_limits<T>::max();
-    find_smallest(minval, matrix, RowCover, ColCover);
-    
-    int sz = matrix.size();
-    for (int r = 0; r < sz; r++)
-        for (int c = 0; c < sz; c++) {
-            if (RowCover[r] == 1)
-                matrix[r][c] += minval;
-            if (ColCover[c] == 0)
-                matrix[r][c] -= minval;
-    }
-    
-    step = 4;
-}
-
-/* Calculates the optimal cost from mask matrix */
-template<template <typename, typename...> class Container,
-         typename T,
-         typename... Args>
-T output_solution(const Container<Container<T,Args...>>& original,
-                  const std::vector<std::vector<int>>& M)
-{
-    T res = 0;
-    
-    for (unsigned j=0; j<original.begin()->size(); ++j)
-        for (unsigned i=0; i<original.size(); ++i)
-            if (M[i][j]) {
-                auto it1 = original.begin();
-                std::advance(it1, i);
-                auto it2 = it1->begin();
-                std::advance(it2, j);
-                res += *it2;
-                continue;                
-            }
-            
-    return res;
-}
-
-
-/* Main function of the algorithm */
-template<template <typename, typename...> class Container,
-         typename T,
-         typename... Args>
-std::vector<std::vector<int>> hungarian(const Container<Container<T,Args...>>& original,
-          bool allow_negatives = true)
-{  
-    /* Initialize data structures */
-    
-    // Work on a vector copy to preserve original matrix
-    // Didn't passed by value cause needed to access both
-    std::vector<std::vector<T>> matrix (original.size(), 
-                                        std::vector<T>(original.begin()->size()));
-    
-    auto it = original.begin();
-//    cout << "1" << endl;
-    for (auto& vec: matrix) {         
-        std::copy(it->begin(), it->end(), vec.begin());
-        it = std::next(it);
-    }
-//    cout << "2" << endl;
-    // handle negative values -> pass true if allowed or false otherwise
-    // if it is an unsigned type just skip this step
-    if (!std::is_unsigned<T>::value) {
-//        cout << "3" << endl;
-        handle_negatives(matrix, allow_negatives);
-    }
-
-//    cout << "4" << endl;
-    // make square matrix
-    pad_matrix(matrix);
-    std::size_t sz = matrix.size();
-//    cout << "5" << endl;
-    /* The masked matrix M.  If M(i,j)=1 then C(i,j) is a starred zero,  
-     * If M(i,j)=2 then C(i,j) is a primed zero. */
-    std::vector<std::vector<int>> M (sz, std::vector<int>(sz, 0));
-//    cout << "6" << endl;
-    /* We also define two vectors RowCover and ColCover that are used to "cover" 
-     *the rows and columns of the cost matrix C*/
-    std::vector<int> RowCover (sz, 0);
-    std::vector<int> ColCover (sz, 0);
-//    cout << "7" << endl;
-    int path_row_0, path_col_0; //temporary to hold the smallest uncovered value
-//    cout << "8" << endl;
-    // Array for the augmenting path algorithm
-    std::vector<std::vector<int>> path (sz+1, std::vector<int>(2, 0));
-//    cout << "9" << endl;
-    /* Now Work The Steps */
-    bool done = false;
-    int step = 1;
-    while (!done) {
-        switch (step) {
-            case 1:
-//                cout << "9a" << endl;
-                step1(matrix, step);
-                break;
-            case 2:
-//                cout << "9b" << endl;
-                step2(matrix, M, RowCover, ColCover, step);
-                break;
-            case 3:
-//                cout << "9c" << endl;
-                step3(M, ColCover, step);
-                break;
-            case 4:
-//                cout << "9d" << endl;
-                step4(matrix, M, RowCover, ColCover, path_row_0, path_col_0, step);
-                break;
-            case 5:
-//                cout << "9e"<< endl;
-                step5(path, path_row_0, path_col_0, M, RowCover, ColCover, step);
-                break;
-            case 6:
-//                cout << "9f" << endl;
-                step6(matrix, RowCover, ColCover, step);
-                break;
-            case 7:
-//                cout << "9g" << endl;
-                for (auto& vec: M) {vec.resize(original.begin()->size());}
-                M.resize(original.size());
-                done = true;
-                break;
-            default:
-//                cout << "9h" << endl;
-                done = true;
-                break;
-        }
-    }
-//    cout << "END" << endl;
-    return M;
-}
 
 /**
 * \brief Default constructor
@@ -679,11 +158,7 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    // Creating white image with dimension 480x640
-//    cv::Mat black_picture = cv::Mat::zeros(y_res, x_res, CV_8UC3);
-
     custom_plot.resize(custom_widget.timeseries_frame->size());
-//    cv::Mat black_picture = cv::Mat(image.width, image.height, CV_8UC3, &image.image[0]);
 
 //    try
 //    {
@@ -702,59 +177,49 @@ void SpecificWorker::compute()
 //    }
 
 //    auto servo_data = this->jointmotorsimple_proxy->getMotorState("servo_joint");
-    auto servo_data = this->jointmotorsimple_proxy->getMotorState("");
-    servo_position = servo_data.pos;
-    // Taking people data through proxy
-    RoboCompHumanCameraBody::PeopleData people_data = this->humancamerabody_proxy->newPeopleData();
 
-    RoboCompHumanCameraBody::People people_list = people_data.peoplelist;
-    //cout << "PEOPLE LIST SIZE: " << people_list.size() << endl;
-    // Generating camera image
-//     RoboCompCameraRGBDSimple::TImage image = this->camerargbdsimple_proxy->getImage("");
-//    auto complete_image = cv::Mat(image.width, image.height, CV_8UC3, &image.image[0]);
-//    cv::imshow("RGB image", complete_image);
-//    cv::waitKey(1);
-
-//     cv::Mat frame(cv::Size(image.height, image.width), CV_8UC3, &image.image[0], cv::Mabit::AUTO_STEP);
-
-    // Vector to include people data with ne new struct (world position and orientation added)
-    vector<SpecificWorker::PersonData> person_data_vector;
-
-    for(int i=0;i<people_list.size();i++)
+    try
     {
-        RoboCompHumanCameraBody::Person person = people_list[i];
-        // cout << "Person ID: " << person.id << endl;
-//        person_picture = cv::Mat(person.roi.width, person.roi.height, CV_8UC3, &person.roi.image[0]);
-//        cv::imshow("person", person_picture);
-//        cv::waitKey(1);
+        auto servo_data = this->jointmotorsimple_proxy->getMotorState("");
+        servo_position = servo_data.pos;
+        // Taking people data through proxy
+        RoboCompHumanCameraBody::PeopleData people_data = this->humancamerabody_proxy->newPeopleData();
 
-        RoboCompHumanCameraBody::TJoints person_tjoints = person.joints;
+        RoboCompHumanCameraBody::People people_list = people_data.peoplelist;
 
-        std::vector<cv::Point> pixel_vector;
-        // Iterating TJoints
-        for(auto item : person_tjoints)
+        // Vector to include people data with ne new struct (world position and orientation added)
+        vector<SpecificWorker::PersonData> person_data_vector;
+
+        for(int i=0;i<people_list.size();i++)
         {
-            // Appending joint pixels to a vector
-            cv::Point pixel;
-            pixel.x = item.second.i;
-            pixel.y = item.second.j;
-            pixel_vector.push_back(pixel);
-        }
-        // Creating person with the new stucture
-        SpecificWorker::PersonData person_data;
-        person_data.id = person.id;
-        person_data.orientation = calculate_orientation(person);
-        person_data.image = person.roi;
+            RoboCompHumanCameraBody::Person person = people_list[i];
+            RoboCompHumanCameraBody::TJoints person_tjoints = person.joints;
 
-        if(auto coords = get_joint_list(person.joints); coords.has_value())
-        {
-            person_data.joints = coords.value();
-            if(auto pos = position_filter(person_data.joints); pos.has_value())
+            std::vector<cv::Point> pixel_vector;
+            // Iterating TJoints
+            for(auto item : person_tjoints)
             {
-                person_data.personCoords_robot = get<0>(pos.value());
-                person_data.personCoords_world = get<1>(pos.value());
-                person_data.pixels = get<2>(pos.value());
-                // Represent image
+                // Appending joint pixels to a vector
+                cv::Point pixel;
+                pixel.x = item.second.i;
+                pixel.y = item.second.j;
+                pixel_vector.push_back(pixel);
+            }
+            // Creating person with the new stucture
+            SpecificWorker::PersonData person_data;
+            person_data.id = person.id;
+            person_data.orientation = calculate_orientation(person);
+            person_data.image = person.roi;
+
+            if(auto coords = get_joint_list(person.joints); coords.has_value())
+            {
+                person_data.joints = coords.value();
+                if(auto pos = position_filter(person_data.joints); pos.has_value())
+                {
+                    person_data.personCoords_robot = get<0>(pos.value());
+                    person_data.personCoords_world = get<1>(pos.value());
+                    person_data.pixels = get<2>(pos.value());
+                    // Represent image
 //                cv::Rect person_box = cv::boundingRect(pixel_vector);
 //                cv::rectangle(black_picture, cv::Rect(person_box.x, person_box.y, person_box.width, person_box.height), color_1, 2);
 //                cv::Point square_center;
@@ -765,122 +230,22 @@ void SpecificWorker::compute()
 //                {
 //                    cv::circle(black_picture, pixel_vector[k],12,color_1);
 //                }
-                person_data_vector.push_back(person_data);
+                    person_data_vector.push_back(person_data);
+                }
+                else continue;
             }
             else continue;
         }
-        else continue;
-    }
 
-    update_graph(person_data_vector);
+        update_graph(person_data_vector);
 
-    last_people_number = person_data_vector.size();
+        last_people_number = person_data_vector.size();
 //    cout << "LAST PEOPLE NUMBER: " << last_people_number << endl;
-
-
+    }
+    catch(const Ice::Exception &e){ /*std::cout << e.what() <<  __FUNCTION__ << std::endl;*/};
 }
 
-//std::optional<SpecificWorker::JointCoords> SpecificWorker::get_person_coords(RoboCompHumanCameraBody::Person p)
-//{
-////    vector<cv::Point3f> points;
-//    RoboCompHumanCameraBody::TJoints person_tjoints = p.joints;
-//    list<RoboCompHumanCameraBody::KeyPoint> huesitos;
-//
-//    for(auto item : person_tjoints)
-//    {
-//        std::string key = item.first;
-//        if (item.second.x != 0 && item.second.y != 0 && item.second.z != 0 && item.second.i != 0 && item.second.j != 0 && not (std::count(avoidedJoints.begin(), avoidedJoints.end(), key)))
-//        {
-//            huesitos.push_back(item.second);
-//        }
-//    }
-//
-////    std::cout << "NUMERO DE JOINTS: " << huesitos.size() << "" << "PERSON ID: " << p.id << endl;
-//    if(huesitos.size() < 6)
-//    {
-//        return {};
-//    }
-//
-//    else
-//    {
-//        float avg_x_robot = 0, avg_y_robot = 0,avg_z_robot=0, avg_x_world = 0, avg_y_world = 0,avg_z_world=0;
-//        Eigen::Vector3f trans_vect_1(0, -0.06, -0.12);
-//        Eigen::Vector3f trans_vect_2(0, -0.04, -1.55);
-//        for(auto kp: huesitos)
-//        {
-//            Eigen::Vector3f joint_pos(kp.x, kp.z, kp.y);
-//            Eigen::AngleAxisf z_axis_rotation_matrix (servo_position, Eigen::Vector3f::UnitZ());
-//            joint_pos = z_axis_rotation_matrix * joint_pos;
-//            joint_pos = joint_pos + trans_vect_1;
-//            Eigen::AngleAxisf x_axis_rotation_matrix (0.414, Eigen::Vector3f::UnitX());
-//            joint_pos = x_axis_rotation_matrix * joint_pos;
-//            Eigen::Vector3f joint_pos_robot = joint_pos + trans_vect_2;
-////            std::cout << "JOINT POS: " << joint_pos_robot << endl;
-//            auto joint_pos_robot_cast = joint_pos_robot.cast <double>()*1000;
-//            // For world
-//            if(auto joint_pos_world_double = inner_eigen->transform("world", joint_pos_robot_cast, "robot"); joint_pos_world_double.has_value())
-//            {
-//                auto joint_pos_world = joint_pos_world_double.value().cast <float>();
-//                avg_x_robot += joint_pos_robot.x();
-//                avg_y_robot += joint_pos_robot.y();
-//                avg_z_robot += joint_pos_robot.z();
-//
-//                avg_x_world += joint_pos_world.x();
-//                avg_y_world += joint_pos_world.y();
-//                avg_z_world += joint_pos_world.z();
-//            }
-//            else return {};
-//        }
-//        avg_x_robot = avg_x_robot/huesitos.size();
-//        avg_y_robot = avg_y_robot/huesitos.size();
-//        avg_z_robot = avg_z_robot/huesitos.size();
-//
-//        avg_x_world = avg_x_world/huesitos.size();
-//        avg_y_world = avg_y_world/huesitos.size();
-//        avg_z_world = avg_z_world/huesitos.size();
-//
-//
-//        cv::Point3f point_robot(avg_x_robot*1000,avg_y_robot*1000,avg_z_robot*1000);
-//        cv::Point3f point_world(avg_x_world,avg_y_world,avg_z_world);
-////        std::cout << "ROBOT POINT: " << point_robot << std::endl;
-////        std::cout << "WORDL POINT: " << point_world << std::endl;
-//
-////        points.push_back(point_robot);
-////        points.push_back(point_world);
-//
-//        JointCoords jointData;
-//        jointData.coordsMean = point_robot;
-//        jointData.jointList = huesitos;
-//
-//        return jointData;
-//    }
-//}
-
-//double SpecificWorker::correlation(cv::Mat &image_1, cv::Mat &image_2)
-//{
-//
-//// convert data-type to "float"
-//    cv::Mat im_float_1;
-//    image_1.convertTo(im_float_1, CV_32F);
-//    cv::Mat im_float_2;
-//    image_2.convertTo(im_float_2, CV_32F);
-//
-//    int n_pixels = im_float_1.rows * im_float_1.cols;
-//
-//// Compute mean and standard deviation of both images
-//    cv::Scalar im1_Mean, im1_Std, im2_Mean, im2_Std;
-//    meanStdDev(im_float_1, im1_Mean, im1_Std);
-//    meanStdDev(im_float_2, im2_Mean, im2_Std);
-//
-//// Compute covariance and correlation coefficient
-//    double covar = (im_float_1 - im1_Mean).dot(im_float_2 - im2_Mean) / n_pixels;
-//    double correl = covar / (im1_Std[0] * im2_Std[0]);
-//
-//    return correl;
-//
-//}
-
-std::optional<std::tuple<cv::Point3f, cv::Point3f, cv::Point2i>> SpecificWorker::position_filter(std::tuple<vector<cv::Point3f>, vector<cv::Point2i>> person_joints)
+std::optional<std::tuple<cv::Point3f, cv::Point3f, cv::Point2i>> SpecificWorker::position_filter(const std::tuple<vector<cv::Point3f>, vector<cv::Point2i>> &person_joints)
 {
     // Counter for pixel or position mean
     int i = 0;
@@ -1137,7 +502,7 @@ cv::Point3f SpecificWorker::dictionary_values_to_3d_point(RoboCompHumanCameraBod
     return point;
 }
 
-std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>> SpecificWorker::get_joint_list(RoboCompHumanCameraBody::TJoints joints)
+std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>> SpecificWorker::get_joint_list(const RoboCompHumanCameraBody::TJoints &joints)
 {
     vector<cv::Point3f> joint_points;
     vector<cv::Point2i> joint_pixels;
@@ -1341,77 +706,6 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
     return angle;
 }
 
-//void SpecificWorker::remove_person(DSR::Node person_node, bool direct_remove)
-//{
-//    float score = 0;
-//    if(direct_remove == true){int score = 0;}
-//    else
-//    {
-//        if(auto person_lc = G->get_attrib_by_name<lambda_cont_att>(person_node); person_lc.has_value())
-//        {
-//            if(auto person_id = G->get_attrib_by_name<person_id_att>(person_node); person_id.has_value())
-//            {
-////                cout << "calculating lambda value for person " << person_id.value() << endl;
-//                int nlc = decrease_lambda_cont(person_lc.value());
-////                cout << "//////////////// NLC decreasing:   " << nlc << endl;
-//                G->add_or_modify_attrib_local<lambda_cont_att>(person_node, nlc);
-//                G->update_node(person_node);
-//                score = integrator(nlc);
-//            }
-//        }
-//    }
-//    if((score <= bot_thr) or (direct_remove == true))
-//    {
-//        auto people_space_nodes = G->get_nodes_by_type("personal_space");
-//        auto mind_nodes = G->get_nodes_by_type("transform");
-//        auto parent_id = person_node.id();
-//
-//        if(auto robot_node = G->get_node("robot"); robot_node.has_value())
-//        {
-//            {
-//                // Getting personal space nodes
-//                for(int i=0; i<people_space_nodes.size();i++)
-//                {
-//                    auto act_space_node = people_space_nodes[i];
-//                    if(auto act_space_node_person_id = G->get_attrib_by_name<person_id_att>(act_space_node); act_space_node_person_id.has_value())
-//                    {
-//                        if(auto person_id = G->get_attrib_by_name<person_id_att>(person_node); person_id.has_value())
-//                        {
-//                            if(act_space_node_person_id.value() == person_id.value());
-//                            {
-//                                people_space_nodes.erase(people_space_nodes.begin()+i);
-//                                G->delete_node(act_space_node.id());
-//                                break;
-//                            }
-//                        }
-//                    }
-//                }
-//                for(int i=0; i<mind_nodes.size();i++)
-//                {
-//                    auto act_mind_node = mind_nodes[i];
-//                    if(auto act_mind_node_id = G->get_attrib_by_name<person_id_att>(act_mind_node); act_mind_node_id.has_value())
-//                    {
-//                        if(auto person_id = G->get_attrib_by_name<person_id_att>(person_node); person_id.has_value())
-//                        {
-//                            if(act_mind_node_id.value() == person_id.value())
-//                            {
-//                                // cout << "parent_id: " << parent_id << endl;
-//                                // cout << "mind id: " << act_mind_node_id << endl;
-//                                mind_nodes.erase(mind_nodes.begin()+i);
-//                                G->delete_node(act_mind_node.id());
-//                                G->delete_edge(person_node.id(), act_mind_node.id(),"has");
-//                                break;
-//                            }
-//                        }
-//                    }
-//                }
-//                G->delete_edge(robot_node.value().id(), person_node.id(),"RT");
-//                G->delete_node(person_node.id());
-//            }
-//        }
-//    }
-//}
-
 void SpecificWorker::remove_person(DSR::Node person_node, bool direct_remove)
 {
     std::string node_name_str = "virtual_leader";
@@ -1439,41 +733,7 @@ void SpecificWorker::remove_person(DSR::Node person_node, bool direct_remove)
             }
 
         if((score <= bot_thr) or (direct_remove == true)) {
-//            auto people_space_nodes = G->get_nodes_by_type("personal_space");
-//            auto mind_nodes = G->get_nodes_by_type("transform");
-//            auto parent_id = person_node.id();
 
-    //                 Getting personal space nodes
-//            for (int i = 0; i < people_space_nodes.size(); i++) {
-//                auto act_space_node = people_space_nodes[i];
-//                if (auto act_space_node_person_id = G->get_attrib_by_name<person_id_att>(
-//                            act_space_node); act_space_node_person_id.has_value()) {
-//                    if (auto person_id = G->get_attrib_by_name<person_id_att>(person_node); person_id.has_value()) {
-//                        if (act_space_node_person_id.value() == person_id.value());
-//                        {
-//                            people_space_nodes.erase(people_space_nodes.begin() + i);
-//                            G->delete_node(act_space_node.id());
-//                            break;
-//                        }
-//                    }
-//                }
-//            }
-//            for (int i = 0; i < mind_nodes.size(); i++) {
-//                auto act_mind_node = mind_nodes[i];
-//                if (auto act_mind_node_id = G->get_attrib_by_name<person_id_att>(
-//                            act_mind_node); act_mind_node_id.has_value()) {
-//                    if (auto person_id = G->get_attrib_by_name<person_id_att>(person_node); person_id.has_value()) {
-//                        if (act_mind_node_id.value() == person_id.value()) {
-//                            // cout << "parent_id: " << parent_id << endl;
-//                            // cout << "mind id: " << act_mind_node_id << endl;
-//                            mind_nodes.erase(mind_nodes.begin() + i);
-//                            G->delete_node(act_mind_node.id());
-//                            G->delete_edge(person_node.id(), act_mind_node.id(), "has");
-//                            break;
-//                        }
-//                    }
-//                }
-//            }
             G->delete_edge(G->get_node("robot").value().id(), person_node.id(), "RT");
             G->delete_node(person_node.id());
         }
@@ -1749,11 +1009,6 @@ void SpecificWorker::insert_person(SpecificWorker::PersonData persondata, bool d
                 G->add_or_modify_attrib_local<person_image_width_att>(new_node, persondata.image.width);
                 G->add_or_modify_attrib_local<person_image_height_att>(new_node, persondata.image.height);
 
-
-
-
-
-
                 auto t_end = std::chrono::high_resolution_clock::now();
                 double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
                 leader_ROI_memory.insert(leader_ROI_memory.cbegin(), persondata.image);
@@ -1810,7 +1065,7 @@ void SpecificWorker::insert_person(SpecificWorker::PersonData persondata, bool d
     }
 }
 
-void SpecificWorker::update_graph(vector<SpecificWorker::PersonData> people_list) {
+void SpecificWorker::update_graph(const vector<SpecificWorker::PersonData> &people_list) {
     if (auto camera_node = G->get_node("giraff_camera_realsense"); camera_node.has_value()) {
         if (auto image_data_att = G->get_attrib_by_name<cam_rgb_att>(camera_node.value()); image_data_att.has_value()) {
             if (auto image_width_att = G->get_attrib_by_name<cam_rgb_width_att>(
@@ -1847,11 +1102,8 @@ void SpecificWorker::update_graph(vector<SpecificWorker::PersonData> people_list
                             vector<int> matched_people;
                             if(people_list.size() > 0)
                             {
-                                int counter = 0;
                                 for (auto p: people_nodes)
                                 {
-                                    std::cout << "NODE COUNTER: " << counter << std::endl;
-                                    counter ++;
     //                              if(auto robot_person_edge = G->get_edge(robot_node.value().id(), p.id(), "following"); robot_person_edge.has_value())
                                     int row = 0;
                                     vector<double> people_distance_to_nodes, corr_vector;
@@ -1870,6 +1122,7 @@ void SpecificWorker::update_graph(vector<SpecificWorker::PersonData> people_list
                                                 cv::Mat person_roi = cv::Mat(person_ROI_width_att.value(),
                                                                              person_ROI_height_att.value(), CV_8UC3,
                                                                              &leader_ROI_data[0]);
+
                                                 if(auto followed_node = G->get_attrib_by_name<followed_att>(p); followed_node.has_value() && followed_node.value() == true)
                                                 {
                                                     cv::imshow(p.name(), person_roi);
@@ -1889,10 +1142,10 @@ void SpecificWorker::update_graph(vector<SpecificWorker::PersonData> people_list
 
                                                 for (int i = 0; i < people_list.size(); i++)
                                                 {
-                                                    auto distance_person = people_comparison(person_node_data, max_point, people_list[i]);
+                                                    auto distance_person = people_comparison_distance(person_node_data, people_list[i]);
                                                     auto correlation_person = people_comparison_corr(person_node_data, max_point, people_list[i]);
-                                                    std::cout << "CORRELACTION: " << correlation_person << std::endl;
-                                                    std::cout << "DISTANCE: " << distance_person << std::endl;
+//                                                    std::cout << "CORRELACTION: " << correlation_person << std::endl;
+//                                                    std::cout << "DISTANCE: " << distance_person << std::endl;
                                                     people_distance_to_nodes.push_back((double)distance_person);
                                                     corr_vector.push_back(correlation_person);
                                                 }
@@ -1900,22 +1153,6 @@ void SpecificWorker::update_graph(vector<SpecificWorker::PersonData> people_list
                                                 row += 1;
                                                 corr_comparisons.push_back(corr_vector);
                                                 distance_comparisons.push_back(people_distance_to_nodes);
-//                                                cv::cvtColor(person_roi, person_roi, cv::COLOR_BGR2RGB);
-//                                                cv::Mat result;
-//
-//                                                matchTemplate(general_picture, person_roi, result, cv::TM_CCOEFF_NORMED);
-////                                                    cv::imshow("ROI image", person_roi);
-////                                                    cv::waitKey(1);
-//                                                cv::Point2i max_point_correlated, min_point_correlated;
-//                                                double max_value, min_value;
-//
-//                                                minMaxLoc(result, &min_value, &max_value, &min_point_correlated,
-//                                                          &max_point_correlated, cv::Mat());
-//
-//                                                max_point.x = (int) (max_point_correlated.x + person_ROI_height_att.value() / 2);
-//                                                max_point.y = (int) (max_point_correlated.y + person_ROI_width_att.value() / 2);
-//                                                cv::circle(general_picture, max_point, 12, color_3);
-
                                             }
                                         }
                                     }
@@ -1939,45 +1176,9 @@ void SpecificWorker::update_graph(vector<SpecificWorker::PersonData> people_list
                                         distance_comparisons[i][j] = (int)(distance_comparisons[i][j] * corr_comparisons[i][j]);
                                         if(distance_comparisons[i][j] == 0)
                                             distance_comparisons[i][j] = 1;
-
-                                        std::cout << corr_comparisons << std::endl;
-                                        std::cout << distance_comparisons << std::endl;
                                     }
                                 }
 
-
-
-
-                                // More people than nodes
-//                                if((int)(comparisons.size() - comparisons[0].size()) > 0)
-//                                {
-//                                    cout << "ENTRA" << endl;
-//                                    for (int i = 0; i < (int) comparisons.size(); ++i)
-//                                    {
-//                                        for (int j = 0; j < difference; ++j)
-//                                        {
-//                                            comparisons[i].push_back(99999999999 - i * 68);
-//                                        }
-//                                    }
-//                                }
-//                                else if((int)(comparisons[0].size() - comparisons.size()) > 0)
-//                                {
-//                                    cout << "ENTRA" << endl;
-//                                    for (int i = 0; i < difference; ++i)
-//                                    {
-//                                        vector<int> balance_vector;
-//                                        for (int j = 0; j < (int) comparisons[0].size(); ++j)
-//                                        {
-//                                            balance_vector.push_back(99999999999- i * 68);
-//                                        }
-//                                        comparisons.push_back(balance_vector);
-//                                    }
-//                                }
-
-                                //cout << "SALE" << endl;
-
-                                //std::cout << "DIM 1: " << comparisons.size() << std::endl;
-                                //std::cout << "DIM 2: " << comparisons[0].size() << std::endl;
                                 vector<int> assignment;
                                 static HungarianAlgorithm HungAlgo;
                                 double cost = HungAlgo.Solve(distance_comparisons, assignment);
@@ -2046,81 +1247,7 @@ void SpecificWorker::update_graph(vector<SpecificWorker::PersonData> people_list
     }
 }
 
-
-
-
-
-////////////////////////////////////////////////////////////////////////////
-//                                    if (auto followed_node = G->get_attrib_by_name<followed_att>(p);
-//                                            followed_node.has_value() && followed_node.value() == true) {
-//                                        // Check if leader ROI is in act image
-//                                        if (auto leader_ROI_data_att = G->get_attrib_by_name<person_image_att>(
-//                                                    p); leader_ROI_data_att.has_value()) {
-//                                            if (auto leader_ROI_width_att = G->get_attrib_by_name<person_image_width_att>(
-//                                                        p); leader_ROI_width_att.has_value()) {
-//                                                if (auto leader_ROI_height_att = G->get_attrib_by_name<person_image_height_att>(
-//                                                            p); leader_ROI_height_att.has_value()) {
-//                                                    cv::Mat result;
-//                                                    auto leader_ROI_data = leader_ROI_data_att.value().get();
-//                                                    cv::Mat person_roi = cv::Mat(leader_ROI_width_att.value(),
-//                                                                                 leader_ROI_height_att.value(), CV_8UC3,
-//                                                                                 &leader_ROI_data[0]);
-//    //                                                cv::cvtColor(person_roi, person_roi, CV_BGR2RGB);
-//                                                    matchTemplate(general_picture, person_roi, result,
-//                                                                  cv::TM_CCOEFF_NORMED);
-//                                                    cv::imshow("ROI image", person_roi);
-//                                                    cv::waitKey(1);
-//                                                    cv::Point2i max_point_correlated, min_point_correlated;
-//                                                    double max_value, min_value;
-//
-//                                                    minMaxLoc(result, &min_value, &max_value, &min_point_correlated,
-//                                                              &max_point_correlated, cv::Mat());
-//
-//                                                    if (max_value < 0.3) {
-//                                                        std::cout
-//                                                                << "----------------------- DIFFERENT ----------------------- ";
-//                                                        return;
-//                                                    }
-//
-//
-//                                                    cv::Point2i max_point;
-//                                                    max_point.x = (int) (max_point_correlated.x +
-//                                                                         leader_ROI_height_att.value() / 2);
-//                                                    max_point.y = (int) (max_point_correlated.y +
-//                                                                         leader_ROI_width_att.value() / 2);
-//                                                    cv::circle(general_picture, max_point, 12, color_3);
-//                                                    cv::imshow("RGB image", general_picture);
-//                                                    cv::waitKey(1);
-//
-//                                                    std::cout << "MAX CORRELATION POINT VALUE: " << max_value << std::endl;
-//
-//                                                    cv::imshow("Correlated image", result);
-//                                                    cv::waitKey(1);
-//
-//                                                    SpecificWorker::leaderData leader;
-//                                                    if (auto leader_data = getting_leader_data(); leader_data.has_value()) leader = leader_data.value();
-//                                                    else {
-//                                                        std::cout << "############## NO LEADER ##############" << endl;
-//                                                        return;
-//                                                    }
-//
-//                                                    auto chosen_person = people_comparison(leader, max_point, people_list);
-//
-//                                                    bool dangerous_situation = danger_detection(max_value, leader,
-//                                                                                                people_list);
-//                                                    if (not dangerous_situation) update_person(leader.node, chosen_person);
-//
-//
-//                                                }
-//                                            }
-//                                        }
-//
-//                                    }
-////////////////////////////////////////////////////////////////////////////
-
-
-
-bool SpecificWorker::danger_detection(float correlation, SpecificWorker::leaderData leader_data, vector<SpecificWorker::PersonData> people_list)
+bool SpecificWorker::danger_detection(float correlation, SpecificWorker::leaderData leader_data, const vector<SpecificWorker::PersonData> &people_list)
 {
     int near_to_leader_counter = 0;
     for(auto person : people_list)
@@ -2153,62 +1280,6 @@ bool SpecificWorker::danger_detection(float correlation, SpecificWorker::leaderD
     return danger || occlussion;
 }
 
-std::optional<SpecificWorker::leaderData> SpecificWorker::getting_leader_data()
-{
-//    if (auto robot_node = G->get_node("robot"); robot_node.has_value())
-    if (auto world_node = G->get_node("world"); world_node.has_value())
-    {
-        auto people_nodes = G->get_nodes_by_type("person");
-        for (auto p: people_nodes)
-        {
-//            if(auto followed_node = G->get_attrib_by_name<followed_att>(p); followed_node.has_value() && followed_node.value() == true)
-//            {
-                if (auto edge = G->get_edge(world_node.value().id(), p.id(), "RT"); edge.has_value())
-                {
-                    if (auto g_coords = G->get_attrib_by_name<rt_translation_att>(edge.value()); g_coords.has_value())
-                    {
-                        if (auto pix_x_coords = G->get_attrib_by_name<pixel_x_att>(p); pix_x_coords.has_value())
-                        {
-                            if (auto pix_y_coords = G->get_attrib_by_name<pixel_y_att>(p); pix_y_coords.has_value())
-                            {
-                                if(auto leader_ROI_data_att = G->get_attrib_by_name<person_image_att>(p); leader_ROI_data_att.has_value())
-                                {
-                                    if (auto leader_ROI_width_att = G->get_attrib_by_name<person_image_width_att>(p); leader_ROI_width_att.has_value())
-                                    {
-                                        if (auto leader_ROI_height_att = G->get_attrib_by_name<person_image_height_att>(p); leader_ROI_height_att.has_value())
-                                        {
-                                            SpecificWorker::leaderData leader_data;
-                                            auto leader_ROI_data = leader_ROI_data_att.value().get();
-                                            cv::Point3f g_coords_point;
-                                            g_coords_point.x = g_coords.value().get()[0];
-                                            g_coords_point.y = g_coords.value().get()[1];
-                                            g_coords_point.z = g_coords.value().get()[2];
-                                            leader_data.pix_x = pix_x_coords.value();
-                                            leader_data.pix_y = pix_y_coords.value();
-                                            leader_data.position = g_coords_point;
-                                            leader_data.node = p;
-                                            leader_data.ROI = cv::Mat(leader_ROI_width_att.value(), leader_ROI_height_att.value(), CV_8UC3, &leader_ROI_data[0]);
-                                            return leader_data;
-                                        }
-                                        else return {};
-                                    }
-                                    else return {};
-                                }
-                                else return {};
-                            }
-                            else return {};
-                        }
-                        else return {};
-                    }
-                    else return {};
-                }
-                else return {};
-//            }
-//            else return {};
-        }
-    }
-}
-
 double SpecificWorker::people_comparison_corr(SpecificWorker::leaderData node_data , cv::Point2i max_corr_point, SpecificWorker::PersonData person)
 {
     // Jetson roi
@@ -2225,218 +1296,15 @@ double SpecificWorker::people_comparison_corr(SpecificWorker::leaderData node_da
     minMaxLoc(result, &min_value, &max_value, &min_point_correlated,
               &max_point_correlated, cv::Mat());
 
-    return max_value;
+    return abs(max_value);
 }
 
-int SpecificWorker::people_comparison(SpecificWorker::leaderData node_data , cv::Point2i max_corr_point, SpecificWorker::PersonData person)
+int SpecificWorker::people_comparison_distance(SpecificWorker::leaderData node_data, SpecificWorker::PersonData person)
 {
-        auto p_c = person.personCoords_world;
-        float diff_dist = sqrt(pow(node_data.position.x - p_c.x, 2) + pow(node_data.position.y - p_c.y, 2));
-//        if(diff_dist > 500) return 9999999;
-
-        // Jetson roi
-        cv::Mat jetson_roi = cv::Mat(person.image.width,
-                                     person.image.height, CV_8UC3,
-                                     &person.image.image[0]);
-        cv::Mat result;
-
-        matchTemplate(node_data.ROI, jetson_roi, result, cv::TM_CCOEFF);
-//        cv::imshow("ROI NODE", node_data.ROI);
-//
-//        cv::imshow(to_string(person.id), jetson_roi);
-////        cv::imshow("RESUKLT", result);
-        cv::waitKey(1);
-        cv::Point2i max_point_correlated, min_point_correlated;
-        double max_value, min_value;
-
-        minMaxLoc(result, &min_value, &max_value, &min_point_correlated,
-                  &max_point_correlated, cv::Mat());
-
-//        std::cout << "CORRELATION: " << max_value << std::endl;
-
-        float diff_pix_corr = 1; // sqrt(pow(person.pixels.x - max_corr_point.x, 2) + pow(person.pixels.y - max_corr_point.y, 2));
-//        float pix_factor = diff_pix_corr / (float) 640;
-//        cv::circle(act_image, people_list[i].pixels,12,color_2);
-        float similitude = (int) (diff_dist / diff_pix_corr);
-        std::cout << "Similitude value: " << similitude << std::endl;
-
-    return similitude;
+    auto p_c = person.personCoords_world;
+    float diff_dist = sqrt(pow(node_data.position.x - p_c.x, 2) + pow(node_data.position.y - p_c.y, 2));
+    return (int)diff_dist;
 }
-
-//SpecificWorker::PersonData SpecificWorker::people_comparison(SpecificWorker::leaderData leader_data , cv::Point2i max_corr_point, vector<SpecificWorker::PersonData> people_list)
-//{
-//    SpecificWorker::PersonData most_similar_person;
-//    float max_similar_value = 9999999999;
-////    cv::circle(act_image, max_corr_point,12,color_3);
-//    for (int i = 0; i < people_list.size(); i++)
-//    {
-//        std::cout << "PERSON " << i << std::endl;
-//        auto p_c = people_list[i].personCoords_robot;
-//        float diff_dist = sqrt(pow(leader_data.pix_x - p_c.x, 2) + pow(leader_data.pix_y - p_c.y, 2));
-//        float diff_pix_corr = sqrt(pow(people_list[i].pixels.x - max_corr_point.x, 2) + pow(people_list[i].pixels.y - max_corr_point.y, 2));
-////        float pix_factor = diff_pix_corr / (float) 640;
-////        cv::circle(act_image, people_list[i].pixels,12,color_2);
-//        float similitude = diff_dist * diff_pix_corr;
-//        std::cout << "Similitude value: " << similitude << std::endl;
-//
-//        if(similitude < max_similar_value)
-//        {
-//            max_similar_value = similitude;
-//            most_similar_person = people_list[i];
-//            most_similar_person.vector_pos = i;
-//        }
-//    }
-//    return most_similar_person;
-//}
-
-//std::optional<cv::Mat> SpecificWorker::update_graph(vector<SpecificWorker::PersonData> people_list, cv::Mat image) {
-////    vector<int> matched_nodes;
-////    vector<int> matched_people;
-//    if (auto robot_node = G->get_node("robot"); robot_node.has_value())
-//    {
-//        auto people_nodes = G->get_nodes_by_type("person");
-//        if ((people_nodes.size() == 0 && people_list.size() == 0) || people_list.size() == 0)
-//        {
-//            return {};
-//        }
-//
-//        // If there's people in image but not in nodes, append them
-//        else if (people_nodes.size() == 0 && people_list.size() != 0)
-//        {
-//            for (auto p: people_list)
-//            {
-//                insert_person(p.personCoords_robot, p.orientation, true, p.pixels);
-//            }
-//        }
-//
-//            // Calculating to see if some person has to be erased
-//        else
-//        {
-//            int min_x_pix_dist = 999999;
-//            int min_x_pix_april = 999999;
-//            SpecificWorker::PersonData ref_person_pix, ref_person_april_pix, ref_person_dist;
-//            float min_pos_dist = 999999;
-//
-//            for (auto p: people_nodes)
-//            {
-//                if(auto followed_node = G->get_attrib_by_name<followed_att>(p); followed_node.has_value() && followed_node.value() == true)
-//                {
-//                    if (auto edge = G->get_edge(robot_node.value().id(), p.id(), "RT"); edge.has_value())
-//                    {
-//                        if (auto g_coords = G->get_attrib_by_name<rt_translation_att>(edge.value()); g_coords.has_value())
-//                        {
-//                            if (auto pix_x_coords = G->get_attrib_by_name<pixel_x_att>(p); pix_x_coords.has_value())
-//                            {
-//                                if (auto pix_y_coords = G->get_attrib_by_name<pixel_y_att>(p); pix_y_coords.has_value())
-//                                {
-//                                    if (people_list.size() > 0)
-//                                    {
-//                                        cv::Point3f g_coords_point;
-//                                        g_coords_point.x = g_coords.value().get()[0];
-//                                        g_coords_point.y = g_coords.value().get()[1];
-//                                        g_coords_point.z = g_coords.value().get()[2];
-//
-//                                        for (int i = 0; i < people_list.size(); i++)
-//                                        {
-////                                            if(auto coords = get_person_coords(person); coords.has_value())
-////                                            {
-////
-////                                            }
-//
-//                                            auto p_c = people_list[i].personCoords_robot;
-//                                            auto diff_dist = sqrt(pow(g_coords_point.x - p_c.x, 2) + pow(g_coords_point.y - p_c.y, 2));
-//                                            auto diff_pix_x = abs(people_list[i].pixels.x - 240);
-////                                            std::cout << "COORDS: " << people_list[i].personCoords_robot << std::endl;
-////                                            std::cout << "COORDS PIX: " << people_list[i].pixels << std::endl;
-//
-////                                            std::cout << "Person " << to_string(people_list[i].id) << " diff pix x: " << diff_pix_x << std::endl;
-////                                            std::cout << "Person " << to_string(people_list[i].id) << " diff dist x: " << diff_dist << std::endl;
-//
-//                                            if(existTag == true)
-//                                            {
-//                                                auto diff_april_pix_x = abs(people_list[i].pixels.x - april_pix_x);
-////                                                std::cout << "Person " << to_string(people_list[i].id) << " DIST TO APRIL: " << abs(people_list[i].pixels.x - april_pix_x) << std::endl;
-//                                                if(diff_april_pix_x < min_x_pix_april)
-//                                                {
-//                                                    min_x_pix_april = diff_april_pix_x;
-//                                                    ref_person_april_pix = people_list[i];
-//                                                }
-//                                            }
-//                                            else
-//                                            {
-//                                                if(diff_dist < min_pos_dist)
-//                                                {
-//                                                    min_pos_dist = diff_dist;
-//                                                    ref_person_dist = people_list[i];
-//                                                }
-//                                            }
-////                                            if(diff_pix_x < min_x_pix_dist)
-////                                            {
-////                                                min_x_pix_dist = diff_pix_x;
-////                                                ref_person_pix = people_list[i];
-////                                            }
-//
-//
-//                                        }
-//                                        if(existTag == true)
-//                                        {
-//                                            if(ref_person_april_pix.pixels.x != 0  && ref_person_april_pix.pixels.y != 0)
-//                                            {
-//                                                draw_timeseries(min_pos_dist, (float)min_x_pix_dist);
-//                                                update_person(p, ref_person_april_pix.personCoords_robot, ref_person_april_pix.orientation, ref_person_april_pix.pixels);
-//                                            }
-//                                        }
-//                                        else
-//                                        {
-//                                            if(ref_person_dist.pixels.x != 0  && ref_person_dist.pixels.y != 0)
-//                                            {
-//                                                draw_timeseries(min_pos_dist, (float)min_x_pix_dist);
-//                                                update_person(p, ref_person_dist.personCoords_robot, 0.0, ref_person_dist.pixels);
-//                                            }
-//                                        }
-//
-////                                        if(ref_person_pix.id == ref_person_dist.id) update_person(p, ref_person_dist.personCoords_world, ref_person_dist.personCoords_robot, ref_person_dist.orientation, ref_person_dist.pixels);
-////                                        else update_person(p, ref_person_dist.personCoords_world, ref_person_dist.personCoords_robot, ref_person_dist.orientation, ref_person_dist.pixels);
-//
-//                                    }
-////                                    else
-////                                    {
-////                                        cv::Point3f g_coords_point;
-////                                        g_coords_point.x = g_coords.value().get()[0];
-////                                        g_coords_point.y = g_coords.value().get()[1];
-////                                        g_coords_point.z = g_coords.value().get()[2];
-////                                        cv::Point2i last_pixels; last_pixels.x = pix_x_coords.value(); last_pixels.y = pix_y_coords.value();
-////                                        update_person(p, g_coords_point, 0.0, last_pixels);
-////                                    }
-//                                }
-//                            }
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
-//    return image;
-//}
-// void del_node_slot(std::uint64_t from)
-// {
-//     auto mind_nodes = G->get_nodes_by_type("transform");
-//     auto person_nodes = G->get_nodes_by_type("person");
-//     for(auto g: mind_nodes)
-//     {
-//         if(auto node_parent = G->get_attrib_by_name<parent_att>(g).value(); not has_value())
-//         {
-//             G->delete_node(g.id());
-//         }
-//     }
-//     for(auto g: person_nodes)
-//     {
-//         if(auto node_parent = G->get_attrib_by_name<parent_att>(g).value(); not has_value())
-//         {
-//             G->delete_node(g.id());
-//         }
-//     }
-// }
 
 int SpecificWorker::startup_check()
 {

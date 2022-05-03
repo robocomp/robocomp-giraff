@@ -147,19 +147,16 @@ class SpecificWorker : public GenericWorker
         float get_degrees_between_vectors(cv::Point2f vector_1, cv::Point2f vector_2, std::string format);
         float calculate_orientation(RoboCompHumanCameraBody::Person person);
         float distance_3d(cv::Point3f p1, cv::Point3f p2);
-        std::optional<SpecificWorker::leaderData> getting_leader_data();
         void remove_person(DSR::Node person_node, bool direct_remove); // direct_remove = false in python
         void update_person(DSR::Node node, SpecificWorker::PersonData persondata);
-        std::optional<cv::Point3i> get_body_color(list<list<RoboCompHumanCameraBody::KeyPoint>> list);
-    //    SpecificWorker::PersonData people_comparison(SpecificWorker::leaderData leader_data, cv::Point2i max_corr_point, vector<SpecificWorker::PersonData> people_list);
-        int people_comparison(SpecificWorker::leaderData node_data, cv::Point2i max_corr_point, SpecificWorker::PersonData person);
+        int people_comparison_distance(SpecificWorker::leaderData node_data, SpecificWorker::PersonData person);
         double people_comparison_corr(SpecificWorker::leaderData node_data , cv::Point2i max_corr_point, SpecificWorker::PersonData person);
-        std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>> get_joint_list(RoboCompHumanCameraBody::TJoints joints);
+        std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>> get_joint_list(const RoboCompHumanCameraBody::TJoints &joints);
         void insert_mind(std::uint64_t parent_id, std::int32_t person_id);
-        bool danger_detection(float correlation, SpecificWorker::leaderData leader_data, vector<SpecificWorker::PersonData> people_list);
+        bool danger_detection(float correlation, SpecificWorker::leaderData leader_data, const vector<SpecificWorker::PersonData> &people_list);
         void insert_person(SpecificWorker::PersonData persondata, bool direct_insert);
     //    std::optional<cv::Mat> update_graph(vector<SpecificWorker::PersonData> people_list, cv::Mat image);
-        void update_graph(vector<SpecificWorker::PersonData> people_list);
+        void update_graph(const vector<SpecificWorker::PersonData> &people_list);
     //    std::optional<JointCoords> get_person_coords(RoboCompHumanCameraBody::Person p);
         std::optional<cv::Point2i> get_person_pixels(RoboCompHumanCameraBody::Person p);
         float dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b);
@@ -171,7 +168,7 @@ class SpecificWorker : public GenericWorker
 
         void draw_timeseries(float error_dist, float error_img);
 
-        std::optional<std::tuple<cv::Point3f, cv::Point3f, cv::Point2i>> position_filter(std::tuple<vector<cv::Point3f>, vector<cv::Point2i>> person_joints);
+        std::optional<std::tuple<cv::Point3f, cv::Point3f, cv::Point2i>> position_filter(const std::tuple<vector<cv::Point3f>, vector<cv::Point2i>> &person_joints);
 };
 
 #endif
