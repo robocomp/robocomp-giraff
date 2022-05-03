@@ -1,16 +1,11 @@
 import "JointMotorSimple.idsl";
-import "CameraRGBDSimple.idsl";
-import "HumanCameraBody.idsl";
-import "DifferentialRobot.idsl";
-import "Follower.idsl";
 import "MoveTowards.idsl";
 
 Component eye_control_dsr
 {
     Communications
     {
-    	implements Follower;
-        requires JointMotorSimple, CameraRGBDSimple, HumanCameraBody, DifferentialRobot, MoveTowards;
+        requires JointMotorSimple, MoveTowards;
     };
     language python;
     gui Qt(QWidget);

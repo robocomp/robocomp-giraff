@@ -219,7 +219,7 @@ class Ui_guiDlg(object):
 
         self.label_image = QLabel(guiDlg)
         self.label_image.setObjectName(u"label_image")
-        self.label_image.setMinimumSize(QSize(480, 640))
+        self.label_image.setMinimumSize(QSize(640, 480))
 
         self.verticalLayout_6.addWidget(self.label_image)
 
