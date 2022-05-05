@@ -1,0 +1,96 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"childIndexes" : 
+					[
+						1
+					],
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-.-Debug-c4a85b91ce9ab8e8b84a.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "2.8"
+					},
+					"projectIndex" : 0,
+					"source" : "."
+				},
+				{
+					"build" : "src",
+					"hasInstallRule" : true,
+					"jsonFile" : "directory-src-Debug-724ee58ed0c2edf560c5.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.10"
+					},
+					"parentIndex" : 0,
+					"projectIndex" : 0,
+					"source" : "src",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0,
+						1
+					],
+					"name" : "path_follower_mpc",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 1,
+					"id" : "ICES__home_robocomp_robocomp_components_dsr-graph_components_path_follower_mpc_src::@145eef247bfb46b6828c",
+					"jsonFile" : "target-ICES__home_robocomp_robocomp_components_dsr-graph_components_path_follower_mpc_src-Debug-8cf4772ce1a82e2da531.json",
+					"name" : "ICES__home_robocomp_robocomp_components_dsr-graph_components_path_follower_mpc_src",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "path_follower_mpc::@145eef247bfb46b6828c",
+					"jsonFile" : "target-path_follower_mpc-Debug-f933aee0150efe27daa5.json",
+					"name" : "path_follower_mpc",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 1,
+					"id" : "path_follower_mpc_autogen::@145eef247bfb46b6828c",
+					"jsonFile" : "target-path_follower_mpc_autogen-Debug-9179f75de720d2be0fdf.json",
+					"name" : "path_follower_mpc_autogen",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/home/robocomp/robocomp/components/dsr-graph/components/path_follower_mpc/cmake-build-debug",
+		"source" : "/home/robocomp/robocomp/components/dsr-graph/components/path_follower_mpc"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 3
+	}
+}

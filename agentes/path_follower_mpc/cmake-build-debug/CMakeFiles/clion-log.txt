@@ -1,0 +1,4 @@
+Cannot generate into /home/robocomp/robocomp/components/dsr-graph/components/path_follower_mpc
+It is already used for project /home/javier/robocomp/components/dsr-graph/components/path_follower_mpc
+
+Please either delete it manually or select another generation directory

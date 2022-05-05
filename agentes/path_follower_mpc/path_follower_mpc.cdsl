@@ -1,0 +1,14 @@
+import "Laser.idsl";
+
+Component path_follower_mpc
+{
+    Communications
+    {
+        requires Laser;
+    };
+    language Cpp11;
+    gui Qt(QMainWindow);
+    options dsr;
+
+};
+
