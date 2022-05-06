@@ -158,6 +158,7 @@ private:
 
     // target
     Eigen::Vector2f current_target;
+    Eigen::Vector2f from_robot_current_target;
     std::tuple<float, float, float> send_command_to_robot(const std::tuple<float, float, float> &speeds);  //adv, side, rot
     bool robot_is_active = false;
 
@@ -172,7 +173,7 @@ private:
     //laser
     QPointF e2q(const Eigen::Vector2d &v);
     RoboCompLaser::TLaserData read_laser(bool noise);
-    void draw_laser(const RoboCompLaser::TLaserData &ldata); // robot coordinates
+//    void draw_laser(const RoboCompLaser::TLaserData &ldata); // robot coordinates
 
     // robot
     struct Pose2D
