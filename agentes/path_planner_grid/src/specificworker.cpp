@@ -31,10 +31,7 @@
 SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorker(tprx)
 {
 	this->startup_check_flag = startup_check;
-	// Uncomment if there's too many debug messages
-	// but it removes the possibility to see the messages
-	// shown in the console with qDebug()
-//	QLoggingCategory::setFilterRules("*.debug=false\n");
+	QLoggingCategory::setFilterRules("*.debug=false\n");
 }
 
 /**
@@ -43,7 +40,7 @@ SpecificWorker::SpecificWorker(TuplePrx tprx, bool startup_check) : GenericWorke
 SpecificWorker::~SpecificWorker()
 {
 	std::cout << "Destroying SpecificWorker" << std::endl;
-	G->write_to_json_file("./"+agent_name+".json");
+	//G->write_to_json_file("./"+agent_name+".json");
     std::cout << "Destroying SpecificWorker" << std::endl;
     auto grid_nodes = G->get_nodes_by_type("grid");
     for (auto grid : grid_nodes)
@@ -86,9 +83,10 @@ void SpecificWorker::initialize(int period)
 
 		//dsr update signals
 		connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::modify_node_slot);
-		connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::modify_edge_slot);
-		connect(G.get(), &DSR::DSRGraph::update_node_attr_signal, this, &SpecificWorker::modify_attrs_slot);
-		connect(G.get(), &DSR::DSRGraph::del_edge_signal, this, &SpecificWorker::del_edge_slot);
+		//connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::modify_edge_slot);
+		//connect(G.get(), &DSR::DSRGraph::update_node_attr_signal, this, &SpecificWorker::modify_node_attrs_slot);
+        //connect(G.get(), &DSR::DSRGraph::update_edge_attr_signal, this, &SpecificWorker::modify_edge_attrs_slot);
+        //connect(G.get(), &DSR::DSRGraph::del_edge_signal, this, &SpecificWorker::del_edge_slot);
 		connect(G.get(), &DSR::DSRGraph::del_node_signal, this, &SpecificWorker::del_node_slot);
 
 		// Graph viewer
@@ -121,21 +119,16 @@ void SpecificWorker::initialize(int period)
         // self agent api
         agent_info_api = std::make_unique<DSR::AgentInfoAPI>(G.get());
 
-//        // Ignore attributes from G
-//        G->set_ignored_attributes<cam_rgb_att, cam_depth_att, laser_dists_att, laser_angles_att>();
+        // Ignore attributes from G
+        G->set_ignored_attributes<cam_rgb_att, cam_depth_att>();
 
         // 2D widget
         widget_2d = qobject_cast<DSR::QScene2dViewer *>(graph_viewer->get_widget(opts::scene));
         if (widget_2d != nullptr)
         {
-            widget_2d->set_draw_laser(false);
+            widget_2d->set_draw_laser(true);
             connect(widget_2d, SIGNAL(mouse_right_click(int, int, std::uint64_t)), this, SLOT(new_target_from_mouse(int, int, std::uint64_t)));
         }
-
-//        const auto &[rp, re] = widget_2d->add_robot(ROBOT_LENGTH, ROBOT_LENGTH);
-//        robot_polygon = rp;
-//        laser_in_robot_polygon = new QGraphicsRectItem(-10, 10, 20, 20, robot_polygon);
-//        laser_in_robot_polygon->setPos(0, 190);     // move this to abstract
 
         // path planner
         path_planner_initialize(widget_2d);
@@ -146,15 +139,15 @@ void SpecificWorker::initialize(int period)
 
 		this->Period = period;
 		timer.start(Period);
-        std::cout << "ACABAAAAAAAAAAa" << std::endl;
 	}
-
 }
 
 void SpecificWorker::compute()
 {
-
     static QGraphicsEllipseItem *target_draw = nullptr;
+
+    RoboCompLaser::TLaserData laser_data = read_laser(false);
+    update_map(laser_data);
 
     // Check for new published intention/plan
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
@@ -167,25 +160,17 @@ void SpecificWorker::compute()
         QPointF target_point(x,y);
         target.set_pos(target_point);
 
+        // draw target
         if(target_draw != nullptr) delete target_draw;
-        target_draw = widget_2d->scene.addEllipse(target.get_pos().x(), target.get_pos().y(), 200, 200, QPen(QColor("magenta")), QBrush(QColor("magenta")));
+        target_draw = widget_2d->scene.addEllipse(target.get_pos().x()-100, target.get_pos().y()-100, 200, 200, QPen(QColor("magenta")), QBrush(QColor("magenta")));
+        target_draw->setZValue(10);
 
-
-
-//        if( not grid.dim.contains(target))
-//        {
-//            qWarning() << __FUNCTION__ <<  "Target is out of grid. No plan found";
-//            return;
-//        }
+        // robot pose
         Eigen::Vector3d robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
         auto robot_rotation_3d = inner_eigen->get_euler_xyz_angles(world_name, robot_name).value();
-        robot_pose.ang=robot_rotation_3d.z(); robot_pose.pos=Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
-        generate_grid_to_point(robot_pose);
-
-        RoboCompLaser::TLaserData laser_data = read_laser(false);
-
-        update_map(laser_data);
-
+        robot_pose.ang = robot_rotation_3d.z();
+        robot_pose.pos=Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
+        regenerate_grid_to_point(robot_pose);
         run_current_plan();
     }
     else //do whatever you do without a plan
@@ -216,35 +201,10 @@ void SpecificWorker::path_planner_initialize(DSR::QScene2dViewer* widget_2d)
         std::terminate();
     }
 
-    // Partial Grid
-//    QRectF dim(-5000, -2500, 10000, 5000);
-//    grid_world_pose = {.ang=0, .pos=Eigen::Vector2f(0,0)};
-//    grid.initialize(dim, constants.tile_size, &widget_2d->scene, false, std::string(),
-//                    grid_world_pose.toQpointF(), grid_world_pose.ang);
-
-//    if (widget_2d != nullptr)
-//    grid.draw(&widget_2d->scene);
-
-    // if read_from_file is true we should read the parameters from the file to guarantee consistency
-//    grid.dim.setCoords(outerRegion.left(), outerRegion.top(), outerRegion.right(), outerRegion.bottom());
-//
-//    std::cout << __FUNCTION__ << " - TileSize is " << conf_params->at("TileSize").value << std::endl;
-//    qInfo() <<  __FUNCTION__  << grid.dim.left()  << grid.dim.bottom() << grid.dim.top() << grid.dim.right() << grid.dim.width() << grid.dim.height();
-//    grid.TILE_SIZE = stoi(conf_params->at("TileSize").value);
-
-//    std::cout << "1" << std::endl;
-//    collisions =  std::make_shared<Collisions>();
-//    std::cout << "1" << std::endl;
-//    collisions->initialize(G, conf_params);
-//    std::cout << "1" << std::endl;
-    std::cout << "1" << std::endl;
-//    robotXWidth = std::stof(conf_params->at("RobotXWidth").value);
-//    robotZLong = std::stof(conf_params->at("RobotZLong").value);
     robotBottomLeft     = Mat::Vector3d ( -robotXWidth / 2, robotZLong / 2, 0);
     robotBottomRight    = Mat::Vector3d ( - robotXWidth / 2,- robotZLong / 2, 0);
     robotTopRight       = Mat::Vector3d ( + robotXWidth / 2, - robotZLong / 2, 0);
     robotTopLeft        = Mat::Vector3d ( + robotXWidth / 2, + robotZLong / 2, 0);
-    std::cout << "1" << std::endl;
 }
 
 RoboCompLaser::TLaserData SpecificWorker::read_laser(bool noise)
@@ -253,7 +213,6 @@ RoboCompLaser::TLaserData SpecificWorker::read_laser(bool noise)
     static std::mt19937 mt(rd());
     static std::normal_distribution<double> normal_dist(0.0, constants.lidar_noise_sigma);
     RoboCompLaser::TLaserData ldata;
-
     try
     {
         if(auto laser_node = G->get_node("laser"); laser_node.has_value())
@@ -264,9 +223,6 @@ RoboCompLaser::TLaserData SpecificWorker::read_laser(bool noise)
                 if (auto laser_angle = G->get_attrib_by_name<laser_angles_att>(laser_node.value()); laser_angle.has_value())
                 {
                     auto angles = laser_angle.value().get();
-
-                    // Simplify laser contour with Ramer-Douglas-Peucker
-                    //poly_robot = ramer_douglas_peucker(ldata, consts.max_RDP_deviation);
                     // Build raw polygon
                     for (int i = 0; i < dists.size(); ++i)
                     {
@@ -283,14 +239,13 @@ RoboCompLaser::TLaserData SpecificWorker::read_laser(bool noise)
                     for(auto &s: samples)
                         if(accept_dist(mt) < 3)
                             ldata[s].dist /= 3;
-
-//                    draw_laser(ldata);
                     return ldata;
                 }
             }
         }
     }
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
+    return ldata;
 }
 
 void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
@@ -304,17 +259,6 @@ void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
         {
             // transform tip form robot's RS to local_grid RS
             Eigen::Vector2f tip = (r2g * Eigen::Vector3f(l.dist*sin(l.angle), l.dist*cos(l.angle), 1.f)).head(2);
-//            QPointF tip_point (tip.x(), tip.y());
-//            Eigen::Vector2f tip_in_grid = grid.pointToGrid(tip_point);
-
-//            int last_kx = std::numeric_limits<int>::min();
-//            int last_kz = std::numeric_limits<int>::min();
-
-//           for( const auto list = bresenham(robot_in_grid, tip); const auto pp: list)
-//                grid.add_miss(pp);
-//            if( l.dist < constants.max_laser_range)
-//                grid.add_hit(tip_in_grid);
-
             int num_steps = ceil(l.dist/(constants.tile_size));
             Eigen::Vector2f p;
             for(const auto &&step : iter::range(0.0, 1.0-(1.0/num_steps), 1.0/num_steps))
@@ -332,7 +276,7 @@ void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
     grid.update_costs();
 }
 
-bool SpecificWorker::generate_grid_to_point(const Pose2D &robot_pose)
+bool SpecificWorker::regenerate_grid_to_point(const Pose2D &robot_pose)
 {
     static std::random_device rd;
     static std::mt19937 mt(rd());
@@ -383,8 +327,10 @@ void SpecificWorker::run_current_plan()
 //        std::cout <<  "POINT: x: " << valid_target->x() << " y: " << valid_target->y() << std::endl;
 
 //        auto path = grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())));
-    auto path = grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())));
+        auto path = grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())));
         qInfo() << __FUNCTION__ << " Path computed of size: " << path.size();
+
+        // add path to G
         if (not path.empty())
         {
             std::vector<float> x_values, y_values;
@@ -397,6 +343,7 @@ void SpecificWorker::run_current_plan()
             }
             if (widget_2d != nullptr)
                 draw_path(path);
+
             if (auto path = G->get_node(current_path_name); path.has_value())
             {
                 auto path_to_target_node = path.value();
@@ -485,24 +432,6 @@ Eigen::Matrix3f SpecificWorker::from_grid_to_robot_matrix()
 {
     return from_robot_to_grid_matrix().inverse();
 }
-
-//void SpecificWorker::draw_laser(const RoboCompLaser::TLaserData &ldata) // robot coordinates
-//{
-//    static QGraphicsItem *laser_polygon = nullptr;
-//    if (laser_polygon != nullptr)
-//        widget_2d->scene.removeItem(laser_polygon);
-//
-//    QPolygonF poly;
-//    poly << QPointF(0,0);
-//    for(auto &&l : ldata)
-//        poly << QPointF(l.dist*sin(l.angle), l.dist*cos(l.angle));
-//    poly.pop_back();
-//
-//    QColor color("LightGreen");
-//    color.setAlpha(40);
-//    laser_polygon = widget_2d->scene.addPolygon(laser_in_robot_polygon->mapToScene(poly), QPen(QColor("DarkGreen"), 30), QBrush(color));
-//    laser_polygon->setZValue(30);
-//}
 
 void SpecificWorker::update_grid()
 {
@@ -632,6 +561,7 @@ void SpecificWorker::new_target_from_mouse(int pos_x, int pos_y, std::uint64_t i
         std::cout << __FUNCTION__ << " No target object node " << node.value().name() << " found in G" << std::endl;
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////777
 void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string &type)
 {
     if (type == intention_type_name)
@@ -667,7 +597,7 @@ void SpecificWorker::del_node_slot(std::uint64_t from)
 void SpecificWorker::draw_path(const std::vector<Eigen::Vector2f> &path_in_robot)
 {
     static std::vector<QGraphicsItem *> path_paint;
-    static QString path_color = "Green";
+    static QString path_color = "Blue";
 
     for(auto p : path_paint)
         widget_2d->scene.removeItem(p);
@@ -690,9 +620,6 @@ int SpecificWorker::startup_check()
 	QTimer::singleShot(200, qApp, SLOT(quit()));
 	return 0;
 }
-
-
-
 
 /**************************************/
 // From the RoboCompLaser you can call this methods:

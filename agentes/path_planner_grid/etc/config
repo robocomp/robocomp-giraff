@@ -1,15 +1,15 @@
-CommonBehavior.Endpoints=tcp -p 10000
+CommonBehavior.Endpoints=tcp -p 10017
 
 # Proxies for required interfaces
 LaserProxy = laser:tcp -h localhost -p 10003
 
 
-agent_id = 0 # Change id
+agent_id = 17 # Change id
 agent_name = path_planner_grid
-tree_view = true
+tree_view = false
 graph_view = true
 2d_view = true
-3d_view = true
+3d_view = false
 #Ice.MessageSizeMax=20004800
 
 NavigationAgent.RobotName = pioneer
