@@ -4,7 +4,7 @@ CommonBehavior.Endpoints=tcp -p 10017
 LaserProxy = laser:tcp -h localhost -p 10003
 
 
-agent_id = 17 # Change id
+agent_id = 18 # Change id
 agent_name = path_planner_grid
 tree_view = false
 graph_view = true

@@ -145,8 +145,14 @@ void SpecificWorker::initialize(int period)
 void SpecificWorker::compute()
 {
     static QGraphicsEllipseItem *target_draw = nullptr;
+    // robot pose
+    Eigen::Vector3d robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
+    auto robot_rotation_3d = inner_eigen->get_euler_xyz_angles(world_name, robot_name).value();
+    robot_pose.ang = robot_rotation_3d.z();
+    robot_pose.pos=Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
 
     RoboCompLaser::TLaserData laser_data = read_laser(false);
+
     update_map(laser_data);
 
     // Check for new published intention/plan
@@ -165,12 +171,11 @@ void SpecificWorker::compute()
         target_draw = widget_2d->scene.addEllipse(target.get_pos().x()-100, target.get_pos().y()-100, 200, 200, QPen(QColor("magenta")), QBrush(QColor("magenta")));
         target_draw->setZValue(10);
 
-        // robot pose
-        Eigen::Vector3d robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
-        auto robot_rotation_3d = inner_eigen->get_euler_xyz_angles(world_name, robot_name).value();
-        robot_pose.ang = robot_rotation_3d.z();
-        robot_pose.pos=Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
         regenerate_grid_to_point(robot_pose);
+        run_current_plan();
+    }
+    else if(target.active)
+    {
         run_current_plan();
     }
     else //do whatever you do without a plan
@@ -252,18 +257,21 @@ void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
 {
     // get the matrix to transform from robot to local_grid
     Eigen::Matrix3f r2g = from_robot_to_grid_matrix();
-    auto robot_in_grid = from_world_to_grid(Eigen::Vector2f(robot_pose.pos.x(), robot_pose.pos.y()));
+
+//    auto robot_in_grid = from_world_to_grid(Eigen::Vector2f(robot_pose.pos.x(), robot_pose.pos.y()));
+//    std::cout << "ROBOT POS: " << robot_in_grid << std::endl;
     for(const auto &l : ldata)
     {
         if(l.dist > constants.robot_semi_length)
         {
             // transform tip form robot's RS to local_grid RS
             Eigen::Vector2f tip = (r2g * Eigen::Vector3f(l.dist*sin(l.angle), l.dist*cos(l.angle), 1.f)).head(2);
+//            Eigen::Vector2f tip = (Eigen::Vector3f(l.dist*sin(l.angle), l.dist*cos(l.angle), 1.f)).head(2);
             int num_steps = ceil(l.dist/(constants.tile_size));
             Eigen::Vector2f p;
             for(const auto &&step : iter::range(0.0, 1.0-(1.0/num_steps), 1.0/num_steps))
             {
-                p = robot_in_grid * (1-step) + tip*step;
+                p = robot_pose.pos * (1-step) + tip*step;
                 grid.add_miss(p);
             }
             if(l.dist <= constants.max_laser_range)
@@ -281,7 +289,6 @@ bool SpecificWorker::regenerate_grid_to_point(const Pose2D &robot_pose)
     static std::random_device rd;
     static std::mt19937 mt(rd());
     static std::normal_distribution<double> normal_dist(0.0, constants.target_noise_sigma);
-
     try
     {
         QLineF r_to_target(QPointF(target.get_pos().x(), target.get_pos().y()), QPointF(robot_pose.pos.x(), robot_pose.pos.y()));
@@ -566,6 +573,8 @@ void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string 
 {
     if (type == intention_type_name)
     {
+        std::cout << "TIPO: " << type << std::endl;
+        std::cout << "NEW PLAN" << std::endl;
         if (auto intention = G->get_node(id); intention.has_value())
         {
             std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value());
@@ -573,7 +582,7 @@ void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string 
             {
                 qInfo() << __FUNCTION__ << QString::fromStdString(plan.value()) << " " << intention.value().id();
                 Plan my_plan(plan.value());
-                if (my_plan.is_action(Plan::Actions::GOTO))
+                if (my_plan.is_action(Plan::Actions::GOTO) || my_plan.is_action(Plan::Actions::FOLLOW_PEOPLE))
                     plan_buffer.put(std::move(my_plan));
             }
         }

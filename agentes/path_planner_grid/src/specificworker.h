@@ -89,7 +89,7 @@ private:
             float current_adv_speed = 0;
             float robot_length = 500;
             const float robot_semi_length = robot_length/2.0;
-            const float final_distance_to_target = 700; //mm
+            const float final_distance_to_target = 0; //mm
             const float min_dist_to_target = 100; //mm
             float lidar_noise_sigma  = 20;
             const int num_lidar_affected_rays_by_hard_noise = 2;
