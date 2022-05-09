@@ -37,6 +37,16 @@
           <widget class="QComboBox" name="list_plan"/>
          </item>
          <item>
+          <widget class="QLabel" name="label_2">
+           <property name="text">
+            <string>Element to follow</string>
+           </property>
+          </widget>
+         </item>
+         <item>
+          <widget class="QListWidget" name="object_list"/>
+         </item>
+         <item>
           <widget class="QPlainTextEdit" name="textedit_current_plan">
            <property name="enabled">
             <bool>true</bool>

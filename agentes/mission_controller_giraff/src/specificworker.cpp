@@ -118,6 +118,15 @@ void SpecificWorker::initialize(int period)
         custom_widget.list_plan->addItem("Follow people");
         connect(custom_widget.list_plan, SIGNAL(currentIndexChanged(int)), this , SLOT(slot_change_mission_selector(int)));
 
+       // List of people
+       auto people_nodes = G->get_nodes_by_type("person");
+       for (auto person : people_nodes)
+       {
+           QString str = QString::fromUtf8( person.name().data(), person.name().size() );
+           custom_widget.object_list->addItem(str);
+       }
+
+
         // stacked widgets
         point_dialog.setupUi(custom_widget.stacked_widget->widget(0));
         pathfollow_dialog.setupUi(custom_widget.stacked_widget->widget(1));
@@ -186,6 +195,8 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
+
+
     static std::chrono::steady_clock::time_point begin, lastPathStep;
     static QGraphicsEllipseItem *target_scene;
 
@@ -690,6 +701,22 @@ void SpecificWorker::add_or_assign_node_slot(const std::uint64_t id, const std::
             }
         }
     }
+    else if (type == "person")
+    {
+             // List of people
+        auto people_nodes = G->get_nodes_by_type("person");
+        if(custom_widget.object_list->count() != people_nodes.size())
+        {
+            custom_widget.object_list->clear();     
+            
+            for (auto person : people_nodes)
+            {
+                QString str = QString::fromUtf8( person.name().data(), person.name().size() );
+                custom_widget.object_list->addItem(str);
+            }  
+        }
+    }
+
     else if (type == path_to_target_type_name)
     {
         if( auto path_to_target_node = G->get_node(id); path_to_target_node.has_value())
