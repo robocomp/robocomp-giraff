@@ -234,76 +234,76 @@ void SpecificWorker::compute()
         }
         if(current_plan.get_action()=="FOLLOW_PEOPLE")
         {
-            auto start = std::chrono::steady_clock::now();
-            auto duration=(start-begin) / 1ms ;
-            // std::cout << "DURATION: " << duration << std::endl;
-            if(duration > 400){
-                if(auto intention= G->get_node(current_intention_name);intention.has_value()){
-                    if(auto path=G->get_node(current_path_name);path.has_value()) {
-                        auto x_values = G->get_attrib_by_name<path_x_values_att>(path.value());
-                        auto y_values = G->get_attrib_by_name<path_y_values_att>(path.value());
-                        if (x_values.has_value() and y_values.has_value()) {
-                            if (auto people = G->get_nodes_by_type(person_type_name);not people.empty())
-                            {
-                                for(auto person : people)
-                                {
-                                    if (auto followed_node = G->get_attrib_by_name<followed_att>(person); followed_node.has_value() && followed_node.value() == true)
-                                    {
-//                                        auto last_person_pose = inner_eigen->transform(world_name,person.name(), );
-                                        auto person_pose = inner_eigen->transform(world_name,person.name()).value();
-
-                                        auto x = x_values.value().get();
-                                        auto y = y_values.value().get();
-                                        cout<<x.size()<<endl;
-                                        cout << "PERSON POSE: " << person_pose[0] << " " << person_pose[1] << endl;
-
-
-
-                                        if(sqrt(pow(x.back()-person_pose.x(),2)+ pow(y.back()-person_pose.y(),2))>500){
-
-                                            auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
-                                            Mat::Vector2d pp(int(x.back()), int(y.back()));
-                                            Mat::Vector2d hp(int(person_pose.x()),int(person_pose.y()));
-
-                                            Mat::Vector2d point;
-
-                                            float segmento = (hp - pp).norm() / 150;
-                                            auto vector_dir = (hp - pp) / segmento;
-
-                                            for (int i = 1; i < int(segmento); ++i) {
-                                                auto point = pp + (vector_dir * i);
-                                                x.push_back(point.x());
-                                                y.push_back(point.y());
-                                            }
-
-                                            x.push_back(person_pose[0]);
-                                            y.push_back(person_pose[1]);
-
-                                            G->add_or_modify_attrib_local<path_x_values_att>(path.value(), x);
-                                            G->add_or_modify_attrib_local<path_target_x_att>(path.value(),float(person_pose[0]));
-                                            G->add_or_modify_attrib_local<path_y_values_att>(path.value(), y);
-                                            G->add_or_modify_attrib_local<path_target_y_att>(path.value(),float(person_pose[1]));
-                                            G->update_node(path.value());
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-//                        if (not temporary_plan.is_valid()) //resetea el valor de la y cuando pones la x
-//                            temporary_plan.new_plan(Plan::Actions::FOLLOW_PEOPLE);
-//                        temporary_plan.insert_attribute("x",int(person_pose[0]));
-//                        temporary_plan.insert_attribute("y",int(person_pose[1]));
-//                        temporary_plan.insert_attribute("destiny", "floor");
-//                            if (target_scene != nullptr)
-//                                widget_2d->scene.removeItem(target_scene);
-//                            target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
-//                                                                       QBrush(QColor("Orange")));
-//                            target_scene->setPos(person_pose[0], person_pose[1]);
-//                            target_scene->setZValue(100);
-                    }
-                begin=std::chrono::steady_clock::now();
-                  }
+//            auto start = std::chrono::steady_clock::now();
+//            auto duration=(start-begin) / 1ms ;
+//            // std::cout << "DURATION: " << duration << std::endl;
+//            if(duration > 400){
+//                if(auto intention= G->get_node(current_intention_name);intention.has_value()){
+//                    if(auto path=G->get_node(current_path_name);path.has_value()) {
+//                        auto x_values = G->get_attrib_by_name<path_x_values_att>(path.value());
+//                        auto y_values = G->get_attrib_by_name<path_y_values_att>(path.value());
+//                        if (x_values.has_value() and y_values.has_value()) {
+//                            if (auto people = G->get_nodes_by_type(person_type_name);not people.empty())
+//                            {
+//                                for(auto person : people)
+//                                {
+//                                    if (auto followed_node = G->get_attrib_by_name<followed_att>(person); followed_node.has_value() && followed_node.value() == true)
+//                                    {
+////                                        auto last_person_pose = inner_eigen->transform(world_name,person.name(), );
+//                                        auto person_pose = inner_eigen->transform(world_name,person.name()).value();
+//
+//                                        auto x = x_values.value().get();
+//                                        auto y = y_values.value().get();
+//                                        cout<<x.size()<<endl;
+//                                        cout << "PERSON POSE: " << person_pose[0] << " " << person_pose[1] << endl;
+//
+//
+//
+//                                        if(sqrt(pow(x.back()-person_pose.x(),2)+ pow(y.back()-person_pose.y(),2))>500){
+//
+//                                            auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
+//                                            Mat::Vector2d pp(int(x.back()), int(y.back()));
+//                                            Mat::Vector2d hp(int(person_pose.x()),int(person_pose.y()));
+//
+//                                            Mat::Vector2d point;
+//
+//                                            float segmento = (hp - pp).norm() / 150;
+//                                            auto vector_dir = (hp - pp) / segmento;
+//
+//                                            for (int i = 1; i < int(segmento); ++i) {
+//                                                auto point = pp + (vector_dir * i);
+//                                                x.push_back(point.x());
+//                                                y.push_back(point.y());
+//                                            }
+//
+//                                            x.push_back(person_pose[0]);
+//                                            y.push_back(person_pose[1]);
+//
+//                                            G->add_or_modify_attrib_local<path_x_values_att>(path.value(), x);
+//                                            G->add_or_modify_attrib_local<path_target_x_att>(path.value(),float(person_pose[0]));
+//                                            G->add_or_modify_attrib_local<path_y_values_att>(path.value(), y);
+//                                            G->add_or_modify_attrib_local<path_target_y_att>(path.value(),float(person_pose[1]));
+//                                            G->update_node(path.value());
+//                                        }
+//                                    }
+//                                }
+//                            }
+//                        }
+//                    }
+////                        if (not temporary_plan.is_valid()) //resetea el valor de la y cuando pones la x
+////                            temporary_plan.new_plan(Plan::Actions::FOLLOW_PEOPLE);
+////                        temporary_plan.insert_attribute("x",int(person_pose[0]));
+////                        temporary_plan.insert_attribute("y",int(person_pose[1]));
+////                        temporary_plan.insert_attribute("destiny", "floor");
+////                            if (target_scene != nullptr)
+////                                widget_2d->scene.removeItem(target_scene);
+////                            target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
+////                                                                       QBrush(QColor("Orange")));
+////                            target_scene->setPos(person_pose[0], person_pose[1]);
+////                            target_scene->setZValue(100);
+//                    }
+//                begin=std::chrono::steady_clock::now();
+//                  }
 
         }
 
@@ -539,46 +539,20 @@ void SpecificWorker::create_follow_people_mission() {
     temporary_plan.new_plan(Plan::Actions::FOLLOW_PEOPLE);
     custom_widget.textedit_current_plan->appendPlainText("-> New temporary plan: FOLLOW PEOPLE");
     custom_widget.textedit_current_plan->appendPlainText(QString::fromStdString(temporary_plan.pprint()));
+//    basic_string<char> person_name = custom_widget.object_list->currentItem()->text().toUtf8().constData();
+    auto person_name = custom_widget.object_list->currentItem()->text();
 
-    if(auto people =G->get_nodes_by_type(person_type_name);not people.empty()){
+    if (not temporary_plan.is_valid()) //resetea el valor de la y cuando pones la x
+        temporary_plan.new_plan(Plan::Actions::FOLLOW_PEOPLE);
 
-        auto person_pose = inner_eigen->transform(world_name, people[people.size()-1].name()).value();
-        if (not temporary_plan.is_valid()) //resetea el valor de la y cuando pones la x
-            temporary_plan.new_plan(Plan::Actions::FOLLOW_PEOPLE);
-
-//        Eigen::ParametrizedLine segment = Eigen::ParametrizedLine<double, 2>::Through(a_point, b_point);
-        Mat::Vector2d hp(int(person_pose.x()),int(person_pose.y()));
-
-        auto robot_pose = inner_eigen->transform(world_name, robot_name).value();
-        Mat::Vector2d rp(int(robot_pose.x()),int(robot_pose.y()));
-
-        Mat::Vector2d point, target;
-        auto vector_dir = (hp - rp) / 10;
-        target = rp + vector_dir;
-        for (int i = 0; i < 10; ++i) {
-            point = rp + (vector_dir * i);
-            if ((hp-point).norm()> 1000){
-                target = point;
-                std::cout << "TARGET: " << target.x() << " "<< target.y() << std::endl;
-            }
-            else
-                break;
-        }
-
-
-        temporary_plan.insert_attribute("x",int(target.x()));
-        temporary_plan.insert_attribute("y",int(target.y()));
-
-        temporary_plan.insert_attribute("destiny", "floor");
-        cout<<person_pose[0]<<"   "<<person_pose[1]<< endl;
-        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'x' in Follow People plan");
-        custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'y' in Follow People plan");
-        if (target_scene != nullptr)
-            widget_2d->scene.removeItem(target_scene);
-        target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
-                                                   QBrush(QColor("Orange")));
-        target_scene->setPos(person_pose[0], person_pose[1]);
-        target_scene->setZValue(100);
+    temporary_plan.insert_attribute("person_name",QVariant(person_name));
+    temporary_plan.insert_attribute("destiny", "floor");
+    custom_widget.textedit_current_plan->appendPlainText("-> New attribute 'person_name' in Follow People plan");
+    if (target_scene != nullptr)
+        widget_2d->scene.removeItem(target_scene);
+//    target_scene = widget_2d->scene.addEllipse(-50, -50, 100, 100, QPen(QColor("Orange")),
+//                                               QBrush(QColor("Orange")));
+//    target_scene->setZValue(100);
 
 //        temporary_plan.insert_attribute("x",int(person_pose[0]));
 //        temporary_plan.insert_attribute("y",int(person_pose[1]));
@@ -592,10 +566,7 @@ void SpecificWorker::create_follow_people_mission() {
 //                                                   QBrush(QColor("Orange")));
 //        target_scene->setPos(person_pose[0], person_pose[1]);
 //        target_scene->setZValue(100);
-    }
-    else{
 
-    }
 }
 
 
