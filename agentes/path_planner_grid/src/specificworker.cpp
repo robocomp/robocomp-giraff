@@ -145,24 +145,73 @@ void SpecificWorker::initialize(int period)
 void SpecificWorker::compute()
 {
     static QGraphicsEllipseItem *target_draw = nullptr;
+    float x, y;
     // robot pose
     Eigen::Vector3d robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
     auto robot_rotation_3d = inner_eigen->get_euler_xyz_angles(world_name, robot_name).value();
     robot_pose.ang = robot_rotation_3d.z();
     robot_pose.pos=Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
-
     RoboCompLaser::TLaserData laser_data = read_laser(false);
-
+    std::cout << "1" << std::endl;
     update_map(laser_data);
+    std::cout << "2" << std::endl;
+
+    if(current_plan.get_action() == QString::fromStdString("FOLLOW_PEOPLE"))
+    {
+        try
+        {
+            auto person_name = current_plan.get_attribute("person_name").toString().toUtf8().constData();
+            Eigen::Vector3d person_pose = inner_eigen->transform(world_name, person_name).value();
+            std::cout << "PERSON POSE: " << person_pose << std::endl;
+            x = person_pose.x();
+            y = person_pose.y();
+            QPointF target_point(x,y);
+            target.set_pos(target_point);
+
+            // draw target
+            if(target_draw != nullptr) delete target_draw;
+            target_draw = widget_2d->scene.addEllipse(target.get_pos().x()-100, target.get_pos().y()-100, 200, 200, QPen(QColor("magenta")), QBrush(QColor("magenta")));
+            target_draw->setZValue(10);
+
+            auto person_center_dist = sqrt(pow(x - robot_pose.pos.x(), 2) + pow(y - robot_pose.pos.y(), 2));
+            std::cout << "3" << std::endl;
+            if(person_center_dist > 3000) regenerate_grid_to_point(robot_pose);
+            std::cout << "4" << std::endl;
+
+            std::cout << "DISTANCIA AL CENTRO: " << person_center_dist << std::endl;
+        }
+        catch(string e)
+        {
+            std::cout << "Problema siguiendo el plan." << std::endl;
+        }
+
+    }
 
     // Check for new published intention/plan
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
+        std::cout << "5" << std::endl;
         current_plan = plan_o.value();
         qInfo() << __FUNCTION__ << "New plan arrived: ";
         current_plan.pprint();
-        auto x = current_plan.get_attribute("x").toFloat();
-        auto y = current_plan.get_attribute("y").toFloat();
+        auto action_name = current_plan.get_action();
+        auto follow_action_name = QString::fromStdString("FOLLOW_PEOPLE");
+        std::cout << "6" << std::endl;
+        if(action_name == follow_action_name)
+        {
+            auto person_name = current_plan.get_attribute("person_name").toString().toUtf8().constData();
+            Eigen::Vector3d person_pose = inner_eigen->transform(world_name, person_name).value();
+            std::cout << "PERSON POSE: " << person_pose << std::endl;
+            x = person_pose.x();
+            y = person_pose.y();
+
+        }
+        else
+        {
+            x = current_plan.get_attribute("x").toFloat();
+            y = current_plan.get_attribute("y").toFloat();
+        }
+
         QPointF target_point(x,y);
         target.set_pos(target_point);
 
@@ -170,13 +219,17 @@ void SpecificWorker::compute()
         if(target_draw != nullptr) delete target_draw;
         target_draw = widget_2d->scene.addEllipse(target.get_pos().x()-100, target.get_pos().y()-100, 200, 200, QPen(QColor("magenta")), QBrush(QColor("magenta")));
         target_draw->setZValue(10);
-
+        std::cout << "7" << std::endl;
         regenerate_grid_to_point(robot_pose);
+        std::cout << "8" << std::endl;
         run_current_plan();
+        std::cout << "9" << std::endl;
     }
     else if(target.active)
     {
+        std::cout << "10" << std::endl;
         run_current_plan();
+        std::cout << "11" << std::endl;
     }
     else //do whatever you do without a plan
     {}
@@ -222,10 +275,10 @@ RoboCompLaser::TLaserData SpecificWorker::read_laser(bool noise)
     {
         if(auto laser_node = G->get_node("laser"); laser_node.has_value())
         {
-            if (auto laser_dist = G->get_attrib_by_name<laser_dists_att>(laser_node.value()); laser_dist.has_value())
+            if (auto laser_dist = G->get_attrib_by_name<laser_dists_att>(laser_node.value()); laser_dist.has_value() && laser_dist.value().get().size() > 0)
             {
                 auto dists = laser_dist.value().get();
-                if (auto laser_angle = G->get_attrib_by_name<laser_angles_att>(laser_node.value()); laser_angle.has_value())
+                if (auto laser_angle = G->get_attrib_by_name<laser_angles_att>(laser_node.value()); laser_angle.has_value() && laser_angle.value().get().size() > 0)
                 {
                     auto angles = laser_angle.value().get();
                     // Build raw polygon
@@ -301,19 +354,14 @@ bool SpecificWorker::regenerate_grid_to_point(const Pose2D &robot_pose)
         // create local grid for mission
         // if new target has changed enough, replace local grid
         QPointF t_in_grid = e2q(from_world_to_grid(target.to_eigen()));
-        auto r = grid.dim.adjusted(-grid.dim.left()*0.2, -grid.dim.top()*0.2, -grid.dim.right()*0.2, -grid.dim.bottom()*0.2);
-//        if( not r.contains(t_in_grid))
-//        {
             Eigen::Vector2f t_r = from_world_to_robot(target.to_eigen());
             float dist_to_robot = t_r.norm();
             //    qInfo() << __FUNCTION__ << dist_to_robot_1 << dist_to_robot << dist_to_robot_2;
             QRectF dim(-2000, -500, 4000, dist_to_robot + 2000);
             grid_world_pose = {.ang=-atan2(t_r.x(), t_r.y()) + robot_pose.ang, .pos=robot_pose.pos};
-            std::cout << "CREA EL GRID" << std::endl;
             grid.initialize(dim, constants.tile_size, &widget_2d->scene, false, std::string(),
                             grid_world_pose.toQpointF(), grid_world_pose.ang);
             inject_grid_in_G(grid);
-//        }
     }
     catch(const Ice::Exception &e)
     {
