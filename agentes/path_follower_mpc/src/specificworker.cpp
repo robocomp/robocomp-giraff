@@ -114,9 +114,11 @@ void SpecificWorker::initialize(int period)
             current_opts = current_opts | opts::scene;
         if(osg_3d_view)
             current_opts = current_opts | opts::osg;
+        std::cout << "1" << std::endl;
         dsr_viewer = std::make_unique<DSR::DSRViewer>(this, G, current_opts, main);
+        std::cout << "1" << std::endl;
         setWindowTitle(QString::fromStdString(agent_name + "-" + std::to_string(agent_id)));
-
+        std::cout << "1" << std::endl;
         //dsr update signals
         connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::add_or_assign_node_slot, Qt::QueuedConnection);
         //connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::add_or_assign_edge_slot);
@@ -131,7 +133,7 @@ void SpecificWorker::initialize(int period)
         agent_info_api = std::make_unique<DSR::AgentInfoAPI>(G.get());
 
         // Ignore attributes from G
-        G->set_ignored_attributes<cam_rgb_att, cam_depth_att >();
+        G->set_ignored_attributes<cam_rgb_att, cam_depth_att>();
 
         // Custom widget
         dsr_viewer->add_custom_widget_to_dock("Path follower", &custom_widget);
@@ -153,10 +155,10 @@ void SpecificWorker::initialize(int period)
         widget_2d = qobject_cast<DSR::QScene2dViewer *>(dsr_viewer->get_widget(opts::scene));
         if (widget_2d != nullptr)
             widget_2d->set_draw_laser(false);
-
+        std::cout << "1" << std::endl;
         // path planner
         path_follower_initialize();
-
+        std::cout << "1" << std::endl;
         // check for existing path node
         if(auto paths = G->get_nodes_by_type(path_to_target_type_name); not paths.empty())
         {
@@ -176,6 +178,7 @@ void SpecificWorker::compute()
     // Check for existing path_to_target_nodes
     if (auto path_o = path_buffer.try_get(); path_o.has_value()) // NEW PATH!
     {
+
         qInfo() << __FUNCTION__ << "New path";
         path.clear();
         path = path_o.value();
@@ -187,72 +190,76 @@ void SpecificWorker::compute()
         if(widget_2d != nullptr)
             draw_path(path, &widget_2d->scene);
     }
-
-    if( (path.size() < 2) or (dist_along_path(path) < consts.final_distance_to_target))
-    {
-        qInfo() << __FUNCTION__ << " -------------- Target achieved -----------------";
-        robot_is_active = false;
-    }
-
     // if there is a path in G
     if(auto node_path = G->get_node(current_path_name); node_path.has_value())
     {
             robot_pose = read_robot();
-            //const auto &[angles, dists, laser_poly, laser_cart] = laser_data.value();
-//            auto nose_3d = inner_eigen->transform(world_name, Mat::Vector3d(0, 500, 0), robot_name).value();
-//            auto robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
-//            auto robot_rotation_3d = inner_eigen->get_euler_xyz_angles(world_name, robot_name).value();
-//            auto robot_nose = Eigen::Vector2f(nose_3d.x(), nose_3d.y());
-//            auto robot_pose = Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
-
-            auto ldata = read_laser(false);
-            std::cout << "DISTANCIA: " <<  from_robot_current_target.norm() << std::endl;
-            if(from_robot_current_target.norm() < 150)
+        std::cout << "0" << std::endl;
+            if(auto laserdata = read_laser(false); laserdata.has_value())
             {
-                std::cout << "CASI LLEGANDO" << std::endl;
-                move_robot(0,0);
-                qInfo() << __FUNCTION__ << "At target" << from_robot_current_target.norm();
-                return;
-            }
-            if(path.size() < consts.num_steps_mpc)
-            {
-                std::cout << "PASOS MPC MENOR QUE TAMAÑO PATH" << std::endl;
-                float adv = std::clamp(from_robot_current_target.norm(), 0.f, 500.f);
-                float rot = atan2(from_robot_current_target.x(), from_robot_current_target.y());
-                move_robot(adv, rot);
+                std::cout << "0a" << std::endl;
+                auto ldata_value = laserdata.value();
+                std::cout << "1" << std::endl;
+                if((path.size() < 2) || from_robot_current_target.norm() < consts.final_distance_to_target)
+                {
+                    std::cout << "2" << std::endl;
+                    move_robot(0,0);
+                    qInfo() << __FUNCTION__ << "At target" << from_robot_current_target.norm();
+                    return;
+                }
+                std::cout << "3" << std::endl;
+                if(path.size() < consts.num_steps_mpc)
+                {
+                    std::cout << "4" << std::endl;
+                    std::cout << "PASOS MPC MENOR QUE TAMAÑO PATH" << std::endl;
+                    float adv = std::clamp(from_robot_current_target.norm(), 0.f, 500.f);
+                    float rot = atan2(from_robot_current_target.x(), from_robot_current_target.y());
+                    move_robot(adv, rot);
+                    std::cout << "5" << std::endl;
+                }
+                else
+                {
+                    std::cout << "6" << std::endl;
+                    std::vector<Eigen::Vector2d> path_robot_meters(path.size());
+                    for (auto &&[i, p]: path | iter::enumerate)
+                    {
+//                p = (g2r * Eigen::Vector3f(p.x(), p.y(), 1.f)).head(2);
+                        p = (Eigen::Vector3f(p.x(), p.y(), 1.f)).head(2);
+                        auto aux_p = from_world_to_robot(p);
+                        path_robot_meters[i] = Eigen::Vector3d(aux_p.x(), aux_p.y(), 1.f).head(2) / 1000.0;  // meters
+                    }
+                    std::cout << "MPC TARGET" << std::endl;
+                    goto_target_mpc(path_robot_meters, ldata_value);
+                    std::cout << "7" << std::endl;
+                }
+                std::cout << "8" << std::endl;
+                if(not is_cyclic.load())
+                    std::cout << "1" << std::endl;
+                    remove_trailing_path(path, robot_pose.pos);
+                if(not robot_is_active)  // robot reached the target
+                {
+                    std::cout << "9" << std::endl;
+                    if(not is_cyclic.load())
+                        std::cout << "10" << std::endl;
+                        if(auto path_d = G->get_node(current_path_name); path_d.has_value())
+                            G->delete_node(path_d.value().id());
+                        else
+                        {
+                            path = saved_path;
+                            robot_is_active = true;
+                        }
+                }
             }
             else
             {
-                std::vector<Eigen::Vector2d> path_robot_meters(path.size());
-                for (auto &&[i, p]: path | iter::enumerate)
-                {
-//                p = (g2r * Eigen::Vector3f(p.x(), p.y(), 1.f)).head(2);
-                    p = (Eigen::Vector3f(p.x(), p.y(), 1.f)).head(2);
-                    auto aux_p = from_world_to_robot(p);
-                    path_robot_meters[i] = Eigen::Vector3d(aux_p.x(), aux_p.y(), 1.f).head(2) / 1000.0;  // meters
-                }
-//            draw_path(path);
-                goto_target_mpc(path_robot_meters, ldata);
+                std::cout << "NO HAY_ LASER" << std::endl;
+                return;
             }
 
 
-//            auto speeds = update(path, QPolygonF(), robot_pose, robot_nose, current_target);
+            
 
-//            auto[adv, side, rot] =  send_command_to_robot(speeds);
-            if(not is_cyclic.load())
-                remove_trailing_path(path, robot_pose.pos);
 
-            if(not robot_is_active)  // robot reached the target
-            {
-                if(not is_cyclic.load())
-                    if(auto path_d = G->get_node(current_path_name); path_d.has_value())
-                        G->delete_node(path_d.value().id());
-                    else
-                    {
-                        path = saved_path;
-                        robot_is_active = true;
-                    }
-            }
 //            print_current_state(path, robot_pose, adv, side, rot);
     }
     else // stop controlling
@@ -321,7 +328,7 @@ SpecificWorker::Pose2D SpecificWorker::read_robot()
 }
 
 //TODO: Change to OPTIONAL
-RoboCompLaser::TLaserData SpecificWorker::read_laser(bool noise)
+std::optional<RoboCompLaser::TLaserData> SpecificWorker::read_laser(bool noise)
 {
     static std::random_device rd;
     static std::mt19937 mt(rd());
@@ -338,17 +345,18 @@ RoboCompLaser::TLaserData SpecificWorker::read_laser(bool noise)
                 if (auto laser_angle = G->get_attrib_by_name<laser_angles_att>(laser_node.value()); laser_angle.has_value())
                 {
                     auto angles = laser_angle.value().get();
-
+                    std::cout << "DIST SIZE: " << dists.size() << std::endl;
+                    std::cout << "ANGLES SIZE: " << angles.size() << std::endl;
                     // add radial noise la ldata
                     if(noise)
                         for (int i = 0; i < dists.size(); ++i)
                             dists[i] += normal_dist(mt);
 
                     // get n random angles to apply hard noise on them
-                    static std::uniform_int_distribution<int> unif_dist(0, dists.size());
-                    for(int i: iter::range(consts.num_lidar_affected_rays_by_hard_noise))
-                        dists[unif_dist(mt)] /= 5;
-
+//                    static std::uniform_int_distribution<int> unif_dist(0, dists.size());
+//                    for(int i: iter::range(consts.num_lidar_affected_rays_by_hard_noise))
+//                        dists[unif_dist(mt)] /= 5;
+                    std::cout << "LLEGA AQUI" << std::endl;
                     // Simplify laser contour with Ramer-Douglas-Peucker
                     //poly_robot = ramer_douglas_peucker(ldata, consts.max_RDP_deviation);
                     // Build raw polygon
@@ -358,11 +366,15 @@ RoboCompLaser::TLaserData SpecificWorker::read_laser(bool noise)
                         act_data.dist = dists[i]; act_data.angle = angles[i];
                         ldata.push_back(act_data);
                     }
+                    std::cout << "LLEGA AQUI 2" << std::endl;
 //                    draw_laser(ldata);
                     return ldata;
                 }
+                else return {};
             }
+            else return {};
         }
+        else return {};
     }
     catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
 }
@@ -654,10 +666,10 @@ void SpecificWorker::move_robot(float adv, float rot, float side)
     {
         if(auto robot_node = G->get_node("robot"); robot_node.has_value())
         {
-            G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (adv) / 2);
+            G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), adv);
             if(rot > 1.57) rot = 1.57;
 //            rot = rot * 0.7;
-            G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float)1 *  (rot) / 2);
+            G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), rot);
             G->update_node(robot_node.value());
         }
     }

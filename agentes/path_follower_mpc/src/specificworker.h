@@ -136,7 +136,7 @@ private:
         float times_final_distance_to_target_before_zero_rotation = 3;
         float advance_gaussian_cut_x = 0.7;
         float advance_gaussian_cut_y = 0.2;
-        float final_distance_to_target = 200; // mm
+        float final_distance_to_target = 50; // mm
         float laser_noise_sigma  = 15;
         int num_lidar_affected_rays_by_hard_noise = 1;
         float xset_gaussian = 0.5;             // gaussian break x set value
@@ -172,7 +172,7 @@ private:
 
     //laser
     QPointF e2q(const Eigen::Vector2d &v);
-    RoboCompLaser::TLaserData read_laser(bool noise);
+    std::optional<RoboCompLaser::TLaserData> read_laser(bool noise);
 //    void draw_laser(const RoboCompLaser::TLaserData &ldata); // robot coordinates
 
     // robot
