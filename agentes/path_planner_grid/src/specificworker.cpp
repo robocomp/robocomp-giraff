@@ -153,20 +153,38 @@ void SpecificWorker::compute()
     robot_pose.pos=Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
     RoboCompLaser::TLaserData laser_data = read_laser(false);
     std::cout << "1" << std::endl;
-    update_map(laser_data);
+
     std::cout << "2" << std::endl;
 
     if(current_plan.get_action() == QString::fromStdString("FOLLOW_PEOPLE"))
     {
         try
         {
-            auto person_name = current_plan.get_attribute("person_name").toString().toUtf8().constData();
-            Eigen::Vector3d person_pose = inner_eigen->transform(world_name, person_name).value();
-            std::cout << "PERSON POSE: " << person_pose << std::endl;
-            x = person_pose.x();
-            y = person_pose.y();
-            QPointF target_point(x,y);
-            target.set_pos(target_point);
+            auto person_id = current_plan.get_attribute("person_node_id");
+            uint64_t value;
+            std::istringstream iss(person_id.toString().toUtf8().constData());
+            iss >> value;
+            if(auto followed_person_node = G->get_node(value); followed_person_node.has_value())
+            {
+                if(auto person_pose = inner_eigen->transform(world_name, followed_person_node.value().name()); person_pose.has_value())
+                {
+                    std::cout << "PERSON POSE: " << person_pose.value() << std::endl;
+                    x = person_pose.value().x();
+                    y = person_pose.value().y();
+                    QPointF target_point(x,y);
+                    target.set_pos(target_point);
+                }
+                else
+                {
+                    std::cout << "La persona ha desaparecido" << std::endl;
+                    return;
+                }
+            }
+            else
+            {
+                std::cout << "La persona ha desaparecido" << std::endl;
+                return;
+            }
 
             // draw target
             if(target_draw != nullptr) delete target_draw;
@@ -174,9 +192,7 @@ void SpecificWorker::compute()
             target_draw->setZValue(10);
 
             auto person_center_dist = sqrt(pow(x - robot_pose.pos.x(), 2) + pow(y - robot_pose.pos.y(), 2));
-            std::cout << "3" << std::endl;
-            if(person_center_dist > 3000) regenerate_grid_to_point(robot_pose);
-            std::cout << "4" << std::endl;
+            if(person_center_dist > 1500) regenerate_grid_to_point(robot_pose);
 
             std::cout << "DISTANCIA AL CENTRO: " << person_center_dist << std::endl;
         }
@@ -199,11 +215,30 @@ void SpecificWorker::compute()
         std::cout << "6" << std::endl;
         if(action_name == follow_action_name)
         {
-            auto person_name = current_plan.get_attribute("person_name").toString().toUtf8().constData();
-            Eigen::Vector3d person_pose = inner_eigen->transform(world_name, person_name).value();
-            std::cout << "PERSON POSE: " << person_pose << std::endl;
-            x = person_pose.x();
-            y = person_pose.y();
+            auto person_id = current_plan.get_attribute("person_node_id");
+            uint64_t value;
+            std::istringstream iss(person_id.toString().toUtf8().constData());
+            iss >> value;
+            if(auto followed_person_node = G->get_node(value); followed_person_node.has_value())
+            {
+                if(auto person_pose = inner_eigen->transform(world_name, followed_person_node.value().name()); person_pose.has_value())
+                {
+                    std::cout << "PERSON POSE: " << person_pose.value() << std::endl;
+                    x = person_pose.value().x();
+                    y = person_pose.value().y();
+                }
+                else
+                {
+                    std::cout << "La persona ha desaparecido" << std::endl;
+                    return;
+                }
+            }
+            else
+            {
+                std::cout << "La persona ha desaparecido" << std::endl;
+                return;
+            }
+
 
         }
         else
@@ -222,12 +257,14 @@ void SpecificWorker::compute()
         std::cout << "7" << std::endl;
         regenerate_grid_to_point(robot_pose);
         std::cout << "8" << std::endl;
+        update_map(laser_data);
         run_current_plan();
         std::cout << "9" << std::endl;
     }
     else if(target.active)
     {
         std::cout << "10" << std::endl;
+        update_map(laser_data);
         run_current_plan();
         std::cout << "11" << std::endl;
     }
@@ -634,6 +671,7 @@ void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string 
                     plan_buffer.put(std::move(my_plan));
             }
         }
+
     }
     else if (type == grid_type_name)
     {
