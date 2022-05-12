@@ -116,7 +116,7 @@ void SpecificWorker::initialize(int period)
         custom_plot.show();
 
 		//dsr update signals
-//		connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::modify_node_slot);
+		connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::modify_node_slot);
 //		connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::modify_edge_slot);
 		connect(G.get(), &DSR::DSRGraph::update_node_attr_signal, this, &SpecificWorker::modify_attrs_slot);
 //		connect(G.get(), &DSR::DSRGraph::del_edge_signal, this, &SpecificWorker::del_edge_slot);
@@ -180,7 +180,10 @@ void SpecificWorker::compute()
 
     try
     {
-        auto servo_data = this->jointmotorsimple_proxy->getMotorState("");
+//        auto servo_data = this->jointmotorsimple_proxy->getMotorState("");
+
+        // For coppelia
+        auto servo_data = this->jointmotorsimple_proxy->getMotorState("eye_motor");
         servo_position = servo_data.pos;
         // Taking people data through proxy
         RoboCompHumanCameraBody::PeopleData people_data = this->humancamerabody_proxy->newPeopleData();
@@ -203,6 +206,7 @@ void SpecificWorker::compute()
                 cv::Point pixel;
                 pixel.x = item.second.i;
                 pixel.y = item.second.j;
+                std::cout << "JOINT POSITION: " << item.second.x << " " << item.second.y << " " << item.second.z << std::endl;
                 pixel_vector.push_back(pixel);
             }
             // Creating person with the new stucture
@@ -218,6 +222,8 @@ void SpecificWorker::compute()
                 {
                     person_data.personCoords_robot = get<0>(pos.value());
                     person_data.personCoords_world = get<1>(pos.value());
+                    std::cout << "PERSON COORDS ROBOT: " << person_data.personCoords_robot << std::endl;
+//                    std::cout << "PERSON COORDS WORLD: " << person_data.personCoords_world << std::endl;
                     person_data.pixels = get<2>(pos.value());
                     // Represent image
 //                cv::Rect person_box = cv::boundingRect(pixel_vector);
@@ -236,7 +242,7 @@ void SpecificWorker::compute()
             }
             else continue;
         }
-
+//        std::cout << "LLEGA" << std::endl;
         update_graph(person_data_vector);
 
         last_people_number = person_data_vector.size();
@@ -535,6 +541,7 @@ std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>> SpecificWork
             joint_pixels[jointPreference[std::stoi( key )]] = point_pix;
 
             cv::Point3f point_robot(item.second.x*1000,item.second.z*1000, item.second.y*1000);
+//            std::cout << "POINT ROBOT: " << point_robot << std::endl;
             Eigen::Vector3f trans_vect_1(0, -0.06, -0.12);
             Eigen::Vector3f trans_vect_2(0, -0.04, -1.55);
             Eigen::Vector3f joint_pos(point_robot.x, point_robot.y, point_robot.z);
@@ -1104,7 +1111,7 @@ void SpecificWorker::update_graph(const vector<SpecificWorker::PersonData> &peop
                             {
                                 for (auto p: people_nodes)
                                 {
-    //                              if(auto robot_person_edge = G->get_edge(robot_node.value().id(), p.id(), "following"); robot_person_edge.has_value())
+    //
                                     int row = 0;
                                     vector<double> people_distance_to_nodes, corr_vector;
                                     // Getting ROIs from nodes
@@ -1123,7 +1130,7 @@ void SpecificWorker::update_graph(const vector<SpecificWorker::PersonData> &peop
                                                                              person_ROI_height_att.value(), CV_8UC3,
                                                                              &leader_ROI_data[0]);
 
-                                                if(auto followed_node = G->get_attrib_by_name<followed_att>(p); followed_node.has_value() && followed_node.value() == true)
+                                                if(auto robot_person_edge = G->get_edge(G->get_node("robot").value().id(), p.id(), "following"); robot_person_edge.has_value())
                                                 {
                                                     cv::imshow(p.name(), person_roi);
                                                     cv::waitKey(1);
@@ -1158,9 +1165,6 @@ void SpecificWorker::update_graph(const vector<SpecificWorker::PersonData> &peop
                                     }
                                 }
 
-//
-//                                std::cout << "COR VECTO: " << corr_vector << std::endl;
-//                                std::cout << "DISTANCE VECTO: " << people_distance_to_nodes << std::endl;
                                 auto max_corr_val = 0;
                                 for (int i = 0; i < corr_comparisons.size(); ++i)
                                 {
@@ -1235,7 +1239,28 @@ void SpecificWorker::update_graph(const vector<SpecificWorker::PersonData> &peop
                             {
                                 if (not (std::find(matched_nodes.begin(), matched_nodes.end(), i) != matched_nodes.end()))
                                 {
-                                    remove_person(people_nodes[i], false);
+                                    if(auto robot_person_edge = G->get_edge(G->get_node("robot").value().id(), people_nodes[i].id(), "following"); robot_person_edge.has_value() && G->get_attrib_by_name<lambda_cont_att>(people_nodes[i]).value() < -23)
+                                    {
+                                        G->delete_edge(G->get_node("robot").value().id(), people_nodes[i].id(), "following");
+                                        DSR::Edge lost_edge = DSR::Edge::create<lost_edge_type>(G->get_node("robot").value().id(), people_nodes[i].id());
+                                        if (G->insert_or_assign_edge(lost_edge))
+                                        {
+                                            std::cout << __FUNCTION__ << " Edge successfully inserted: " << std::endl;
+                                        }
+                                        else
+                                        {
+                                            std::cout << __FUNCTION__ << ": Fatal error inserting new edge: " << std::endl;
+                                        }
+                                    }
+                                    else if(auto lost_person_edge = G->get_edge(G->get_node("robot").value().id(), people_nodes[i].id(), "lost"); lost_person_edge.has_value())
+                                    {
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        remove_person(people_nodes[i], false);
+                                    }
+
                                 }
 
                             }
@@ -1304,6 +1329,37 @@ int SpecificWorker::people_comparison_distance(SpecificWorker::leaderData node_d
     auto p_c = person.personCoords_world;
     float diff_dist = sqrt(pow(node_data.position.x - p_c.x, 2) + pow(node_data.position.y - p_c.y, 2));
     return (int)diff_dist;
+}
+
+void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string &type)
+{
+    if (type == "intention")
+    {
+        if (auto intention = G->get_node(id); intention.has_value())
+        {
+            std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value());
+            if (plan.has_value())
+            {
+                Plan my_plan(plan.value());
+                auto person_id = my_plan.get_attribute("person_node_id");
+                uint64_t value;
+                std::istringstream iss(person_id.toString().toUtf8().constData());
+                iss >> value;
+                if(auto followed_person_node = G->get_node(value); followed_person_node.has_value())
+                {
+                    DSR::Edge following_edge = DSR::Edge::create<following_edge_type>(G->get_node("robot").value().id(), followed_person_node.value().id());
+                    if (G->insert_or_assign_edge(following_edge))
+                    {
+                        std::cout << __FUNCTION__ << " Edge successfully inserted: " << std::endl;
+                    }
+                    else
+                    {
+                        std::cout << __FUNCTION__ << ": Fatal error inserting new edge: " << std::endl;
+                    }
+                }
+            }
+        }
+    }
 }
 
 int SpecificWorker::startup_check()

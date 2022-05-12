@@ -30,6 +30,7 @@
 #include "hungarian-algorithm-cpp/Hungarian.h"
 #include "dsr/api/dsr_api.h"
 #include "dsr/gui/dsr_gui.h"
+#include "/home/robocomp/robocomp/components/robocomp-giraff/etc/plan.h"
 #include <doublebuffer/DoubleBuffer.h>
 #include <opencv2/opencv.hpp>
 #include <fps/fps.h>
@@ -92,7 +93,7 @@ class SpecificWorker : public GenericWorker
         // DSR graph viewer
         std::unique_ptr<DSR::DSRViewer> graph_viewer;
         QHBoxLayout mainLayout;
-        void modify_node_slot(std::uint64_t, const std::string &type){};
+        void modify_node_slot(std::uint64_t, const std::string &type);
         void modify_attrs_slot(std::uint64_t id, const std::vector<std::string>& att_names){};
         void modify_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type){};
 
