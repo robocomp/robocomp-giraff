@@ -46,7 +46,7 @@ class TimeControl:
         self.start = time.time()
         self.counter += 1
         if time.time() - self.start_print > 1:
-            print("Freq -> ", self.counter, " Hz")
+            print("Giraff PyRep - Freq -> ", self.counter, "Hz")
             self.counter = 0
             self.start_print = time.time()
 
