@@ -27,9 +27,10 @@
 
 #define M_PI 3.14159265358979323846
 #include <genericworker.h>
+#include "/home/robocomp/robocomp/components/robocomp-giraff/etc/graph_names.h"
 #include "hungarian-algorithm-cpp/Hungarian.h"
-#include "dsr/api/dsr_api.h"
-#include "dsr/gui/dsr_gui.h"
+#include <dsr/api/dsr_api.h>
+#include <dsr/gui/dsr_gui.h>
 #include "/home/robocomp/robocomp/components/robocomp-giraff/etc/plan.h"
 #include <doublebuffer/DoubleBuffer.h>
 #include <opencv2/opencv.hpp>
@@ -59,7 +60,7 @@ class SpecificWorker : public GenericWorker
             float orientation;
         };
 
-        struct leaderData
+        struct LeaderData
         {
             int pix_x;
             int pix_y;
@@ -106,14 +107,14 @@ class SpecificWorker : public GenericWorker
         double correlation_th = 0.5;
         bool existTag = false;
 
-        int last_people_number = 0;
+        unsigned int last_people_number = 0;
         bool danger = false;
         bool occlussion = false;
         int occlussion_counter = 0;
 
         // Test variable
         cv::Mat last_leader_image;
-        int memory_size = 10;
+        unsigned int memory_size = 10;
 
         cv::Point3f zero_pos = {0.0, 0.0, 0.0};
         cv::Point2i zero_pix = {0, 0};
@@ -150,18 +151,18 @@ class SpecificWorker : public GenericWorker
         float distance_3d(cv::Point3f p1, cv::Point3f p2);
         void remove_person(DSR::Node person_node, bool direct_remove); // direct_remove = false in python
         void update_person(DSR::Node node, SpecificWorker::PersonData persondata);
-        int people_comparison_distance(SpecificWorker::leaderData node_data, SpecificWorker::PersonData person);
-        double people_comparison_corr(SpecificWorker::leaderData node_data , cv::Point2i max_corr_point, SpecificWorker::PersonData person);
+        double people_comparison_distance(SpecificWorker::LeaderData node_data, SpecificWorker::PersonData person);
+        double people_comparison_corr(const LeaderData &node_data, const cv::Point2i &max_corr_point, const PersonData &person);
         std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>> get_joint_list(const RoboCompHumanCameraBody::TJoints &joints);
         void insert_mind(std::uint64_t parent_id, std::int32_t person_id);
-        bool danger_detection(float correlation, SpecificWorker::leaderData leader_data, const vector<SpecificWorker::PersonData> &people_list);
-        void insert_person(SpecificWorker::PersonData persondata, bool direct_insert);
+        bool danger_detection(float correlation, SpecificWorker::LeaderData leader_data, const vector<SpecificWorker::PersonData> &people_list);
+        void insert_person(const PersonData &persondata, bool direct_insert);
     //    std::optional<cv::Mat> update_graph(vector<SpecificWorker::PersonData> people_list, cv::Mat image);
-        void update_graph(const vector<SpecificWorker::PersonData> &people_list);
+        void update_graph(const vector<PersonData> &people_list);
     //    std::optional<JointCoords> get_person_coords(RoboCompHumanCameraBody::Person p);
         std::optional<cv::Point2i> get_person_pixels(RoboCompHumanCameraBody::Person p);
         float dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b);
-        float dot_product(cv::Point2f vector_a, cv::Point2f vector_b);
+        float dot_product(const cv::Point2f &vector_a, const cv::Point2f &vector_b);
 
         //local widget
         Custom_widget custom_widget;
