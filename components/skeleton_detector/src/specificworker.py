@@ -45,6 +45,17 @@ import interfaces as ifaces
 sys.path.append('/opt/robocomp/lib')
 console = Console(highlight=False)
 
+class FPSCounter():
+    def __init__(self):
+        self.start = time.time()
+        self.counter = 0
+    def count(self, period=1):
+        self.counter += 1
+        if time.time() - self.start > period:
+            print("Skeleton Detector - Freq -> ", self.counter, "Hz")
+            self.counter = 0
+            self.start = time.time()
+
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
@@ -79,11 +90,11 @@ class SpecificWorker(GenericWorker):
         """Destructor"""
 
     def setParams(self, params):
-        # try:
-        #	self.innermodel = InnerModel(params["InnerModelPath"])
-        # except:
+        try:
+            self.display = params["display"] == "true" or params["display"] == "True"
+        except:
         #	traceback.print_exc()
-        #	print("Error reading config params")
+        	print("Error reading config params")
         return True
 
     def initialize(self):
@@ -127,38 +138,36 @@ class SpecificWorker(GenericWorker):
 
         self.parse_objects = ParseObjects(topology)
 
+        # time
+        self.fps = FPSCounter()
+
     @QtCore.Slot()
     def compute(self):
         rgbd = self.camerargbdsimple_proxy.getAll("camera_top")
         self.act_people = self.people_obtainer(rgbd.image, rgbd.depth)
-        cv2.imshow("color", self.skeleton_img)
-        return True
+        if self.display:
+            cv2.imshow("color", self.skeleton_img)
+        self.fps.count()
 
 ################################################################################
     def people_obtainer(self, color, depth):
         image = np.frombuffer(color.image, np.uint8).reshape(color.height, color.width, color.depth)
-        #image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        #image = cv2.rotate(image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        #image = cv2.rotate(image, cv2.ROTATE_90_CLOCKWISE)
         depth_image = np.frombuffer(depth.depth, np.float32).reshape(depth.height, depth.width, 1)
-        #depth_image = cv2.rotate(depth_image, cv2.ROTATE_90_COUNTERCLOCKWISE)
-        #depth_plot = cv2.normalize(depth_image, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
-        #cv2.imshow("color", image)
 
         # self.t1 = time.time()
         center_x = color.width / 2
         center_y = color.height / 2
-        r_s = 0
-        r_w = color.width
-        c_s = 0
-        c_w = color.height
 
-        #cropped = image[int(r_s):int(r_s + r_w), int(c_s):int(c_s + c_w)]
+        # copy to a squared image so the resize does not warps the image
+        # square_img = np.zeros([color.height, color.height, 3], np.uint8)
+        # x_offset = (color.height - color.width)//2
+        # square_img[0:image.shape[0], x_offset:x_offset + image.shape[1]] = image
         img = cv2.resize(image, dsize=(int(self.MODEL_WIDTH), int(self.MODEL_HEIGHT)), interpolation=cv2.INTER_AREA)
-        counts, objects, peaks = self.execute(img, image)
+        counts, objects, peaks = self.execute(img)
 
         keypoints_names = self.human_pose["keypoints"]
-        self.skeleton_img = copy.deepcopy(image)
+        if self.display:
+            self.skeleton_img = copy.deepcopy(image)
         people = ifaces.RoboCompHumanCameraBody.PeopleData()
         people.timestamp = time.time()
         people.peoplelist = []
@@ -166,34 +175,33 @@ class SpecificWorker(GenericWorker):
             new_person = ifaces.RoboCompHumanCameraBody.Person()
             new_person.id = i
             TJoints = {}
+            bounding_list = []
             keypoints = self.get_keypoint(objects, i, peaks)
-
-            for j in range(len(keypoints)):
+            for kpoint in range(len(keypoints)):
                 key_point = ifaces.RoboCompHumanCameraBody.KeyPoint()
-                if keypoints[j][1]:
-                    #key_point.j = int(keypoints[j][1] * r_w + r_s)
-                    #key_point.i = int(keypoints[j][2] * c_w + c_s)
-                    key_point.i = int(keypoints[j][2] * color.width)
-                    key_point.j = int(keypoints[j][1] * color.height)
+                if keypoints[kpoint][1]:
+                    key_point.i = int(keypoints[kpoint][2] * color.width)  # camera is vertical
+                    key_point.j = int(keypoints[kpoint][1] * color.height)
+                    key_point.y = float(depth_image[key_point.j, key_point.i])
+                    key_point.z = -(key_point.y / depth.focalx) * (key_point.j - center_x)
+                    key_point.x = (key_point.y / depth.focaly) * (key_point.i - center_y)
+                    #print(key_point.x, key_point.y, key_point.z, keypoints_names[kpoint])
+                    TJoints[str(kpoint)] = key_point
+                    bounding_list.append([key_point.i, key_point.j])
+                    if self.display:
+                        cv2.circle(self.skeleton_img, (key_point.i, key_point.j), 1, [0, 255, 0], 2)
 
-                    # key_point.y = float(depth_image[key_point.j, key_point.i])
-                    # key_point.z = (key_point.y / depth.focalx) * (key_point.j - center_x)
-                    # key_point.x = (key_point.y / depth.focaly) * (key_point.i - center_y)
-                    # print(key_point.x, key_point.y, key_point.z)
-                    TJoints[str(j)] = key_point
-                    # cv2.circle(depth_plot, (key_point.i, key_point.j), 1, color, 2)
-                    cv2.circle(self.skeleton_img, (key_point.i, key_point.j), 1, [0, 255, 0], 2)
-                    #cv2.putText(self.skeleton_img, "%d" % int(keypoints[j][0]), (key_point.j + 5, key_point.i),  # 3
-                    #                                   cv2.FONT_HERSHEY_SIMPLEX, 0.3, (0, 255, 255), 1)
-
-            # print(x_avg, y_avg, z_avg)
+            # compute ROI
+            if len(bounding_list) > 0:
+                bx, by, bw, bh = cv2.boundingRect(np.array(bounding_list))
+                new_person.roi = ifaces.RoboCompHumanCameraBody.TImage()
+                temp_img = image[by:by+bh, bx:bx+bw]
+                new_person.roi.width = temp_img.shape[0]
+                new_person.roi.height = temp_img.shape[1]
+                new_person.roi.image = temp_img.tobytes()
             new_person.joints = TJoints
-            # print("skeleton size: ", self.skeleton_img.shape[0], self.skeleton_img.shape[1])
-            # cv2.imshow("color", self.skeleton_img)
-            # cv2.imshow("depth", depth_plot)
             people.peoplelist.append(new_person)
         return people
-
 
     def preprocess(self, image):
         global device
@@ -202,7 +210,7 @@ class SpecificWorker(GenericWorker):
         image.sub_(self.mean[:, None, None]).div_(self.std[:, None, None])
         return image[None, ...]
 
-    def execute(self, img, src):
+    def execute(self, img):
         data = self.preprocess(img)
         cmap, paf = self.model_trt(data)
         cmap, paf = cmap.detach().cpu(), paf.detach().cpu()

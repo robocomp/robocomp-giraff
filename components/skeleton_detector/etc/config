@@ -5,9 +5,7 @@ HumanCameraBody.Endpoints=tcp -p 11279
 # Proxies for required interfaces
 CameraRGBDSimpleProxy = camerargbdsimple:tcp -h localhost -p 10095
 
-
-
-
+display = false
 
 Ice.Warn.Connections=0
 Ice.Trace.Network=0
