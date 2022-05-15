@@ -20,11 +20,8 @@
 #include <algorithm>
 #include <cmath>
 #include <iostream>
-#include <iterator>
-#include <limits>
 #include <list>
 #include <string>
-#include <type_traits>
 #include <vector>
 #include <Eigen/Geometry>
 #include <cppitertools/zip.hpp>
@@ -80,7 +77,6 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 	qscene_2d_view = params["2d_view"].value == "true";
 	osg_3d_view = params["3d_view"].value == "true";
     std::cout << "setParams" << std::endl;
-    t_start = std::chrono::high_resolution_clock::now();
 	return true;
 }
 void SpecificWorker::initialize(int period)
@@ -158,63 +154,65 @@ void SpecificWorker::compute()
     // For coppelia
     auto servo_data = this->jointmotorsimple_proxy->getMotorState("eye_motor");
     servo_position = servo_data.pos;
+    qInfo() << __FUNCTION__ << " Servo position" << servo_position;
 
-    // Taking people data through proxy
+    // Read skeletons through proxy
     RoboCompHumanCameraBody::PeopleData people_data;
     try
     { people_data = this->humancamerabody_proxy->newPeopleData();}
-    catch(const Ice::Exception &e){ std::cout << e.what() << " Error connecting to HumanCameraBody" << std::endl; return;};
-    qInfo() << __FUNCTION__ << " People read:" << people_data.peoplelist.size();
+    catch(const Ice::Exception &e)
+    { std::cout << e.what() << " Error connecting to HumanCameraBody" << std::endl; return;}
 
-    // Vector to include people data with the new struct (world position and orientation added)
-    vector<SpecificWorker::PersonData> person_data_vector;
-    for(const auto &person : people_data.peoplelist)
-    {
-        SpecificWorker::PersonData person_data;         // vector of local person structure
-        person_data.id = person.id;
-        person_data.orientation = calculate_orientation(person);
-        person_data.image = person.roi;
+    // Copy new_poeple data to PersonData struct
+    vector<SpecificWorker::PersonData> person_data_vector = build_local_people_data(people_data);
 
-        cv::Mat roi = cv::Mat(person.roi.width, person.roi.height, CV_8UC3, (uchar*)&person.roi.image[0]);
-        cv::imshow("ROI NODE", roi);
-
-        if(auto coords = get_joint_list(person.joints); coords.has_value())
-        {
-            person_data.joints = coords.value();
-            if(auto pos = position_filter(person_data.joints); pos.has_value())
-            {
-                person_data.personCoords_robot = get<0>(pos.value());
-                person_data.personCoords_world = get<1>(pos.value());
-                person_data.pixels = get<2>(pos.value());
-                person_data_vector.push_back(person_data);
-            }
-        }
-    }
     if(not person_data_vector.empty())
         update_graph(person_data_vector);
     last_people_number = person_data_vector.size();
-    //    cout << "LAST PEOPLE NUMBER: " << last_people_number << endl;
+    qInfo() << __FUNCTION__ << " New_people:" << people_data.peoplelist.size() << "New people in PersonData:" << person_data_vector.size();
 }
 //////////////////////////////////////////////////////////////////////////////////////
-std::optional<std::tuple<cv::Point3f, cv::Point3f, cv::Point2i>>
-SpecificWorker::position_filter(const std::tuple<vector<cv::Point3f>, vector<cv::Point2i>> &person_joints)
+// Method to include people data with the new struct (world position and orientation added)
+std::vector<SpecificWorker::PersonData> SpecificWorker::build_local_people_data(const RoboCompHumanCameraBody::PeopleData &people_data_)
 {
-    // Counter for pixel or position mean
-    int i = 0;
+    std::vector<PersonData> new_people_vector;         // vector of local person structures
+    for(const auto &img_person : people_data_.peoplelist)
+    {
+        PersonData new_person = {.id=img_person.id, .image=img_person.roi, .orientation=calculate_orientation(img_person)};
 
+        //cv::Mat roi = cv::Mat(person.roi.width, person.roi.height, CV_8UC3, (uchar*)&person.roi.image[0]);
+        //cv::imshow("ROI NODE", roi);
+
+        if(auto coords = get_transformed_joint_list(img_person.joints); coords.has_value())
+        {
+            new_person.joints = coords.value();
+            if(auto pos = position_filter(new_person.joints); pos.has_value())
+            {
+                new_person.personCoords_robot = get<0>(pos.value());
+                new_person.personCoords_world = get<1>(pos.value());
+                new_person.pixels = get<2>(pos.value());
+                new_people_vector.push_back(new_person);
+            }
+        }
+        // QUE PASA SI NO?
+    }
+    return new_people_vector;
+}
+std::optional<std::tuple<cv::Point3f, cv::Point3f, cv::Point2i>>
+SpecificWorker::position_filter(const std::tuple<std::vector<cv::Point3f>, std::vector<cv::Point2i>> &person_joints)
+{
     // Initial person pos and pixel pos
     cv::Point3f person_pos = zero_pos;
     cv::Point2i person_pix = zero_pix;
 
-    float max_y_position = 0.0, min_y_position = 9999999.9;
-    float y_mean = 0;
+    float max_y_position = std::numeric_limits<float>::min(), min_y_position = std::numeric_limits<float>::max();
+    float y_mean = 0.f;
     int x_pix_mean = 0;
     int y_pix_mean = 0;
     int counter_pix = 0;
-    int counter_pos = 0;
+    float counter_pos = 0.f;
 
-    auto robot_joints = get<0>(person_joints);
-    auto image_joints = get<1>(person_joints);
+    const auto &[robot_joints, image_joints] = person_joints;
     for (auto &&[rob_joint, img_joint] : iter::zip(robot_joints, image_joints))
     {
         if (rob_joint != zero_pos)
@@ -232,29 +230,23 @@ SpecificWorker::position_filter(const std::tuple<vector<cv::Point3f>, vector<cv:
         }
     }
 
-//    std::cout << "COUNTER PIX: " << counter_pix << std::endl;
-//    std::cout << "COUNTER POS: " << counter_pos << std::endl;
+    if(counter_pix == 0 or counter_pos == 0) { qWarning() << __FUNCTION__ << " " << __LINE__ << " No joints found"; return {};};
 
-    if(counter_pix == 0 or counter_pos == 0) return {};
+    y_mean /= counter_pos;
+    person_pix.x = static_cast<int>(x_pix_mean / counter_pix);
+    person_pix.y = static_cast<int>(y_pix_mean / counter_pix);
 
-    y_mean = y_mean / counter_pos;
-    person_pix.x = (int) (x_pix_mean / counter_pix);
-    person_pix.y = (int) (y_pix_mean / counter_pix);
-
-//    std::cout << "MIN AND MAX VALUES: " << min_y_position << " - " << max_y_position << std::endl;
-    float diff_division = abs(max_y_position - min_y_position) / 100;
-//    std::cout << "DIVISION: " << diff_division << std::endl;
-    float less_error = 99999999.9;
+    float diff_division = fabs(max_y_position - min_y_position) / 100.f;
+    float less_error = std::numeric_limits<float>::max();
     float best_pos_value = min_y_position;
+    int i = 0;          // Counter for pixel or position mean
     for (float j = min_y_position; j < max_y_position; j += diff_division)
     {
-        float act_error = 0.0;
-        for (auto item: robot_joints)
+        float act_error = 0.f;
+        for (const auto &item: robot_joints)
         {
-            if (item == zero_pos || item.y > y_mean + 400)
-            {
+            if (item == zero_pos or item.y > (y_mean + 400))
                 continue;
-            }
             else
             {
                 person_pos += item;
@@ -262,18 +254,13 @@ SpecificWorker::position_filter(const std::tuple<vector<cv::Point3f>, vector<cv:
                 act_error += abs(item.y - j);
             }
         }
-//        std::cout << "ACT ERROR: " << act_error << std::endl;
         if(act_error < less_error)
         {
             less_error = act_error;
             best_pos_value = j;
         }
     }
-//    std::cout << "BEST POS VALUE: " << best_pos_value << std::endl;
-
-//    std::cout << "i: " << i << std::endl;
-
-    if(i == 0) return {};
+    if(i == 0) { qWarning() << __FUNCTION__ << "Error. item == zero_pos or item.y > (y_mean + 400) always true"; return {};};
 
     person_pos = person_pos / i;
     person_pos.y = best_pos_value;
@@ -281,12 +268,19 @@ SpecificWorker::position_filter(const std::tuple<vector<cv::Point3f>, vector<cv:
 
     Eigen::Vector3f pose_aux = {person_pos.x, person_pos.y, person_pos.z};
     auto person_pos_double = pose_aux.cast <double>();
-    auto person_world_pos = inner_eigen->transform("world", person_pos_double, "robot");
+    cv::Point3f final_point;
+    if(auto person_world_pos = inner_eigen->transform(world_name, person_pos_double, robot_name); person_world_pos.has_value())
+    {
+        final_point.x = person_world_pos->x();
+        final_point.y = person_world_pos->y();
+        final_point.z = person_world_pos->z();
+    }
+    else { qWarning() << __FUNCTION__ << "Error. Transforming person_pos_double"; return {};};
 
-    cv::Point3f final_point; final_point.x = person_world_pos->x() ; final_point.y = person_world_pos->y(); final_point.z = person_world_pos->z();
-
-    if(person_pos != zero_pos && person_pix != zero_pix) return std::make_tuple(person_pos, final_point, person_pix);
-    else return {};
+    if(person_pos != zero_pos and person_pix != zero_pix)
+        return std::make_tuple(person_pos, final_point, person_pix);
+    else
+    { qWarning() << __FUNCTION__ << "Error. person_pos and person_pix are zero"; return {};};
 }
 std::optional<cv::Point2i> SpecificWorker::get_person_pixels(RoboCompHumanCameraBody::Person p)
 {
@@ -437,60 +431,31 @@ cv::Point3f SpecificWorker::dictionary_values_to_3d_point(RoboCompHumanCameraBod
     point.z = z;
     return point;
 }
-std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>> SpecificWorker::get_joint_list(const RoboCompHumanCameraBody::TJoints &joints)
+std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>>
+        SpecificWorker::get_transformed_joint_list(const RoboCompHumanCameraBody::TJoints &joints)
 {
-    vector<cv::Point3f> joint_points;
-    vector<cv::Point2i> joint_pixels;
-
-    for (int i = 0; i < 18; ++i)
-    {
-        joint_points.push_back(zero_pos);
-        joint_pixels.push_back(zero_pix);
-    }
+    vector<cv::Point3f> joint_points; joint_points.assign(18, zero_pos);
+    vector<cv::Point2i> joint_pixels; joint_pixels.assign(18, zero_pix);
+    Eigen::Vector3f trans_vect_1(0, -0.06, -0.12);
+    Eigen::Vector3f trans_vect_2(0, -0.04, -1.55);
+    Eigen::AngleAxisf z_axis_rotation_matrix (servo_position, Eigen::Vector3f::UnitZ());
+    Eigen::AngleAxisf x_axis_rotation_matrix (0.414, Eigen::Vector3f::UnitX());
     int joint_counter = 0;
-//    std::cout << "NEW ITER" << std::endl;
-//    std::cout << "" << std::endl;
-    for(auto item : joints)
-    {
-        std::string key = item.first;
-
-//    {
-//        std::string key = item.first;
-//        if (item.second.x != 0 && item.second.y != 0 && item.second.z != 0 && item.second.i != 0 && item.second.j != 0 && not (std::count(avoidedJoints.begin(), avoidedJoints.end(), key)))
-//        {
-//            huesitos.push_back(item.second);
-//        }
-//    }
-//        if (item.second.x != 0 && item.second.y != 0 && item.second.z != 0 && item.second.i != 0 && item.second.j != 0)
-        if (item.second.x != 0 && item.second.y != 0 && item.second.z != 0 && item.second.i != 0 && item.second.j != 0 && not (std::count(avoidedJoints.begin(), avoidedJoints.end(), key)))
+    for(const auto &[key, item] : joints)
+        if (item.x != 0 and item.y != 0 and item.z != 0 and item.i != 0 and item.j != 0 and not (std::ranges::count(avoidedJoints, key)))
         {
-
-            joint_counter ++;
-            cv::Point2i point_pix(item.second.i,item.second.j);
+            joint_counter++;
+            cv::Point2i point_pix(item.i,item.j);
             joint_pixels[jointPreference[std::stoi( key )]] = point_pix;
-
-            cv::Point3f point_robot(item.second.x*1000,item.second.z*1000, item.second.y*1000);
-//            std::cout << "POINT ROBOT: " << point_robot << std::endl;
-            Eigen::Vector3f trans_vect_1(0, -0.06, -0.12);
-            Eigen::Vector3f trans_vect_2(0, -0.04, -1.55);
+            cv::Point3f point_robot(item.x*1000, item.z*1000, item.y*1000);
             Eigen::Vector3f joint_pos(point_robot.x, point_robot.y, point_robot.z);
-            Eigen::AngleAxisf z_axis_rotation_matrix (servo_position, Eigen::Vector3f::UnitZ());
-            joint_pos = z_axis_rotation_matrix * joint_pos;
-            joint_pos = joint_pos + trans_vect_1;
-            Eigen::AngleAxisf x_axis_rotation_matrix (0.414, Eigen::Vector3f::UnitX());
-            joint_pos = x_axis_rotation_matrix * joint_pos;
-            Eigen::Vector3f joint_pos_robot = joint_pos + trans_vect_2;
-            point_robot.x = joint_pos_robot.x();
-            point_robot.y = joint_pos_robot.y();
-            point_robot.z = joint_pos_robot.z();
+            joint_pos = x_axis_rotation_matrix * (z_axis_rotation_matrix * joint_pos + trans_vect_1) + trans_vect_2;
+            point_robot.x = joint_pos.x();
+            point_robot.y = joint_pos.y();
+            point_robot.z = joint_pos.z();
             joint_points[jointPreference[std::stoi( key )]] = point_robot;
-//            std::cout << "JOINT: " << jointPreference[std::stoi( key )] << ": " << point_robot << std::endl;
         }
-    }
-    // if(joint_counter > 6) 
-//    std::cout << "Joint counter: " << joint_counter << std::endl;
     return std::make_tuple(joint_points, joint_pixels);
-    // else return {};
 }
 cv::Point3f SpecificWorker::cross_product(cv::Point3f p1, cv::Point3f p2)
 {
@@ -750,6 +715,8 @@ void SpecificWorker::remove_person(DSR::Node person_node, bool direct_remove)
 }
 void SpecificWorker::update_person(DSR::Node node, SpecificWorker::PersonData persondata)
 {
+    static std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
+
     float score = 0;
     if(auto world_node = G->get_node(world_name); world_node.has_value())
     {
@@ -769,9 +736,9 @@ void SpecificWorker::update_person(DSR::Node node, SpecificWorker::PersonData pe
             G->add_or_modify_attrib_local<person_image_width_att>(node, persondata.image.width);
             G->add_or_modify_attrib_local<person_image_height_att>(node, persondata.image.height);
 
+            // PARA QUE SIRVE? LA INSERCION DEBE HACERSE SOLO SI SE LE HA VISTO DURANTE MAS DE MEDIO O UN SEGUNDO
             auto t_end = std::chrono::high_resolution_clock::now();
             double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
-
             leader_ROI_memory.insert(leader_ROI_memory.cbegin(), persondata.image);
             if (leader_ROI_memory.size() > memory_size and elapsed_time_ms > 1000)
             {
@@ -890,6 +857,8 @@ void SpecificWorker::insert_mind(std::uint64_t parent_id, std::int32_t person_id
 }
 void SpecificWorker::insert_person(const PersonData &persondata, bool direct_insert)
 {
+    static std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
+
     if(auto robot_node = G->get_node(robot_name); robot_node.has_value())
     {
         if(auto world_node = G->get_node(world_name); world_node.has_value())
@@ -959,6 +928,12 @@ void SpecificWorker::insert_person(const PersonData &persondata, bool direct_ins
     }
     else qWarning() << "No robot node found";
 }
+
+//// ESTE DEBE TENER CUATRO PARTES BIEN DIFERNECIAS Y COMENTADAS:
+/// 1: matching entre nuevos y del grafo. Los que casan, actualizarlos y quitarlos de nuevos
+/// 3: los que quedan en nuevos, programalos para ser añadidos una vez pasado el tiempo requerido
+/// 4: si quedan del grafo, programarlos para ser borrados 
+
 void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
 {
     static HungarianAlgorithm HungAlgo;
@@ -973,20 +948,20 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
     { qWarning() << "No robot node found. Returning"; return;}
     else robot_node = robot_node_o.value();
 
-    auto people_nodes = G->get_nodes_by_type(person_type_name);
-    if (people_nodes.empty())
+    auto people_in_graph = G->get_nodes_by_type(person_type_name);
+    if (people_in_graph.empty())
     {
-        qInfo() << __FUNCTION__ << " No person nodes in graph";
+        qInfo() << __FUNCTION__ << " No person nodes in graph. Insert new ones and return";
         for (const auto &p: people_list)    // Insert the new ones
             insert_person(p, true);
+        return;
     }
 
     // Check if some person has to be erased. Rows for nodes, columns for people
     std::vector<std::vector<double>> distance_comparisons, corr_comparisons;
     std::vector<int> matched_nodes, matched_people;
-    for (const auto &p: people_nodes)
+    for (const auto &p: people_in_graph)
     {
-        int row = 0;
         std::vector<double> people_distance_to_nodes(people_list.size()), corr_vector(people_list.size());
         // get people from G and into a LeaderData struct
         LeaderData person_node_data;
@@ -1027,19 +1002,12 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
                         people_distance_to_nodes.emplace_back(people_comparison_distance(person_node_data, person_in_image));
                         corr_vector.emplace_back(people_comparison_corr(person_node_data, max_point, person_in_image));
                     }
-                    row++;
                     corr_comparisons.push_back(corr_vector);
                     distance_comparisons.push_back(people_distance_to_nodes);
                 }
             }
         }
     }
-//    auto max_corr_val = 0;
-//    for (const auto &corr : corr_comparisons)
-//    {
-//        auto max_corr_act = *std::max_element(corr.begin(), corr.end());
-//        if (max_corr_act > max_corr_val) max_corr_val = max_corr_act;
-//    }
     std::vector<double> corr_values;
     for (const auto &corr : corr_comparisons)
         corr_values.push_back(std::ranges::max(corr));
@@ -1058,18 +1026,18 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
     double cost = HungAlgo.Solve(distance_comparisons, assignment);
     for (unsigned int i = 0; i < distance_comparisons.size(); i++)
         for (unsigned int j = 0; j < people_list.size(); j++)
-            if ((int)j == assignment[i]) // Puede asignarle la posición a quien le de la gana
+            if ((int)j == assignment[i])    // Puede asignarle la posición a quien le de la gana
             {
-                update_person(people_nodes[i], people_list[j]);
+                update_person(people_in_graph[i], people_list[j]);
                 matched_nodes.push_back(i);
                 matched_people.push_back(j);
-                if (auto lost_edge = G->get_edge(robot_node, people_nodes[i].id(), "lost"); lost_edge.has_value())
+                if (auto lost_edge = G->get_edge(robot_node, people_in_graph[i].id(), "lost"); lost_edge.has_value())
                 {
                     auto virtual_people_nodes = G->get_nodes_by_type("virtual_person");
                     for (const auto &v_p: virtual_people_nodes)
                     {
                         G->delete_node(v_p.id());
-                        G->delete_edge(robot_node.id(), people_nodes[i].id(), "lost");
+                        G->delete_edge(robot_node.id(), people_in_graph[i].id(), "lost");
                         G->delete_edge(world_node.id(), v_p.id(), "RT");
                     }
                 }
@@ -1081,7 +1049,7 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
             insert_person(person, true);
 
     // DELETE: If list of people nodes is bigger than list of people, some nodes must be proposed to be deleted
-    for (auto &&[i, person] : people_nodes | iter::enumerate)
+    for (auto &&[i, person] : people_in_graph | iter::enumerate)
     {
         if (std::ranges::find(matched_nodes, i) == matched_nodes.end())
         {
@@ -1097,7 +1065,7 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
                     std::cout << __FUNCTION__ << " Fatal error inserting new edge: " << std::endl;
             }
             else if (auto lost_person_edge = G->get_edge(robot_node.id(), person.id(), "lost"); not lost_person_edge.has_value())
-                remove_person(people_nodes[i], false);
+                remove_person(people_in_graph[i], false);
         }
     }
 }

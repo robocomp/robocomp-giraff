@@ -15,15 +15,9 @@ SET ( HEADERS
   hungarian-algorithm-cpp/Hungarian.h
 )
 
-
-add_definitions(-g  -fmax-errors=1 -std=c++2a -fno-char8_t)
-SET (LIBS ${LIBS}   dsr_core dsr_gui dsr_api fastcdr fastrtps osgDB OpenThreads Eigen3::Eigen)
+INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv4.cmake )
+find_package( Qt5PrintSupport )
 
 set(CMAKE_CXX_STANDARD 20)
-#SET (LIBS ${LIBS} dlib openblas)
-add_definitions(-O3 -march=native -fmax-errors=5 )
-SET (LIBS ${LIBS} tbb)
-INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv4.cmake )
-
-find_package( Qt5PrintSupport )
-SET (LIBS ${LIBS}  Qt5::PrintSupport)
+add_definitions(-O3 -fmax-errors=5  -fno-char8_t)
+SET (LIBS ${LIBS}   dsr_core dsr_gui dsr_api fastcdr fastrtps osgDB OpenThreads Eigen3::Eigen tbb Qt5::PrintSupport)
