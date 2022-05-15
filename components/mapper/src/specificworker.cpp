@@ -71,7 +71,7 @@ void SpecificWorker::initialize(int period)
 	else
 		timer.start(Period);
 }
-void SpecificWorker::compute()zZZZZZZZ
+void SpecificWorker::compute()
 {
     read_base();
     read_laser();
