@@ -932,7 +932,7 @@ void SpecificWorker::insert_person(const PersonData &persondata, bool direct_ins
 //// ESTE DEBE TENER CUATRO PARTES BIEN DIFERNECIAS Y COMENTADAS:
 /// 1: matching entre nuevos y del grafo. Los que casan, actualizarlos y quitarlos de nuevos
 /// 3: los que quedan en nuevos, programalos para ser añadidos una vez pasado el tiempo requerido
-/// 4: si quedan del grafo, programarlos para ser borrados 
+/// 4: si quedan del grafo, programarlos para ser borrados
 
 void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
 {
