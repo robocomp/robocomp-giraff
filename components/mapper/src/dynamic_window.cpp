@@ -119,7 +119,6 @@ std::optional<Dynamic_Window::Result> Dynamic_Window::compute_optimus(const std:
                                                                       const Eigen::Vector3f &robot, float previous_turn)
 {
     const float A=1, B=5;  // CHANGE
-    int k=0;
     std::vector<std::tuple<float, Result>> values(points.size());
     for(auto &&[k, point] : iter::enumerate(points))
     {

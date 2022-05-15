@@ -291,7 +291,7 @@ int findInterPointsEx(const Vertexes &C1, const Vertexes &C2, Vertexes &vert)
     for (int i=0; i<N; ++i) {
         Vertexes pts;
         interPtsEx(C1,Line(C2[i%N],C2[(i+1)%N]),pts);
-        for (int i = 0; i < pts.size(); ++i)
+        for (unsigned int i = 0; i < pts.size(); ++i)
             _vert.push_back(pts.at(i));
     }
     vert.swap(_vert);
@@ -300,7 +300,7 @@ int findInterPointsEx(const Vertexes &C1, const Vertexes &C2, Vertexes &vert)
 int findInnerPointsEx(const Vertexes &C1, const Vertexes &C2, Vertexes &vert)
 {
     Vertexes _vert;
-    for (int i=0; i<C2.size(); ++i) {
+    for (unsigned int i=0; i<C2.size(); ++i) {
         if (locationEx(C1,C2[i]) != Outside)
             _vert.push_back(C2[i]);
     }
@@ -323,11 +323,11 @@ double areaIntersectionEx(const Vertexes &C1, const Vertexes &C2)
     findInnerPointsEx(C2, C1, innerVert21);
     //---------------
     // TODO : Check conditions
-    for (int i = 0; i < interVert.size(); ++i)
+    for (unsigned int i = 0; i < interVert.size(); ++i)
         allVerts.push_back(interVert.at(i));
-    for (int i = 0; i < innerVert12.size(); ++i)
+    for (unsigned int i = 0; i < innerVert12.size(); ++i)
         allVerts.push_back(innerVert12.at(i));
-    for (int i = 0; i < innerVert21.size(); ++i)
+    for (unsigned int i = 0; i < innerVert21.size(); ++i)
         allVerts.push_back(innerVert21.at(i));
 
     if (allVerts.empty())
@@ -381,11 +381,11 @@ double areaIntersection(const Quad&Q1, const Quad &Q2)
     findInnerPoints(Q2, Q1, innerVert21);
     //---------------
     // TODO : Check conditions
-    for (int i = 0; i < interVert.size(); ++i)
+    for (unsigned int i = 0; i < interVert.size(); ++i)
         allVerts.push_back(interVert.at(i));
-    for (int i = 0; i < innerVert12.size(); ++i)
+    for (unsigned int i = 0; i < innerVert12.size(); ++i)
         allVerts.push_back(innerVert12.at(i));
-    for (int i = 0; i < innerVert21.size(); ++i)
+    for (unsigned int i = 0; i < innerVert21.size(); ++i)
         allVerts.push_back(innerVert21.at(i));
 
     if (allVerts.empty())

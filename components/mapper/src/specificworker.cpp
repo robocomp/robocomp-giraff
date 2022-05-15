@@ -50,7 +50,8 @@ void SpecificWorker::initialize(int period)
 
     this->dimensions = QRectF(-5100, -2600, 10200, 5200);
     viewer_robot = new AbstractGraphicViewer(this->frame_robot, this->dimensions);
-    robot_polygon = viewer_robot->add_robot(ROBOT_LENGTH);
+    const auto &[rp, re] = viewer_robot->add_robot(ROBOT_LENGTH, ROBOT_LENGTH);
+    robot_polygon = rp;
     laser_in_robot_polygon = new QGraphicsRectItem(-10, 10, 20, 20, robot_polygon);
     laser_in_robot_polygon->setPos(0, 190);     // move this to abstract
 
@@ -60,18 +61,17 @@ void SpecificWorker::initialize(int period)
     connect(viewer_robot, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
 
     // grid
-    grid.initialize(dimensions, TILE_SIZE, &viewer_robot->scene, false);
-    qInfo() << __FUNCTION__ << "Grid initialized to " << this->dimensions;
+    //grid.initialize(dimensions, TILE_SIZE, &viewer_robot->scene, false);
+    //qInfo() << __FUNCTION__ << "Grid initialized to " << this->dimensions;
 
-            ////////////////////////////////////////////////////
+    ////////////////////////////////////////////////////
 	this->Period = period;
 	if(this->startup_check_flag)
 		this->startup_check();
 	else
 		timer.start(Period);
 }
-
-void SpecificWorker::compute()
+void SpecificWorker::compute()zZZZZZZZ
 {
     read_base();
     read_laser();
@@ -192,7 +192,6 @@ bool SpecificWorker::change_room()
     // if known room, initialize the grid with the room geometry
     return true;
 }
-
 void SpecificWorker::detect_doors()
 {
     move_robot(0, 0.5);

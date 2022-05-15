@@ -94,7 +94,6 @@ private:
 
     // grid
     int TILE_SIZE = 50;
-    QRectF dimensions;
     Grid grid;
     void update_map(const RoboCompLaser::TLaserData &ldata);
 
