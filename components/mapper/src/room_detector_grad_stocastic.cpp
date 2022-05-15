@@ -7,8 +7,7 @@
 #include <random>
 #include <cppitertools/enumerate.hpp>
 
-
-QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
+cv::RotatedRect Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
 {
     std::chrono::steady_clock::time_point begin = std::chrono::steady_clock::now();
     // initial values  points_raw: 300 x 3
@@ -50,7 +49,7 @@ QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
         qInfo() << "--------------------------";
         res_errors.push_back(e);
         res_params.push_back(axis);
-   }
+    }
     // pick the best
     auto hit = std::ranges::min_element(res_errors);
     auto axis = res_params.at(std::distance(res_errors.begin(), hit));
@@ -59,7 +58,9 @@ QRectF Room_Detector_Grad_Stochastic::compute_room(Eigen::MatrixX3d &points_raw)
     qInfo() << __FUNCTION__ << "Final error:" << *hit;
     std::chrono::steady_clock::time_point end = std::chrono::steady_clock::now();
     qInfo() << __FUNCTION__ << "Elapsed time (ms):" << std::chrono::duration_cast<std::chrono::milliseconds>(end - begin).count();;
-    return QRectF(rcx-rsw, rcy-rsh, rsw*2, rsh*2);
+    //return cv::RotatedRect(rcx-rsw, rcy-rsh, rsw*2, rsh*2);
+    return cv::RotatedRect(cv::Point2f{rcx, rcy}, cv::Point2f{rsw*2, rsh*2}, 0.f);
+
 }
 std::tuple<std::vector<double>, double, size_t, Eigen::ArrayXd>
 Room_Detector_Grad_Stochastic::optimize(const Eigen::MatrixX3d &points, const std::vector<double> &params,
@@ -118,13 +119,13 @@ std::tuple<double, Eigen::ArrayXd> Room_Detector_Grad_Stochastic::error(const st
     // compute L matrix 4x3
     Eigen::Matrix<double, 4, 3> L;
     L << c1.y() - c2.y(), c2.x() - c1.x(), (c1.x() - c2.x()) * c1.y() + (c2.y() - c1.y()) * c1.x(),
-         c2.y() - c3.y(), c3.x() - c2.x(), (c2.x() - c3.x()) * c2.y() + (c3.y() - c2.y()) * c2.x(),
-         c3.y() - c4.y(), c4.x() - c3.x(), (c3.x() - c4.x()) * c3.y() + (c4.y() - c3.y()) * c3.x(),
-         c4.y() - c1.y(), c1.x() - c4.x(), (c4.x() - c1.x()) * c4.y() + (c1.y() - c4.y()) * c4.x();
+            c2.y() - c3.y(), c3.x() - c2.x(), (c2.x() - c3.x()) * c2.y() + (c3.y() - c2.y()) * c2.x(),
+            c3.y() - c4.y(), c4.x() - c3.x(), (c3.x() - c4.x()) * c3.y() + (c4.y() - c3.y()) * c3.x(),
+            c4.y() - c1.y(), c1.x() - c4.x(), (c4.x() - c1.x()) * c4.y() + (c1.y() - c4.y()) * c4.x();
     // compute normalizing line coefficients M 4x1
     Eigen::Vector4d M;
     for( auto &&i : iter::range(L.rows()))
-         M[i] = sqrt(L.row(i).x()*L.row(i).x() + L.row(i).y()*L.row(i).y());
+        M[i] = sqrt(L.row(i).x()*L.row(i).x() + L.row(i).y()*L.row(i).y());
 
     // multiply points times line coefficients: dist = 4x3 * 3*N = 4xN
     auto dist = L * points.transpose();
@@ -137,7 +138,7 @@ std::tuple<double, Eigen::ArrayXd> Room_Detector_Grad_Stochastic::error(const st
 
     // Huber robust estimator
     Eigen::ArrayXXd abs_dist_norm_huber = (abs_dist_norm > huber).select(abs_dist_norm.colwise() -
-                                                                     Eigen::Array4d(huber/2.0, huber/2.0, huber/2.0, huber/2.0), abs_dist_norm);
+                                                                         Eigen::Array4d(huber/2.0, huber/2.0, huber/2.0, huber/2.0), abs_dist_norm);
     //Eigen::ArrayXXd abs_dist_norm_huber = (abs_dist_norm > huber).select(0.0, abs_dist_norm);
 
     // sum of minimun values minimun value along columns
@@ -156,10 +157,10 @@ QRectF Room_Detector_Grad_Stochastic::minimize_door_distances(Graph_Rooms &G)
     double delta = 5;  // centimeters
     auto deltas = std::vector<double>{-delta, delta};
     Constraints room_constraints { .MAX_WIDTH = G.current_room().get_witdh()*1.1,
-                                   .MIN_WIDTH = G.current_room().get_witdh()*0.9,
-                                   .MAX_HEIGHT = G.current_room().get_height()*1.1,
-                                   .MIN_HEIGHT = G.current_room().get_height()*0.9
-                                 };
+            .MIN_WIDTH = G.current_room().get_witdh()*0.9,
+            .MAX_HEIGHT = G.current_room().get_height()*1.1,
+            .MIN_HEIGHT = G.current_room().get_height()*0.9
+    };
 
     qInfo() << "--------------NEW ROOM-DOOR OPTIMIZATION for " << G.current_room().id << " -----------------";
     qInfo() << __FUNCTION__ << "Initial error: " << door_distance_error(G, std::vector<Graph_Rooms::Room>{G.current_room()});
@@ -259,14 +260,18 @@ double Room_Detector_Grad_Stochastic::door_distance_error(const Graph_Rooms &G, 
     // error = sum of distance from room r to doors at the neighboor rooms' doores
     double total_dist = 0.0;
     for(const auto &r: local_rooms)
-        for(const auto &d: r.doors)
-            if(d.to_room != -1)
-                if(auto res = std::ranges::find_if(G.rooms.at(d.to_room).doors, [id = d.id](auto d){ return d.id == id;}); res != G.rooms.at(d.to_room).doors.end())
+        for(const auto &d_id: r.doors_ids)
+        {
+            const auto &d = G.doors.at(d_id);
+            if (d.to_room != -1)
+                if (auto res = std::ranges::find_if(G.rooms.at(d.to_room).doors_ids, [id = d.id, G](auto d)
+                    { return G.doors.at(id).id == id; }); res != G.rooms.at(d.to_room).doors_ids.end())
                 {
-                    double dist = G.min_distance_from_point_to_closest_side(r, (*res).p1) +
-                                  G.min_distance_from_point_to_closest_side(r, (*res).p2);
+                    double dist = G.min_distance_from_point_to_closest_side(r, G.doors.at((*res)).p1) +
+                                  G.min_distance_from_point_to_closest_side(r, G.doors.at((*res)).p2);
                     total_dist += dist;
 
                 }
+        }
     return total_dist;
 };
