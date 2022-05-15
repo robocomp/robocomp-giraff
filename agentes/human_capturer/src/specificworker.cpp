@@ -717,7 +717,6 @@ void SpecificWorker::update_person(DSR::Node node, SpecificWorker::PersonData pe
 {
     static std::chrono::high_resolution_clock::time_point t_start = std::chrono::high_resolution_clock::now();
 
-    float score = 0;
     if(auto world_node = G->get_node(world_name); world_node.has_value())
     {
         auto node_value = world_node.value();
@@ -977,7 +976,7 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
                                                  person_ROI_height_att.value(), CV_8UC3,
                                                  &leader_ROI_data[0]);
 
-                    if (auto robot_person_edge = G->get_edge(G->get_node(robot_name).value().id(), p.id(), following_type_name);
+                    if (auto robot_person_edge = G->get_edge(G->get_node(robot_name).value().id(), p.id(), following_action_type_name);
                                                  robot_person_edge.has_value())
                     {
                         cv::imshow(p.name(), person_roi);
@@ -1053,11 +1052,11 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
     {
         if (std::ranges::find(matched_nodes, i) == matched_nodes.end())
         {
-            if (auto robot_person_edge = G->get_edge(robot_node.id(), person.id(), following_type_name);
+            if (auto robot_person_edge = G->get_edge(robot_node.id(), person.id(), following_action_type_name);
                     robot_person_edge.has_value() and
                     G->get_attrib_by_name<lambda_cont_att>(person).value() < -23)
             {
-                G->delete_edge(robot_node.id(), person.id(), following_type_name);
+                G->delete_edge(robot_node.id(), person.id(), following_action_type_name);
                 DSR::Edge lost_edge = DSR::Edge::create<lost_edge_type>(robot_node.id(), person.id());
                 if (G->insert_or_assign_edge(lost_edge))
                     std::cout << __FUNCTION__ << " Edge successfully inserted: " << std::endl;
