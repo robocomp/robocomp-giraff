@@ -95,6 +95,9 @@ class SpecificWorker(GenericWorker):
         self.lineal_speed_coefficients=[0,0,0]
         self.lineal_speed_avg = 0
 
+        self.act_chased_person = None
+        self.intention_id = None
+
         self.x_pos = 0
         self.y_pos = 0
         self.z_pos = 0
@@ -147,7 +150,7 @@ class SpecificWorker(GenericWorker):
         try:
             # signals.connect(self.g, signals.UPDATE_NODE_ATTR, self.update_node_att)
             signals.connect(self.g, signals.UPDATE_NODE, self.update_node)
-            # signals.connect(self.g, signals.DELETE_NODE, self.delete_node)
+            signals.connect(self.g, signals.DELETE_NODE, self.delete_node)
             # signals.connect(self.g, signals.UPDATE_EDGE, self.update_edge)
             # signals.connect(self.g, signals.UPDATE_EDGE_ATTR, self.update_edge_att)
             # signals.connect(self.g, signals.DELETE_EDGE, self.delete_edge)
@@ -182,8 +185,7 @@ class SpecificWorker(GenericWorker):
         image_data = camera_node.attrs['cam_rgb'].value
         image_width = camera_node.attrs['cam_rgb_width'].value
         image_height = camera_node.attrs['cam_rgb_height'].value
-        image = np.frombuffer(image_data, np.uint8).reshape(image_width, image_height, 3)
-
+        image = np.frombuffer(image_data, np.uint8).reshape(image_height, image_width, 3)
         self.refesco_ventana(image_width, image_height, image)
         # self.plot_data()
 
@@ -372,8 +374,8 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def slot_change_pos(self, pos):   # comes in degrees -150 .. 150. Sent in radians -2.62 .. 2.62
         servo_node = self.g.get_node("servo")
-        servo_node.attrs['servo_send_pos'] = Attribute(float(0), self.agent_id)
-        servo_node.attrs['servo_send_speed'] = Attribute(float(0), self.agent_id)
+        servo_node.attrs['servo_send_pos'] = Attribute(float(0.0), self.agent_id)
+        servo_node.attrs['servo_send_speed'] = Attribute(float(0.0), self.agent_id)
         self.g.update_node(servo_node)
 
     @QtCore.Slot()
@@ -597,19 +599,24 @@ class SpecificWorker(GenericWorker):
         pass
 
     def update_node(self, id: int, type: str):
+        if type == "intention":
+            self.intention_id = id
+            intention_node = self.g.get_node(id)
+            intention_data = json.loads(intention_node.attrs['current_intention'].value)
+            if(list(intention_data.keys())[0] == "FOLLOW_PEOPLE"):
+                self.act_chased_person = self.g.get_node(int(intention_data["FOLLOW_PEOPLE"]["person_node_id"])).name
+
         if type == "person":
             try:
                 self.obtencion_datos()
                 person_node = self.g.get_node(id)
-                # for person in people_nodes:
-                if person_node.attrs["followed"].value == True:
-                    print("MODIFYING POSITION")
+                if (self.act_chased_person != None) and (person_node!= None) and (person_node.name == self.act_chased_person):
                     puntoMedioX = person_node.attrs['pixel_x'].value
                     if(puntoMedioX!=self.last_puntoMedioX):
                         self.last_puntoMedioX = puntoMedioX
                         distance = person_node.attrs['distance_to_robot'].value
 
-                        print("POSICION PERSONA EN IMAGEN: ", puntoMedioX)
+                        # print("POSICION PERSONA EN IMAGEN: ", puntoMedioX)
                         # print("POSICION SERVO: ", self.motor.pos)
                         # print("POSICION ASIGNADA A SERVO ANTERIOR: ", self.rad_old)
 
@@ -624,7 +631,7 @@ class SpecificWorker(GenericWorker):
 
                         goal_rad = self.motor.pos - error_rads
                         rad_seg = self.k5 * error_rads
-                        print("POSICION ASIGNADA A SERVO: ", goal_rad)
+                        # print("POSICION ASIGNADA A SERVO: ", goal_rad)
 
                         tracker_data = {
                             "goal_rads" : goal_rad,
@@ -648,7 +655,11 @@ class SpecificWorker(GenericWorker):
                 print("DATA CANT BE OBTAINED")
 
     def delete_node(self, id: int):
+        if id == self.intention_id:
+            self.act_chased_person = None
+            self.intention_id = None
         console.print(f"DELETE NODE:: {id} ", style='green')
+
 
     def update_edge(self, fr: int, to: int, type: str):
 
