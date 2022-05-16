@@ -154,7 +154,7 @@ void SpecificWorker::compute()
     // For coppelia
     auto servo_data = this->jointmotorsimple_proxy->getMotorState("eye_motor");
     servo_position = servo_data.pos;
-    qInfo() << __FUNCTION__ << " Servo position" << servo_position;
+//    qInfo() << __FUNCTION__ << " Servo position" << servo_position;
 
     // Read skeletons through proxy
     RoboCompHumanCameraBody::PeopleData people_data;
@@ -166,10 +166,21 @@ void SpecificWorker::compute()
     // Copy new_poeple data to PersonData struct
     vector<SpecificWorker::PersonData> person_data_vector = build_local_people_data(people_data);
 
-    if(not person_data_vector.empty())
-        update_graph(person_data_vector);
+    auto people_to_update = person_pre_filter(person_data_vector);
+    if(not people_to_update.empty())
+        update_graph(people_to_update);
+    else
+    {
+        auto people_in_graph = G->get_nodes_by_type(person_type_name);
+        for (const auto &p: people_in_graph)
+        {
+            remove_person(p, false);
+        }
+    }
+
+//
     last_people_number = person_data_vector.size();
-    qInfo() << __FUNCTION__ << " New_people:" << people_data.peoplelist.size() << "New people in PersonData:" << person_data_vector.size();
+//    qInfo() << __FUNCTION__ << " New_people:" << people_data.peoplelist.size() << "New people in PersonData:" << person_data_vector.size();
 }
 //////////////////////////////////////////////////////////////////////////////////////
 // Method to include people data with the new struct (world position and orientation added)
@@ -193,8 +204,9 @@ std::vector<SpecificWorker::PersonData> SpecificWorker::build_local_people_data(
                 new_person.pixels = get<2>(pos.value());
                 new_people_vector.push_back(new_person);
             }
+            else continue; // If joint list or position filtered values are not found, pass to the next person
         }
-        // QUE PASA SI NO?
+        else continue;
     }
     return new_people_vector;
 }
@@ -602,6 +614,116 @@ float SpecificWorker::calculate_orientation(RoboCompHumanCameraBody::Person pers
     // cout << "Ángulo: " << angle << endl;
     return angle;
 }
+
+vector<SpecificWorker::PersonData> SpecificWorker::person_pre_filter(const vector<SpecificWorker::PersonData> &persondata)
+{
+    static HungarianAlgorithm HungAlgo;
+    vector<SpecificWorker::PersonData> to_graph;
+    // Create local memory for people
+    static vector<SpecificWorker::PersonData> local_person_data_memory;
+    qInfo() << __FUNCTION__ << " local_person_data_memory size: " << local_person_data_memory.size();
+
+    if(persondata.empty())
+    {
+        local_person_data_memory.clear();
+        return to_graph;
+    }
+
+    // If not people in memory, insert everyone that can be seen
+    if(local_person_data_memory.empty())
+    {
+        for(const auto &person : persondata)
+        {
+            local_person_data_memory.emplace_back(person);
+        }
+        return to_graph;
+    }
+
+    std::vector<std::vector<double>> distance_comparisons, corr_comparisons;
+    std::vector<int> matched_memory_people, matched_people;
+    for(const auto &memory_person : local_person_data_memory)
+    {
+        std::vector<double> people_distance_to_nodes(persondata.size()), corr_vector(persondata.size());
+        cv::Point2i max_point;
+
+        // Conversion of each person in memory to LeaderData (maybe should be revised)
+        LeaderData act_person_in_memory;
+        act_person_in_memory.position = memory_person.personCoords_world;
+        act_person_in_memory.ROI = cv::Mat(memory_person.image.width, memory_person.image.height, CV_8UC3, (uchar *)&memory_person.image.image[0]);
+
+        for (const auto &person_in_image: persondata)
+        {
+            people_distance_to_nodes.emplace_back(people_comparison_distance(act_person_in_memory, person_in_image));
+            corr_vector.emplace_back(people_comparison_corr(act_person_in_memory, max_point, person_in_image));
+        }
+        corr_comparisons.push_back(corr_vector);
+        distance_comparisons.push_back(people_distance_to_nodes);
+    }
+
+    std::vector<double> corr_values;
+    for (const auto &corr : corr_comparisons)
+        corr_values.push_back(std::ranges::max(corr));
+
+    double max_corr_val = std::ranges::max(corr_values);
+
+    for (unsigned int i = 0; i < corr_comparisons.size(); ++i)
+        for (unsigned int j = 0; j < corr_comparisons[i].size(); ++j)
+        {
+            corr_comparisons[i][j] = 1 - (corr_comparisons[i][j] / max_corr_val);  // CHECK FOR ZERO DIVISION
+            distance_comparisons[i][j] = (int) (distance_comparisons[i][j] * corr_comparisons[i][j]);
+            if (distance_comparisons[i][j] == 0)
+                distance_comparisons[i][j] = 1;
+        }
+
+    std::vector<int> assignment;
+    double cost = HungAlgo.Solve(distance_comparisons, assignment);
+    for (unsigned int i = 0; i < distance_comparisons.size(); i++)
+        for (unsigned int j = 0; j < persondata.size(); j++)
+            if ((int)j == assignment[i])    // Puede asignarle la posición a quien le de la gana
+            {
+                if(local_person_data_memory[i].frame_counter < 25)
+                {
+                    local_person_data_memory[i].frame_counter ++;
+                }
+                matched_memory_people.push_back(i);
+                matched_people.push_back(j);
+            }
+
+    // DELETE: If list of people nodes is bigger than list of people, some nodes must be proposed to be deleted
+    for (auto &&[i, person] : local_person_data_memory | iter::enumerate)
+    {
+        if (std::ranges::find(matched_memory_people, i) == matched_memory_people.end())
+        {
+            qInfo() << __FUNCTION__ << " person removed";
+            local_person_data_memory.erase((local_person_data_memory.begin()+i));
+        }
+    }
+
+    // INSERT: If list of people size is bigger than list of people nodes, new people must be inserted into the graph
+    for (auto &&[i, person] : persondata | iter::enumerate)
+        if (std::ranges::find(matched_people, i) == matched_people.end())
+        {
+            qInfo() << __FUNCTION__ << " person inserted";
+            auto person_to_memory = person;
+            if(person_to_memory.frame_counter < 25)
+            {
+                person_to_memory.frame_counter ++;
+            }
+            local_person_data_memory.push_back(person);
+        }
+
+    // Check if any person in memory has a value of 10 in frame_counter TODO: Probably should be inserted in the past loop
+
+    for (auto &&[i, person] : local_person_data_memory | iter::enumerate)
+    {
+        qInfo() << __FUNCTION__ << " person frame_counter: " << person.frame_counter;
+        if(person.frame_counter > 24)
+            to_graph.push_back(person);
+    }
+    qInfo() << __FUNCTION__ << "to graph size: " << to_graph.size();
+    return to_graph;
+}
+
 void SpecificWorker::remove_person(DSR::Node person_node, bool direct_remove)
 {
     std::string node_name_str = "virtual_leader";
@@ -735,7 +857,7 @@ void SpecificWorker::update_person(DSR::Node node, SpecificWorker::PersonData pe
             G->add_or_modify_attrib_local<person_image_width_att>(node, persondata.image.width);
             G->add_or_modify_attrib_local<person_image_height_att>(node, persondata.image.height);
 
-            // PARA QUE SIRVE? LA INSERCION DEBE HACERSE SOLO SI SE LE HA VISTO DURANTE MAS DE MEDIO O UN SEGUNDO
+            // Memory for leader ROIs, for oclussion dealing test
             auto t_end = std::chrono::high_resolution_clock::now();
             double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
             leader_ROI_memory.insert(leader_ROI_memory.cbegin(), persondata.image);
@@ -892,7 +1014,7 @@ void SpecificWorker::insert_person(const PersonData &persondata, bool direct_ins
                     leader_ROI_memory.pop_back();
                 }
 
-                // para qué?
+                // To make the robot take into count that somebody could want to interact
                 if (persondata.orientation > (2 * M_PI - (M_PI / 6)) or persondata.orientation < (M_PI / 6))
                     G->add_or_modify_attrib_local<is_ready_att>(new_node, true);
                 else
@@ -976,21 +1098,18 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
                                                  person_ROI_height_att.value(), CV_8UC3,
                                                  &leader_ROI_data[0]);
 
-                    if (auto robot_person_edge = G->get_edge(G->get_node(robot_name).value().id(), p.id(), following_action_type_name);
+                    if (auto robot_person_edge = G->get_edge(G->get_node(robot_name).value().id(), p.id(), "following");
                                                  robot_person_edge.has_value())
                     {
                         cv::imshow(p.name(), person_roi);
                         cv::waitKey(1);
                     }
                     // CAMBIAR A inner_eigen
-                    if (auto pos_edge_world = rt->get_edge_RT(world_node, p.id()); pos_edge_world.has_value())
+                    if (auto pos_edge_world = inner_eigen->transform(world_name, p.name()); pos_edge_world.has_value())
                     {
-                        if (auto person_world_pos = G->get_attrib_by_name<rt_translation_att>(pos_edge_world.value()))
-                        {
-                            person_node_data.position.x = person_world_pos.value().get()[0];
-                            person_node_data.position.y = person_world_pos.value().get()[1];
-                            person_node_data.position.z = person_world_pos.value().get()[2];
-                        }
+                        person_node_data.position.x = pos_edge_world.value().x();
+                        person_node_data.position.y = pos_edge_world.value().y();
+                        person_node_data.position.z = pos_edge_world.value().z();
                     }
                     person_node_data.ROI = person_roi;
 
@@ -1052,11 +1171,11 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
     {
         if (std::ranges::find(matched_nodes, i) == matched_nodes.end())
         {
-            if (auto robot_person_edge = G->get_edge(robot_node.id(), person.id(), following_action_type_name);
+            if (auto robot_person_edge = G->get_edge(robot_node.id(), person.id(), "following");
                     robot_person_edge.has_value() and
                     G->get_attrib_by_name<lambda_cont_att>(person).value() < -23)
             {
-                G->delete_edge(robot_node.id(), person.id(), following_action_type_name);
+                G->delete_edge(robot_node.id(), person.id(), "following");
                 DSR::Edge lost_edge = DSR::Edge::create<lost_edge_type>(robot_node.id(), person.id());
                 if (G->insert_or_assign_edge(lost_edge))
                     std::cout << __FUNCTION__ << " Edge successfully inserted: " << std::endl;

@@ -58,6 +58,7 @@ class SpecificWorker : public GenericWorker
             cv::Point2i pixels;
             vector<float> orientation_filter;
             float orientation;
+            int frame_counter = 0;
         };
 
         struct LeaderData
@@ -160,6 +161,7 @@ class SpecificWorker : public GenericWorker
         bool danger_detection(float correlation, SpecificWorker::LeaderData leader_data, const vector<SpecificWorker::PersonData> &people_list);
         void insert_person(const PersonData &persondata, bool direct_insert);
         void update_graph(const vector<PersonData> &people_list);
+        vector<SpecificWorker::PersonData> person_pre_filter(const vector<SpecificWorker::PersonData> &persondata);
         std::optional<cv::Point2i> get_person_pixels(RoboCompHumanCameraBody::Person p);
         float dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b);
         float dot_product(const cv::Point2f &vector_a, const cv::Point2f &vector_b);
