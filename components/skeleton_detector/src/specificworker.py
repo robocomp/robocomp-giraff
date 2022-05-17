@@ -171,26 +171,34 @@ class SpecificWorker(GenericWorker):
         people = ifaces.RoboCompHumanCameraBody.PeopleData()
         people.timestamp = time.time()
         people.peoplelist = []
+
         for i in range(counts[0]):
+            available_joints_counter = 0
             new_person = ifaces.RoboCompHumanCameraBody.Person()
             new_person.id = i
             TJoints = {}
             bounding_list = []
+            # print("NEW PERSON ", i)
             keypoints = self.get_keypoint(objects, i, peaks)
+
             for kpoint in range(len(keypoints)):
                 key_point = ifaces.RoboCompHumanCameraBody.KeyPoint()
-                if keypoints[kpoint][1]:
+                if keypoints[kpoint][1] != None and keypoints[kpoint][2] != None:
+                    available_joints_counter += 1
                     key_point.i = int(keypoints[kpoint][2] * color.width)  # camera is vertical
                     key_point.j = int(keypoints[kpoint][1] * color.height)
                     key_point.y = float(depth_image[key_point.j, key_point.i])
-                    key_point.z = -(key_point.y / depth.focalx) * (key_point.j - center_x)
-                    key_point.x = (key_point.y / depth.focaly) * (key_point.i - center_y)
-                    #print(key_point.x, key_point.y, key_point.z, keypoints_names[kpoint])
+                    key_point.z = -(key_point.y / depth.focalx) * (key_point.j - center_y)
+                    key_point.x = (key_point.y / depth.focaly) * (key_point.i - center_x)
+                    print(keypoints_names[kpoint])
+                    print(key_point.i, key_point.j)
+                    print(key_point.x, key_point.y, key_point.z)
                     TJoints[str(kpoint)] = key_point
                     bounding_list.append([key_point.i, key_point.j])
                     if self.display:
                         cv2.circle(self.skeleton_img, (key_point.i, key_point.j), 1, [0, 255, 0], 2)
-
+            # print("JOINT COUNTER", available_joints_counter)
+            # if available_joints_counter
             # compute ROI
             if len(bounding_list) > 0:
                 bx, by, bw, bh = cv2.boundingRect(np.array(bounding_list))
