@@ -98,9 +98,8 @@ class SpecificWorker : public GenericWorker
         QHBoxLayout mainLayout;
         void modify_node_slot(std::uint64_t, const std::string &type);
         void modify_attrs_slot(std::uint64_t id, const std::vector<std::string>& att_names){};
-        void modify_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type){};
-
-        void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag){};
+        void modify_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type);
+        void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag);
         void del_node_slot(std::uint64_t from){};
         bool startup_check_flag;
 
@@ -162,7 +161,7 @@ class SpecificWorker : public GenericWorker
         bool danger_detection(float correlation, SpecificWorker::LeaderData leader_data, const vector<SpecificWorker::PersonData> &people_list);
         void insert_person(const PersonData &persondata, bool direct_insert);
         void update_graph(const vector<PersonData> &people_list);
-        vector<SpecificWorker::PersonData> person_pre_filter(const vector<SpecificWorker::PersonData> &person_data);
+        vector<SpecificWorker::PersonData> person_pre_filter(const vector<SpecificWorker::PersonData> &persondata);
         std::optional<cv::Point2i> get_person_pixels(RoboCompHumanCameraBody::Person p);
         float dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b);
         float dot_product(const cv::Point2f &vector_a, const cv::Point2f &vector_b);
@@ -173,7 +172,7 @@ class SpecificWorker : public GenericWorker
 
         void draw_timeseries(float error_dist, float error_img);
 
-    vector<PersonData> person_pre_filter_OLD(const std::vector<PersonData> &person_data);
+        vector<PersonData> person_pre_filter_OLD(const std::vector<PersonData> &person_data);
 };
 
 #endif
