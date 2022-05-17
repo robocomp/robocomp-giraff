@@ -248,6 +248,7 @@ bool SpecificWorker::change_room2(int new_door_id, int new_room_id)
     auto &new_door = G.doors.at(new_door_id);
     auto mid_point = new_door.get_external_midpoint(from_robot_to_grid(Eigen::Vector2f(0.f, 0.f)));
     auto mp = from_grid_to_world(mid_point);
+    qInfo() << __FUNCTION__ << mid_point.x() << mid_point.y();
     viewer_robot->scene.addEllipse(mp.x()-100, mp.y()-100, 200, 200, QPen(QColor("blue"), 20), QBrush(QColor("blue")));
     float dist = from_grid_to_robot(mid_point).norm();
     qInfo() << __FUNCTION__ << " dist to target" << dist;
@@ -255,7 +256,6 @@ bool SpecificWorker::change_room2(int new_door_id, int new_room_id)
     {
         auto tr = from_grid_to_robot(mid_point);
         dist = tr.norm();
-
         // call dynamic window
         QPolygonF laser_poly;
         for(auto &&l : ldata)
