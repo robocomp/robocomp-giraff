@@ -122,6 +122,11 @@ class SpecificWorker : public GenericWorker
         std::vector<cv::Point3f> leader_joints;
         cv::Point3f leader_position;
 
+        HungarianAlgorithm HungAlgo;
+
+        // Variable used for people cache
+        vector<PersonData> local_person_data_memory;
+
         vector<std::string> eyeList = {"1", "2"};
         vector<std::string> earList = {"3", "4"};
         vector<std::string> hipList = {"11", "12"};
@@ -159,12 +164,15 @@ class SpecificWorker : public GenericWorker
         std::optional<std::tuple<vector<cv::Point3f>, vector<cv::Point2i>>> get_transformed_joint_list(const RoboCompHumanCameraBody::TJoints &joints);
         void insert_mind(std::uint64_t parent_id, std::int32_t person_id);
         bool danger_detection(float correlation, SpecificWorker::LeaderData leader_data, const vector<SpecificWorker::PersonData> &people_list);
-        void insert_person(const PersonData &persondata, bool direct_insert);
+        void insert_person(const vector<PersonData> &people_data, bool direct_insert);
         void update_graph(const vector<PersonData> &people_list);
         vector<SpecificWorker::PersonData> person_pre_filter(const vector<SpecificWorker::PersonData> &persondata);
         std::optional<cv::Point2i> get_person_pixels(RoboCompHumanCameraBody::Person p);
         float dot_product3D(cv::Point3f vector_a, cv::Point3f vector_b);
         float dot_product(const cv::Point2f &vector_a, const cv::Point2f &vector_b);
+        std::optional<vector<SpecificWorker::LeaderData>> node_data_to_leader_data(const std::vector<DSR::Node> &nodes_data);
+        std::optional<vector<SpecificWorker::LeaderData>> person_data_to_leader_data(const std::vector<PersonData> &people_data);
+        std::optional<std::vector<std::vector<double>>> get_dist_corr_matrix(const std::vector<PersonData> &in_image_people_data, const std::vector<LeaderData> &in_memory_people_data);
 
         //local widget
         Custom_widget custom_widget;
