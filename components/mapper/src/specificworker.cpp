@@ -60,8 +60,7 @@ void SpecificWorker::initialize(int period)
     viewer_graph = new AbstractGraphicViewer(this->frame_graph, this->dimensions);
     this->resize(1200,450);
 
-    connect(viewer_robot, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
-
+    //connect(viewer_robot, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
     // grid
     // grid.initialize(dimensions, constants.tile_size, &viewer_robot->scene, false);
     // qInfo() << __FUNCTION__ << "Grid initialized to " << this->dimensions;
@@ -72,10 +71,12 @@ void SpecificWorker::initialize(int period)
         this->startup_check();
     else
         timer.start(Period);
+
 }
 
 void SpecificWorker::compute()
 {
+    qInfo() << "Hola!";
     read_base();
     read_laser();
 
@@ -84,7 +85,7 @@ void SpecificWorker::compute()
 
     if (EXPLORE) // explore room
     {
-        static bool explore_first_time = true;
+
         static float initial_angle;
         if (explore_first_time)
         {
@@ -131,6 +132,7 @@ void SpecificWorker::compute()
     {
         static bool visit_first_time = true;
         static int new_door_id, new_room_id;
+        static Eigen::Vector2f mid_point;
         if (visit_first_time)
         {
             // before start
@@ -169,9 +171,11 @@ void SpecificWorker::compute()
                         qInfo() << "WARNING, no door to choose";
                     }
                 }
+            auto &new_door = G.doors.at(new_door_id);
+            mid_point = new_door.get_external_midpoint(from_robot_to_grid(Eigen::Vector2f(0.f, 0.f)));
             visit_first_time = false;
         }
-        else if (change_room2(new_door_id, new_room_id))  // do meanwhile the robot reaches the new room
+        else if (change_room2(mid_point))  // do meanwhile the robot reaches the new room
         {
             // do after
             if(new_room_id == -1)
@@ -190,6 +194,8 @@ void SpecificWorker::compute()
             qInfo() << __FUNCTION__ << "Future VISIT ended with ";
             G.current_room().print();
             EXPLORE = true;
+            explore_first_time = true;
+            visit_first_time = true;
             //room_detector.minimize_door_distances(G);
             //G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
             //G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
@@ -241,17 +247,14 @@ bool SpecificWorker::explore2(float initial_angle, std::vector<Eigen::Vector2f> 
     else
         return true;
 }
-bool SpecificWorker::change_room2(int new_door_id, int new_room_id)
+bool SpecificWorker::change_room2(const Eigen::Vector2f &mid_point)
 {
     // move to the new room
     // pick a point 1 meter ahead of center of door position and in the other room
-    auto &new_door = G.doors.at(new_door_id);
-    auto mid_point = new_door.get_external_midpoint(from_robot_to_grid(Eigen::Vector2f(0.f, 0.f)));
     auto mp = from_grid_to_world(mid_point);
-    qInfo() << __FUNCTION__ << mid_point.x() << mid_point.y();
     viewer_robot->scene.addEllipse(mp.x()-100, mp.y()-100, 200, 200, QPen(QColor("blue"), 20), QBrush(QColor("blue")));
     float dist = from_grid_to_robot(mid_point).norm();
-    qInfo() << __FUNCTION__ << " dist to target" << dist;
+    qInfo() << __FUNCTION__ << " dist to target: " << dist << " Midpoint: "<< mid_point.x() << mid_point.y();
     if( dist > constants.final_distance_to_target) // until target is reached
     {
         auto tr = from_grid_to_robot(mid_point);
@@ -260,13 +263,16 @@ bool SpecificWorker::change_room2(int new_door_id, int new_room_id)
         QPolygonF laser_poly;
         for(auto &&l : ldata)
             laser_poly << QPointF(l.dist*sin(l.angle), l.dist*cos(l.angle));
+        auto robot_pose_in_grid = from_robot_to_grid(Eigen::Vector2f(0,0));
+        auto robot_vel_in_grid = from_world_to_grid(Eigen::Vector2f(r_state.vx, r_state.vy));
         auto [_, __, adv, rot, ___] = dw.compute(tr, laser_poly,
-                                                 Eigen::Vector3f(r_state.x, r_state.y, r_state.rz),
-                                                 Eigen::Vector3f(r_state.vx, r_state.vy, r_state.vrz),
+                                                 Eigen::Vector3f(robot_pose_in_grid.x(), robot_pose_in_grid.y(), 0.f),
+                                                 //Eigen::Vector3f(robot_vel_in_grid.x(), robot_vel_in_grid.y(), 0.f),
+                                                 Eigen::Vector3f(0.f, 0.f, 0.f),
                                                  nullptr /*&viewer_robot->scene*/);
         const float rgain = 0.8;
         float rotation = rgain*rot;
-        float dist_break = std::clamp(from_grid_to_robot(target.to_eigen()).norm() / 1000.0, 0.0, 1.0);
+        float dist_break = std::clamp(dist / 1000.0, 0.0, 1.0);
         float advance = constants.max_advance_speed * dist_break * gaussian(rotation);
         move_robot(advance, rotation);
         return false;
@@ -519,7 +525,7 @@ void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
         {
             // transform tip form robot's RS to local_grid RS
             Eigen::Vector2f tip = (r2g * Eigen::Vector3f(l.dist*sin(l.angle), l.dist*cos(l.angle), 1.f)).head(2);
-            Eigen::Vector2f tip_in_grid = local_grid.pointToGrid(tip);
+            //Eigen::Vector2f tip_in_grid = local_grid.pointToGrid(tip);
 
 //            int last_kx = std::numeric_limits<int>::min();
 //            int last_kz = std::numeric_limits<int>::min();
