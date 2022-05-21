@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2021 by YOUR NAME HERE
+ *    Copyright (C) 2022 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -31,6 +31,8 @@
 #include <ui_mainUI.h>
 #include <CommonBehavior.h>
 
+#include <AprilTags.h>
+#include <CameraRGBDSimple.h>
 #include <DifferentialRobot.h>
 #include <FullPoseEstimation.h>
 #include <GenericBase.h>
@@ -42,7 +44,7 @@
 #define BASIC_PERIOD 100
 
 
-using TuplePrx = std::tuple<RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompFullPoseEstimation::FullPoseEstimationPrxPtr,RoboCompLaser::LaserPrxPtr,RoboCompRoomDetection::RoomDetectionPrxPtr>;
+using TuplePrx = std::tuple<RoboCompAprilTags::AprilTagsPrxPtr,RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr,RoboCompDifferentialRobot::DifferentialRobotPrxPtr,RoboCompFullPoseEstimation::FullPoseEstimationPrxPtr,RoboCompLaser::LaserPrxPtr,RoboCompRoomDetection::RoomDetectionPrxPtr>;
 
 
 class GenericWorker : public QWidget, public Ui_guiDlg
@@ -58,6 +60,8 @@ public:
 	QMutex *mutex;
 
 
+	RoboCompAprilTags::AprilTagsPrxPtr apriltags_proxy;
+	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompDifferentialRobot::DifferentialRobotPrxPtr differentialrobot_proxy;
 	RoboCompFullPoseEstimation::FullPoseEstimationPrxPtr fullposeestimation_proxy;
 	RoboCompLaser::LaserPrxPtr laser_proxy;

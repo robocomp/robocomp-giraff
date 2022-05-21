@@ -39,9 +39,11 @@
 #include <chrono>
 #include <thread>
 #include <future>
+#include <opencv2/opencv.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/imgproc.hpp>
 
+#define DEBUG(x) std::cout << #x << " = " << x << std::endl;
 
 class SpecificWorker : public GenericWorker
 {
@@ -92,6 +94,9 @@ private:
     float gaussian(float x);
     void move_robot(float adv, float rot);
     void read_base();
+
+    //camera
+    RoboCompCameraRGBDSimple::TImage read_camera();
 
     // laser
     RoboCompLaser::TLaserData ldata;
@@ -156,6 +161,10 @@ private:
 
     bool explore_first_time = true;
 
+    // AprilTaga
+    RoboCompAprilTags::TagsList read_apriltags(const RoboCompCameraRGBDSimple::TImage &img);
+    RoboCompAprilTags::TagsList tags;
+    int current_detected_room;
 };
 
 #endif

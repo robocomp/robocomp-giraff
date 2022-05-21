@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2021 by YOUR NAME HERE
+ *    Copyright (C) 2022 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -23,10 +23,12 @@
 GenericWorker::GenericWorker(TuplePrx tprx) : Ui_guiDlg()
 {
 
-	differentialrobot_proxy = std::get<0>(tprx);
-	fullposeestimation_proxy = std::get<1>(tprx);
-	laser_proxy = std::get<2>(tprx);
-	roomdetection_proxy = std::get<3>(tprx);
+	apriltags_proxy = std::get<0>(tprx);
+	camerargbdsimple_proxy = std::get<1>(tprx);
+	differentialrobot_proxy = std::get<2>(tprx);
+	fullposeestimation_proxy = std::get<3>(tprx);
+	laser_proxy = std::get<4>(tprx);
+	roomdetection_proxy = std::get<5>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 

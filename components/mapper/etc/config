@@ -1,13 +1,13 @@
 CommonBehavior.Endpoints=tcp -p 17000
 
 # Proxies for required interfaces
+AprilTagsProxy = apriltags:tcp -h localhost -p 12555
 DifferentialRobotProxy = differentialrobot:tcp -h localhost -p 10004
 LaserProxy = laser:tcp -h localhost -p 10003
 FullPoseEstimationProxy = fullposeestimation:tcp -h localhost -p 10696
 RoomDetectionProxy = roomdetection:tcp -h localhost -p  18046
+CameraRGBDSimpleProxy = camerargbdsimple:tcp -h localhost -p 10095
 
-
-InnerModelPath = innermodel.xml
 
 Ice.Warn.Connections=0
 Ice.Trace.Network=0

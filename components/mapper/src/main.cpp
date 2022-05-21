@@ -1,5 +1,5 @@
 /*
- *    Copyright (C) 2021 by YOUR NAME HERE
+ *    Copyright (C) 2022 by YOUR NAME HERE
  *
  *    This file is part of RoboComp
  *
@@ -130,6 +130,8 @@ int ::mapper::run(int argc, char* argv[])
 
 	int status=EXIT_SUCCESS;
 
+	RoboCompAprilTags::AprilTagsPrxPtr apriltags_proxy;
+	RoboCompCameraRGBDSimple::CameraRGBDSimplePrxPtr camerargbdsimple_proxy;
 	RoboCompDifferentialRobot::DifferentialRobotPrxPtr differentialrobot_proxy;
 	RoboCompFullPoseEstimation::FullPoseEstimationPrxPtr fullposeestimation_proxy;
 	RoboCompLaser::LaserPrxPtr laser_proxy;
@@ -137,6 +139,38 @@ int ::mapper::run(int argc, char* argv[])
 
 	string proxy, tmp;
 	initialize();
+
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "AprilTagsProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy AprilTagsProxy\n";
+		}
+		apriltags_proxy = Ice::uncheckedCast<RoboCompAprilTags::AprilTagsPrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy AprilTags: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("AprilTagsProxy initialized Ok!");
+
+
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "CameraRGBDSimpleProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy CameraRGBDSimpleProxy\n";
+		}
+		camerargbdsimple_proxy = Ice::uncheckedCast<RoboCompCameraRGBDSimple::CameraRGBDSimplePrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy CameraRGBDSimple: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("CameraRGBDSimpleProxy initialized Ok!");
+
 
 	try
 	{
@@ -202,7 +236,7 @@ int ::mapper::run(int argc, char* argv[])
 	rInfo("RoomDetectionProxy initialized Ok!");
 
 
-	tprx = std::make_tuple(differentialrobot_proxy,fullposeestimation_proxy,laser_proxy,roomdetection_proxy);
+	tprx = std::make_tuple(apriltags_proxy,camerargbdsimple_proxy,differentialrobot_proxy,fullposeestimation_proxy,laser_proxy,roomdetection_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx, startup_check_flag);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());

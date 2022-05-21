@@ -65,27 +65,32 @@ void SpecificWorker::initialize(int period)
     // grid.initialize(dimensions, constants.tile_size, &viewer_robot->scene, false);
     // qInfo() << __FUNCTION__ << "Grid initialized to " << this->dimensions;
 
+
+
     ////////////////////////////////////////////////////
     this->Period = period;
     if(this->startup_check_flag)
         this->startup_check();
     else
         timer.start(Period);
-
 }
 
 void SpecificWorker::compute()
 {
-    qInfo() << "Hola!";
     read_base();
     read_laser();
+    RoboCompCameraRGBDSimple::TImage img = read_camera();
+    if(img.image.empty()) { qWarning() << __FUNCTION__ << "Image empty. Returning;"; return;};
+    tags.clear();
+    tags = read_apriltags(img);
+
+    return;
 
     static bool EXPLORE = true;
     static std::vector<Eigen::Vector2f> peaks;
 
     if (EXPLORE) // explore room
     {
-
         static float initial_angle;
         if (explore_first_time)
         {
@@ -237,15 +242,29 @@ bool SpecificWorker::explore()
 bool SpecificWorker::explore2(float initial_angle, std::vector<Eigen::Vector2f> &peaks)
 {
     float current = (r_state.rz < 0) ? (2 * M_PI + r_state.rz) : r_state.rz;
+    //auto comp = [](auto a, auto b){return a.tz > b.tz;};
+    //static std::set<RoboCompAprilTags::Tag, decltype(comp)> tags_set;
+    static std::vector<std::tuple<float,int>> tags_set;
     if(not (fabs(current - initial_angle) < (M_PI + 0.1) and fabs(current - initial_angle) > (M_PI - 0.1)))
     {
+        for(const auto &t : this->tags)
+            tags_set.push_back(std::make_tuple(t.tz, t.id));
+
         update_map(ldata);
         auto new_peaks = detect_doors();
         peaks.insert(std::end(peaks), std::begin(new_peaks), std::end(new_peaks));
         return false;
     }
     else
+    {
+        //this->current_detected_room = tags_set.begin()->id;
+        for(auto &[dist, id] : tags_set)
+            qInfo() << "----------------" << dist << id;
+        auto [dist, id] = std::ranges::min(tags_set, [](auto a, auto b){return std::get<0>(a) < std::get<0>(b);});
+        qInfo() << __FUNCTION__ << "----------------  Current detected room" << id << dist ;
+        tags_set.clear();
         return true;
+    }
 }
 bool SpecificWorker::change_room2(const Eigen::Vector2f &mid_point)
 {
@@ -254,7 +273,7 @@ bool SpecificWorker::change_room2(const Eigen::Vector2f &mid_point)
     auto mp = from_grid_to_world(mid_point);
     viewer_robot->scene.addEllipse(mp.x()-100, mp.y()-100, 200, 200, QPen(QColor("blue"), 20), QBrush(QColor("blue")));
     float dist = from_grid_to_robot(mid_point).norm();
-    qInfo() << __FUNCTION__ << " dist to target: " << dist << " Midpoint: "<< mid_point.x() << mid_point.y();
+    //qInfo() << __FUNCTION__ << " dist to target: " << dist << " Midpoint: "<< mid_point.x() << mid_point.y();
     if( dist > constants.final_distance_to_target) // until target is reached
     {
         auto tr = from_grid_to_robot(mid_point);
@@ -489,17 +508,42 @@ void SpecificWorker::read_base()
 }
 void SpecificWorker::read_laser()
 {
-    //laser
     try
     {
         ldata = laser_proxy->getLaserData();
-//        if(local_grid_is_active)
-//            update_map(ldata);
         draw_laser(ldata);
     }
     catch (const Ice::Exception &e)
     { std::cout << e.what() << std::endl; }
 }
+RoboCompCameraRGBDSimple::TImage SpecificWorker::read_camera()
+{
+    RoboCompCameraRGBDSimple::TImage img;
+    try
+    {
+        img = camerargbdsimple_proxy->getImage("camera_top");
+        if (img.image.empty()) { qWarning() << "Returning from read_camera" ; return img;}
+        cv::Mat img_cv = cv::Mat(img.height, img.width, CV_8UC3, (uchar *)&img.image[0]);
+        cv::imshow("Eye", img_cv);
+        cv::waitKey(1);
+    }
+    catch (const Ice::Exception &e)
+    { std::cout << e.what() << std::endl; }
+    return img;
+}
+RoboCompAprilTags::TagsList SpecificWorker::read_apriltags(const RoboCompCameraRGBDSimple::TImage &img)
+{
+    RoboCompAprilTags::TagsList tags;
+    try
+    {
+        tags = apriltags_proxy->getAprilTags(img, 0.5, "36h11");
+    }
+    catch (const Ice::Exception &e)
+    { std::cout << e.what() << " Warning. Error reading AprilTagsServer" << std::endl; }
+    return tags;
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////
 void SpecificWorker::move_robot(float adv, float rot)
 {
     try

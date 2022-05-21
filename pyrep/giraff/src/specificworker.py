@@ -89,8 +89,10 @@ class SpecificWorker(GenericWorker):
                                                         "angle": np.radians(cam.get_perspective_angle()),
                                                         "width": cam.get_resolution()[0],
                                                         "height": cam.get_resolution()[1],
-                                                        "focal": (cam.get_resolution()[0] / 2) / np.tan(
+                                                        "focalx": (cam.get_resolution()[0] / 2) / np.tan(
                                                          np.radians(cam.get_perspective_angle() / 2)),
+                                                        "focaly": (cam.get_resolution()[1] / 2) / np.tan(
+                                                            np.radians(cam.get_perspective_angle() / 2)),
                                                         "rgb": np.array(0),
                                                         "depth": np.ndarray(0),
                                                         "is_ready": False,
@@ -106,8 +108,10 @@ class SpecificWorker(GenericWorker):
                                                      "angle": np.radians(cam.get_perspective_angle()),
                                                      "width": cam.get_resolution()[0],
                                                      "height": cam.get_resolution()[1],
-                                                     "focal": (cam.get_resolution()[0] / 2) / np.tan(
+                                                     "focalx": (cam.get_resolution()[0] / 2) / np.tan(
                                                         np.radians(cam.get_perspective_angle() / 2.0)),
+                                                     "focaly": (cam.get_resolution()[1] / 2) / np.tan(
+                                                         np.radians(cam.get_perspective_angle() / 2)),
                                                      "rgb": np.array(0),
                                                      "depth": np.ndarray(0),
                                                      "is_ready": False,
@@ -302,8 +306,8 @@ class SpecificWorker(GenericWorker):
                                                          width=cam["width"],
                                                          height=cam["height"],
                                                          depth=3,
-                                                         focalx=cam["focal"],
-                                                         focaly=cam["focal"],
+                                                         focalx=cam["focalx"],
+                                                         focaly=cam["focaly"],
                                                          alivetime=time.time(),
                                                          image=image.tobytes(),
                                                          compressed=False)
@@ -324,8 +328,8 @@ class SpecificWorker(GenericWorker):
             cam["depth"] = RoboCompCameraRGBDSimple.TDepth( cameraID=cam["id"],
                                                             width=cam["height"],  # cambiados
                                                             height=cam["width"],
-                                                            focalx=cam["focal"],
-                                                            focaly=cam["focal"],
+                                                            focalx=cam["focaly"],
+                                                            focaly=cam["focalx"],
                                                             alivetime=time.time(),
                                                             depthFactor=1.0,
                                                             depth=depth.tobytes())
@@ -333,8 +337,8 @@ class SpecificWorker(GenericWorker):
                                                           width=cam["height"],          #cambiados
                                                           height=cam["width"],
                                                           depth=3,
-                                                          focalx=cam["focal"],
-                                                          focaly=cam["focal"],
+                                                          focalx=cam["focaly"],
+                                                          focaly=cam["focalx"],
                                                           alivetime=time.time(),
                                                           image=image.tobytes(),
                                                           compressed=False)
