@@ -78,7 +78,6 @@ private:
     Constants constants;
 
     //robot
-    //robot
     struct Pose2D
     {
         float ang;
@@ -104,10 +103,23 @@ private:
     void read_laser();
 
     // behaviors
-    bool explore();
-    bool explore2(float initial_value, std::vector<Eigen::Vector2f> &peaks);
-    bool change_room();
-    bool change_room2(const Eigen::Vector2f &mid_point);
+    enum class States {IDLE, INIT_EXPLORING, EXPLORING, AFTER_EXPLORING, INIT_CHANGING_ROOM, CHANGING_ROOM, AFTER_CHANGING_ROOM};
+    States state = States::INIT_EXPLORING;
+
+    States init_exploring();
+    States init_change_room();
+    States exploring();
+    States after_exploring();
+    std::vector<Eigen::Vector2f> peaks;
+    float initial_angle;
+    int current_tag;
+
+    States init_changing_room();
+    States changing_room();
+    States after_changing_room();
+    Eigen::Vector2f mid_point;
+    int new_door_id, new_room_id;
+
     std::vector<Eigen::Vector2f> detect_doors();
     bool estimate_rooms();
 
@@ -159,12 +171,13 @@ private:
     // stocastic room detetor
     Room_Detector_Grad_Stochastic room_detector;
 
-    bool explore_first_time = true;
-
-    // AprilTaga
+    // AprilTags
     RoboCompAprilTags::TagsList read_apriltags(const RoboCompCameraRGBDSimple::TImage &img);
     RoboCompAprilTags::TagsList tags;
     int current_detected_room;
+
+
+
 };
 
 #endif

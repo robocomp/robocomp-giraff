@@ -22,15 +22,14 @@ class Dynamic_Window
         Dynamic_Window();
         using Result = std::tuple<float, float, float, float, float>;
         Result compute(const Eigen::Vector2f &target_r,const QPolygonF &laser_poly,
-                       const Eigen::Vector3f &robot_pos,
-                       const Eigen::Vector3f &robot_vel,
+                       float current_adv,
+                       float current_rot,
                        QGraphicsScene *scene = nullptr);
 
     private:
         std::vector<Result> compute_predictions(float current_adv, float current_rot, const QPolygonF &laser_poly);
         bool point_reachable_by_robot(const Result &point, const QPolygonF &laser_poly);
-        std::optional<Result> compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &target,
-                                      const Eigen::Vector3f &robot, float previous_turn);
+        std::optional<Result> compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &target, float previous_turn);
         Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p, const Eigen::Vector3f &robot);
         Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p, const Eigen::Vector3f &robot);
         inline QPointF to_qpointf(const Eigen::Vector2f &p) const {return QPointF(p.x(), p.y());}
@@ -42,6 +41,8 @@ class Dynamic_Window
             const float robot_semi_width = 400;   // robot semi size
             const float step_along_arc = 200;      // advance step along arc
             const float time_ahead = 1.4;         // time ahead ahead
+            const float max_advance_velocity = 2000;
+            const float max_rotation_velociy = 2;
         };
         Constants constants;
 };

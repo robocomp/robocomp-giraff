@@ -17,24 +17,28 @@ Dynamic_Window::Dynamic_Window()
 
 Dynamic_Window::Result Dynamic_Window::compute(const Eigen::Vector2f &target_r,
                                                             const QPolygonF &laser_poly,
-                                                            const Eigen::Vector3f &robot_pos,
-                                                            const Eigen::Vector3f &robot_vel,
+                                                            float current_adv, float current_rot,
                                                             QGraphicsScene *scene)
 {
     static float previous_turn = 0;
-    float robot_angle = robot_pos[2];
+    //float robot_angle = robot_pos[2];
     // advance velocity should come from robot. It is computed here from world referenced velocities
-    float current_adv = -sin(robot_angle)*robot_vel[0] + cos(robot_angle)*robot_vel[1];
-    float current_rot = robot_vel[2];  // Rotation W
+    //float current_adv = -sin(robot_angle)*robot_vel[0] + cos(robot_angle)*robot_vel[1];
+    //float current_rot = robot_vel[2];  // Rotation W
+    if(fabs(current_adv) > constants.max_advance_velocity or fabs(current_rot)>constants.max_rotation_velociy)
+    {
+        qWarning() << __FILE__ << __FUNCTION__ << "Advance or rotation speed are too high. Assuming 0 for both.";
+        current_rot = 0.f; current_adv = 0.f;
+    }
 
     // compute future positions of the robot
     auto point_list = compute_predictions(current_adv, current_rot, laser_poly);
 
     // compute best value
-    auto best_choice = compute_optimus(point_list, target_r, robot_pos, previous_turn);
+    auto best_choice = compute_optimus(point_list, target_r, previous_turn);
 
-    if(scene != nullptr)
-        draw(robot_pos, point_list, best_choice, scene);
+    //if(scene != nullptr)
+    //    draw(robot_pos, point_list, best_choice, scene);
 
     if (best_choice.has_value())
     {
@@ -116,7 +120,7 @@ bool Dynamic_Window::point_reachable_by_robot(const Result &point, const QPolygo
 }
 
 std::optional<Dynamic_Window::Result> Dynamic_Window::compute_optimus(const std::vector<Result> &points, const Eigen::Vector2f &tr,
-                                                                      const Eigen::Vector3f &robot, float previous_turn)
+                                                                      float previous_turn)
 {
     const float A=1, B=5;  // CHANGE
     std::vector<std::tuple<float, Result>> values(points.size());

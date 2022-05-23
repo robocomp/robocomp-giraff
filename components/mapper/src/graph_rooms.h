@@ -159,7 +159,7 @@ public:
             QPolygonF pol;
             for(const auto &p: rect_points)
                 pol << QPointF(p.x, p.y);
-            poly_draw = scene->addPolygon(pol, QPen(QColor("Blue"), 90));
+            poly_draw = scene->addPolygon(pol, QPen(QColor("LightBlue"), 50));
             graph_pos = QPointF(r.center.x, r.center.y);
             poly_draw->setZValue(10);
         }
@@ -173,7 +173,7 @@ public:
         //                void add_step_to_center_y(double step) {room_rect.moveCenter(room_rect.center() + QPointF(0.f, step));};
     };
 
-    std::vector<Room> rooms;
+    std::map<int, Room> rooms;
     std::vector<Door> doors;
     int current_room_local = 0;
     bool is_current_room_unknown = true;
@@ -181,6 +181,13 @@ public:
 
     Room& current_room() { return rooms.at(current_room_local);};
     Room current_room() const { return rooms.at(current_room_local);};
+    void change_current_room_key_to(int key)
+    {
+        auto nodeHandler = rooms.extract(current_room_local);
+        nodeHandler.key() = key;
+        rooms.insert(std::move(nodeHandler));
+        current_room_local = key;
+    }
     void draw_nodes(QGraphicsScene *scene);
     void draw_doors(QGraphicsScene *scene);
     void draw_rooms(QGraphicsScene *scene);

@@ -7,7 +7,8 @@
 
 Graph_Rooms::Graph_Rooms()
 {
-    rooms.emplace_back(Room(0));
+    rooms.insert(std::make_pair(-1, Room(-1)));
+    current_room_local = -1;
 };
 
 void Graph_Rooms::draw_doors(QGraphicsScene *scene)
@@ -17,13 +18,13 @@ void Graph_Rooms::draw_doors(QGraphicsScene *scene)
         scene->removeItem(e);
     nodes.clear();
 
-    for (auto &r: rooms)
+    for (auto &[k, r] : rooms)
         for(auto &d : r.doors_ids)
             doors.at(d).draw(scene);
 }
 void Graph_Rooms::draw_rooms(QGraphicsScene *scene)
 {
-    for (auto &rr: rooms)
+    for (auto &[kk, rr]: rooms)
         rr.draw(scene);
 }
 void Graph_Rooms::draw_nodes(QGraphicsScene *scene)
@@ -36,10 +37,10 @@ void Graph_Rooms::draw_nodes(QGraphicsScene *scene)
         scene->removeItem(n);
     }
 
-    for(const auto &r : rooms)
+    for(const auto &[k, r] : rooms)
     {
         QGraphicsEllipseItem *node;
-        if(r.id != current_room().id)
+        if(k != current_room().id)
             node = scene->addEllipse(0, 0, 600, 600, QPen(QColor("lightBlue"), 50), QBrush(QColor("lightBlue")));
         else
             node = scene->addEllipse(0, 0, 600, 600, QPen(QColor("orange"), 50), QBrush(QColor("orange")));
@@ -70,7 +71,7 @@ void Graph_Rooms::draw_edges(QGraphicsScene *scene)
     }
     edges.clear();
 
-    for(const auto &r: rooms)
+    for(const auto &[k, r]: rooms)
         for(const auto &d_id : r.doors_ids)
         {
             const auto &d = doors.at(d_id);
@@ -227,6 +228,7 @@ float  Graph_Rooms::min_distance_from_point_to_closest_side(const Room &r, const
 //        distances.push_back(lines.back().distance(p));
 //    }
 //    return std::ranges::min(distances);
+
 }
 void Graph_Rooms::project_doors_on_room_side(Room &r,QGraphicsScene *scene)
 {
