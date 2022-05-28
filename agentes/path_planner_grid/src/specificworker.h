@@ -59,6 +59,8 @@ class SpecificWorker : public GenericWorker
         void new_target_from_mouse(int pos_x, int pos_y, std::uint64_t id);
 
 private:
+        std::unique_ptr<DSR::RT_API> rt;
+
         // DSR graph
         std::shared_ptr<DSR::DSRGraph> G;
         std::shared_ptr<DSR::InnerEigenAPI> inner_eigen;
@@ -83,11 +85,11 @@ private:
         {
             uint num_steps_mpc = 8;
             const float max_advance_speed = 1200;
-            float tile_size = 100;
+            float tile_size = 50;
             const float max_laser_range = 4000;
             float current_rot_speed = 0;
             float current_adv_speed = 0;
-            float robot_length = 500;
+            float robot_length = 600;
             const float robot_semi_length = robot_length/2.0;
             const float final_distance_to_target = 0; //mm
             const float min_dist_to_target = 100; //mm
@@ -139,6 +141,8 @@ private:
         Eigen::Matrix3f from_robot_to_grid_matrix();
         Pose2D robot_pose;
 
+        QRectF act_grid;
+
         //local widget
         Custom_widget custom_widget;
 
@@ -147,6 +151,7 @@ private:
 
         //Plan
         Plan current_plan;
+        int64_t plan_node_id;
         DoubleBuffer<Plan, Plan> plan_buffer;
         void json_to_plan(const std::string &plan_string, Plan &plan);
 
@@ -161,10 +166,13 @@ private:
         std::shared_ptr<Collisions> collisions;
 
         // grid
+        std::vector<Eigen::Vector2f> path;
         QRectF dimensions;
+        Grid last_grid;
         Grid grid;
         bool grid_updated = false;
         Pose2D grid_world_pose;
+        Pose2D last_grid_world_pose;
 
         float robotXWidth = 540;
         float robotZLong = 460;
@@ -173,7 +181,13 @@ private:
         void update_map(const RoboCompLaser::TLaserData &ldata);
         RoboCompLaser::TLaserData read_laser(bool noise);
         bool regenerate_grid_to_point(const Pose2D &robot_pose);
+        bool person_in_grid_checker();
         void inject_grid_in_G(const Grid &grid);
+        vector<std::pair <Grid::Key, Grid::T>> get_grid_already_occupied_cells();
+        void insert_last_occupied_cells(const vector<std::pair <Grid::Key, Grid::T>> &last_cells);
+//        bool check_if_world_key_is_in_grid(Grid::Key key, QGraphicsRectItem act_grid);
+        std::vector<Eigen::Vector2f> get_new_path(std::vector<Eigen::Vector2f> ref_path);
+        std::vector<Eigen::Vector2f> add_path_section_to_person(std::vector<Eigen::Vector2f> ref_path);
 };
 
 #endif

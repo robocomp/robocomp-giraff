@@ -21,6 +21,7 @@
 #include <cppitertools/range.hpp>
 #include <cppitertools/enumerate.hpp>
 #include <cppitertools/chunked.hpp>
+#include <cppitertools/filter.hpp>
 #include <algorithm>
 #include <ranges>
 
@@ -69,7 +70,7 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 void SpecificWorker::initialize(int period)
 {
 	std::cout << "Initialize worker" << std::endl;
-	this->Period = period;
+	this->Period = 300;
 	if(this->startup_check_flag)
 	{
 		this->startup_check();
@@ -77,6 +78,8 @@ void SpecificWorker::initialize(int period)
 	else
 	{
 		timer.start(Period);
+
+        rt = G->get_rt_api();
 		// create graph
 		G = std::make_shared<DSR::DSRGraph>(0, agent_name, agent_id, ""); // Init nodes
 		std::cout<< __FUNCTION__ << "Graph loaded" << std::endl;  
@@ -152,67 +155,15 @@ void SpecificWorker::compute()
     robot_pose.ang = robot_rotation_3d.z();
     robot_pose.pos=Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
     RoboCompLaser::TLaserData laser_data = read_laser(false);
-    std::cout << "1" << std::endl;
-
-    std::cout << "2" << std::endl;
-
-    if(current_plan.get_action() == QString::fromStdString("FOLLOW_PEOPLE"))
-    {
-        try
-        {
-            auto person_id = current_plan.get_attribute("person_node_id");
-            uint64_t value;
-            std::istringstream iss(person_id.toString().toUtf8().constData());
-            iss >> value;
-            if(auto followed_person_node = G->get_node(value); followed_person_node.has_value())
-            {
-                if(auto person_pose = inner_eigen->transform(world_name, followed_person_node.value().name()); person_pose.has_value())
-                {
-                    std::cout << "PERSON POSE: " << person_pose.value() << std::endl;
-                    x = person_pose.value().x();
-                    y = person_pose.value().y();
-                    QPointF target_point(x,y);
-                    target.set_pos(target_point);
-                }
-                else
-                {
-                    std::cout << "La persona ha desaparecido" << std::endl;
-                    return;
-                }
-            }
-            else
-            {
-                std::cout << "La persona ha desaparecido" << std::endl;
-                return;
-            }
-
-            // draw target
-            if(target_draw != nullptr) delete target_draw;
-            target_draw = widget_2d->scene.addEllipse(target.get_pos().x()-100, target.get_pos().y()-100, 200, 200, QPen(QColor("magenta")), QBrush(QColor("magenta")));
-            target_draw->setZValue(10);
-
-            auto person_center_dist = sqrt(pow(x - robot_pose.pos.x(), 2) + pow(y - robot_pose.pos.y(), 2));
-            if(person_center_dist > 1500) regenerate_grid_to_point(robot_pose);
-
-            std::cout << "DISTANCIA AL CENTRO: " << person_center_dist << std::endl;
-        }
-        catch(string e)
-        {
-            std::cout << "Problema siguiendo el plan." << std::endl;
-        }
-
-    }
 
     // Check for new published intention/plan
     if (auto plan_o = plan_buffer.try_get(); plan_o.has_value())
     {
-        std::cout << "5" << std::endl;
         current_plan = plan_o.value();
         qInfo() << __FUNCTION__ << "New plan arrived: ";
         current_plan.pprint();
         auto action_name = current_plan.get_action();
         auto follow_action_name = QString::fromStdString("FOLLOW_PEOPLE");
-        std::cout << "6" << std::endl;
         if(action_name == follow_action_name)
         {
             auto person_id = current_plan.get_attribute("person_node_id");
@@ -223,23 +174,18 @@ void SpecificWorker::compute()
             {
                 if(auto person_pose = inner_eigen->transform(world_name, followed_person_node.value().name()); person_pose.has_value())
                 {
-                    std::cout << "PERSON POSE: " << person_pose.value() << std::endl;
                     x = person_pose.value().x();
                     y = person_pose.value().y();
                 }
                 else
                 {
-                    std::cout << "La persona ha desaparecido" << std::endl;
                     return;
                 }
             }
             else
             {
-                std::cout << "La persona ha desaparecido" << std::endl;
                 return;
             }
-
-
         }
         else
         {
@@ -254,32 +200,78 @@ void SpecificWorker::compute()
         if(target_draw != nullptr) delete target_draw;
         target_draw = widget_2d->scene.addEllipse(target.get_pos().x()-100, target.get_pos().y()-100, 200, 200, QPen(QColor("magenta")), QBrush(QColor("magenta")));
         target_draw->setZValue(10);
-        std::cout << "7" << std::endl;
+
         regenerate_grid_to_point(robot_pose);
-        std::cout << "8" << std::endl;
         update_map(laser_data);
         run_current_plan();
-        std::cout << "9" << std::endl;
     }
     else if(target.active)
     {
-        std::cout << "10" << std::endl;
+        if(current_plan.get_action() == QString::fromStdString("FOLLOW_PEOPLE"))
+        {
+            try
+            {
+                auto person_id = current_plan.get_attribute("person_node_id");
+                uint64_t value;
+                std::istringstream iss(person_id.toString().toUtf8().constData());
+                iss >> value;
+//            std::cout << "PERSON ID: " << value << std::endl;
+                if(auto followed_person_node = G->get_node(value); followed_person_node.has_value())
+                {
+                    if (auto room_node = G->get_node("room_0"); room_node.has_value())
+                    {
+                        if (auto edge_room = rt->get_edge_RT(room_node.value(), followed_person_node.value().id()); edge_room.has_value())
+                        {
+                            if (auto person_node_pos = G->get_attrib_by_name<rt_translation_att>(
+                                        edge_room.value()); person_node_pos.has_value())
+                            {
+                                auto person_node_pos_value = person_node_pos.value().get();
+                                x = person_node_pos_value[0];
+                                y = person_node_pos_value[1];
+                                QPointF target_point(x,y);
+                                target.set_pos(target_point);
+                            }
+                        }
+                    }
+                    //TODO: TRANSFORM USE TO FAIL GIVING NaN NUMBERS
+//                if(auto person_pose = inner_eigen->transform(world_name, followed_person_node.value().name()); person_pose.has_value())
+//                {
+//                    std::cout << "PERSON POSE: " << person_pose.value() << std::endl;
+//                    x = person_pose.value().x();
+//                    y = person_pose.value().y();
+//                    QPointF target_point(x,y);
+//                    target.set_pos(target_point);
+//                }
+//                else
+//                {
+//                    std::cout << "La persona ha desaparecido 1" << std::endl;
+//                }
+                }
+                else
+                {
+                    std::cout << "La persona ha desaparecido 2" << std::endl;
+                }
+
+                // draw target
+                if(target_draw != nullptr) delete target_draw;
+                target_draw = widget_2d->scene.addEllipse(target.get_pos().x()-100, target.get_pos().y()-100, 200, 200, QPen(QColor("magenta")), QBrush(QColor("magenta")));
+                target_draw->setZValue(10);
+
+                auto is_person_in_polygon = person_in_grid_checker();
+                if(not is_person_in_polygon)
+                    regenerate_grid_to_point(robot_pose);
+            }
+            catch(string e)
+            {
+                std::cout << "Problema siguiendo el plan." << std::endl;
+            }
+
+        }
         update_map(laser_data);
         run_current_plan();
-        std::cout << "11" << std::endl;
     }
     else //do whatever you do without a plan
     {}
-
-//    update_map(const RoboCompLaser::TLaserData &ldata)
-
-//    QRectF dim(-5000, -2500, 10000, 5000);
-//    grid.initialize(dim, constants.tile_size, &widget_2d->scene, false, std::string(),
-//                    grid_world_pose.toQpointF(), grid_world_pose.ang);
-
-//    if (widget_2d != nullptr)
-//        grid.draw(&widget_2d->scene);
-//    update_grid();
 }
 
 void SpecificWorker::path_planner_initialize(DSR::QScene2dViewer* widget_2d)
@@ -374,6 +366,60 @@ void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
     grid.update_costs();
 }
 
+vector<std::pair <Grid::Key, Grid::T>> SpecificWorker::get_grid_already_occupied_cells()
+{
+    vector<std::pair <Grid::Key, Grid::T>> occupied_cells_vector;
+    // Get occupìed cells in the past grid
+    for(auto &[key, val] : iter::filter( [](auto v){return not v.second.free;}, grid))
+    {
+        Grid::Key aux_key;
+        Eigen::Vector2f occupied_pos(key.x, key.z);
+        // Convert each cell to world, and from world to new grid
+        occupied_pos = from_grid_to_world(occupied_pos);
+        aux_key.x = occupied_pos.x(); aux_key.z = occupied_pos.y();
+        auto occupied_cell = std::make_pair(aux_key, val);
+        occupied_cells_vector.push_back(occupied_cell);
+    }
+    qInfo() << __FUNCTION__ << occupied_cells_vector.size();
+    return occupied_cells_vector;
+}
+
+void SpecificWorker::insert_last_occupied_cells(const vector<std::pair <Grid::Key, Grid::T>> &last_cells)
+{
+    Eigen::Vector2f t_r = from_world_to_robot(target.to_eigen());
+    float dist_to_robot = t_r.norm();
+    QGraphicsRectItem act_grid_dim(-2000, -500, 4000, (int)dist_to_robot + 2000);
+    act_grid_dim.setPos(grid_world_pose.toQpointF());
+    act_grid_dim.setRotation(grid_world_pose.ang *  180/ M_PI);
+    int counter = 0;
+    for(const auto &cell : last_cells)
+    {
+        Eigen::Vector2f cell_point(cell.first.x, cell.first.z);
+        cell_point = from_world_to_grid(cell_point);
+        QPointF cell_point_converted (cell_point.x(), cell_point.y());
+        if(act_grid_dim.contains(cell_point_converted))
+        {
+            counter++;
+            bool found = false;
+            for(auto grid_cell : grid)
+            {
+                if(grid_cell.first.x == cell_point.x() && grid_cell.first.z == cell_point.y())
+                {
+                    grid_cell.second.free = cell.second.free;
+                    grid_cell.second.visited = cell.second.visited;
+                    grid_cell.second.cost = cell.second.cost;
+                    grid_cell.second.hits = cell.second.hits;
+                    grid_cell.second.misses = cell.second.misses;
+                    grid_cell.second.log_odds = cell.second.log_odds;
+                    found = true;
+                    break;
+                }
+            }
+        }
+    }
+    std::cout << "COUNTER: " << counter << std::endl;
+}
+
 bool SpecificWorker::regenerate_grid_to_point(const Pose2D &robot_pose)
 {
     static std::random_device rd;
@@ -390,15 +436,28 @@ bool SpecificWorker::regenerate_grid_to_point(const Pose2D &robot_pose)
 
         // create local grid for mission
         // if new target has changed enough, replace local grid
-        QPointF t_in_grid = e2q(from_world_to_grid(target.to_eigen()));
-            Eigen::Vector2f t_r = from_world_to_robot(target.to_eigen());
-            float dist_to_robot = t_r.norm();
-            //    qInfo() << __FUNCTION__ << dist_to_robot_1 << dist_to_robot << dist_to_robot_2;
-            QRectF dim(-2000, -500, 4000, dist_to_robot + 2000);
-            grid_world_pose = {.ang=-atan2(t_r.x(), t_r.y()) + robot_pose.ang, .pos=robot_pose.pos};
-            grid.initialize(dim, constants.tile_size, &widget_2d->scene, false, std::string(),
-                            grid_world_pose.toQpointF(), grid_world_pose.ang);
-            inject_grid_in_G(grid);
+        // if new target has changed enough, replace local grid
+//        QPointF t_in_grid = e2q(from_world_to_grid(target.to_eigen()));
+        Eigen::Vector2f t_r = from_world_to_robot(target.to_eigen());
+        float dist_to_robot = t_r.norm();
+        qInfo() << __FUNCTION__ << (int)dist_to_robot;
+
+
+
+        QRectF dim(-2000, -500, 4000, (int)dist_to_robot + 2000);
+        act_grid = dim;
+        grid_world_pose = {.ang=-atan2(t_r.x(), t_r.y()) + robot_pose.ang, .pos=robot_pose.pos};
+         (&widget_2d->scene);
+
+//        auto accopied_cells = get_grid_already_occupied_cells();
+
+        grid.initialize(dim, constants.tile_size, &widget_2d->scene, false, std::string(),
+                        grid_world_pose.toQpointF(), grid_world_pose.ang);
+
+//        insert_last_occupied_cells(accopied_cells);
+//            inject_grid_in_G(grid);
+
+
     }
     catch(const Ice::Exception &e)
     {
@@ -407,6 +466,42 @@ bool SpecificWorker::regenerate_grid_to_point(const Pose2D &robot_pose)
         return false;
     }
     return true;
+}
+// Adds a path that consists in the last path position to the actual person or element to follow position
+std::vector<Eigen::Vector2f> SpecificWorker::add_path_section_to_person(std::vector<Eigen::Vector2f> ref_path)
+{
+    qInfo() << __FUNCTION__ << ref_path.size();
+    std::cout << ref_path.back() << std::endl;
+    auto new_path = grid.compute_path(e2q(ref_path.back()), e2q(from_world_to_grid(target.to_eigen())), 300);
+    qInfo() << "EXIT";
+    ref_path.insert(ref_path.end(), new_path.begin(), new_path.end());
+    qInfo() << "EXIT";
+    return ref_path;
+}
+
+// Check if any obstacle exists near or in the actual path
+std::vector<Eigen::Vector2f> SpecificWorker::get_new_path(std::vector<Eigen::Vector2f> ref_path)
+{
+    qInfo() << "ENTER";
+    if(!ref_path.empty())
+    {
+        qInfo() << "CHECK OBSTACLE";
+        for(const auto &path_point : ref_path)
+        {
+            Grid::Key path_point_to_key(path_point.x(), path_point.y());
+            auto neighboors_from_point = grid.neighboors_8(path_point_to_key);
+            for(auto &[key, val] : iter::filter( [](auto v){return not v.second.free;}, neighboors_from_point))
+            {
+                qInfo() << "OBSTACLE";
+                return grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())), 300);
+            }
+        }
+        qInfo() << "ADDED SECTION";
+        return add_path_section_to_person(ref_path);
+
+    }
+    else
+        return grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())), 300);
 }
 
 void SpecificWorker::run_current_plan()
@@ -419,22 +514,24 @@ void SpecificWorker::run_current_plan()
 //        std::cout <<  "POINT: x: " << valid_target->x() << " y: " << valid_target->y() << std::endl;
 
 //        auto path = grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())));
-        auto path = grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())));
-        qInfo() << __FUNCTION__ << " Path computed of size: " << path.size();
+        std::vector<Eigen::Vector2f> aux_path = path;
+        auto act_path = get_new_path(aux_path);
+    qInfo() << "EXIT";
+        path = act_path;
 
         // add path to G
-        if (not path.empty())
+        if (not act_path.empty())
         {
             std::vector<float> x_values, y_values;
-            x_values.reserve(path.size());
-            y_values.reserve(path.size());
-            for (auto &&p : path)
+            x_values.reserve(act_path.size());
+            y_values.reserve(act_path.size());
+            for (auto &&p : act_path)
             {
                 x_values.push_back(from_grid_to_world(p).x());
                 y_values.push_back(from_grid_to_world(p).y());
             }
             if (widget_2d != nullptr)
-                draw_path(path);
+                draw_path(act_path);
 
             if (auto path = G->get_node(current_path_name); path.has_value())
             {
@@ -466,6 +563,9 @@ void SpecificWorker::run_current_plan()
             }
         }
         else qWarning() << __FUNCTION__ << "Empty path. No path found for target despite all efforts";
+
+
+
 //    }
 //    else qWarning() << __FUNCTION__ << "No free point found close to target";
 }
@@ -520,9 +620,23 @@ Eigen::Matrix3f SpecificWorker::from_robot_to_grid_matrix()
     Eigen::Matrix3f r2g = w2g * r2w;  // from r to world and then from world to grid
     return r2g;
 }
+
 Eigen::Matrix3f SpecificWorker::from_grid_to_robot_matrix()
 {
     return from_robot_to_grid_matrix().inverse();
+}
+
+// Check if person is in the local grid
+bool SpecificWorker::person_in_grid_checker()
+{
+    Eigen::Vector2f t_r = from_world_to_robot(target.to_eigen());
+    float dist_to_robot = t_r.norm();
+    QGraphicsRectItem dim(-2000, -500, 4000, (int)dist_to_robot + 2000);
+    dim.setPos(grid_world_pose.toQpointF());
+    dim.setRotation(grid_world_pose.ang *  180/ M_PI);
+    auto converted_person_point = from_world_to_grid(target.to_eigen());
+    QPointF modified_target_point(converted_person_point.x(),converted_person_point.y());
+    return dim.contains(modified_target_point) | dim.contains(robot_pose.toQpointF());
 }
 
 void SpecificWorker::update_grid()
@@ -660,6 +774,7 @@ void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string 
     {
         std::cout << "TIPO: " << type << std::endl;
         std::cout << "NEW PLAN" << std::endl;
+        plan_node_id = id;
         if (auto intention = G->get_node(id); intention.has_value())
         {
             std::optional<std::string> plan = G->get_attrib_by_name<current_intention_att>(intention.value());
@@ -681,8 +796,11 @@ void SpecificWorker::modify_node_slot(const std::uint64_t id, const std::string 
 
 void SpecificWorker::del_node_slot(std::uint64_t from)
 {
-    qInfo() << __FUNCTION__ << "Node " << from << " deleted";
-    qInfo() << __FUNCTION__ << " Waiting for a new goal";
+    if(from == plan_node_id)
+    {
+        current_plan = {};
+        target.active = false;
+    }
 }
 
 ///////////////////////////////////////////////////
