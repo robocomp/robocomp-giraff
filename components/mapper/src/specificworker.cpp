@@ -99,6 +99,7 @@ void SpecificWorker::compute()
             break;
         case States::AFTER_EXPLORING:
             state = after_exploring();
+            G.draw_nodes(&viewer_graph->scene);
             break;
         case States::INIT_CHANGING_ROOM:
             state = init_changing_room();
@@ -134,7 +135,7 @@ SpecificWorker::States SpecificWorker::exploring()
     if(not (fabs(current - initial_angle) < (M_PI + 0.1) and fabs(current - initial_angle) > (M_PI - 0.1)))
     {
         for(const auto &t : this->tags)
-            tags_set.push_back(std::make_tuple(t.tz, t.id));
+            tags_set.push_back(std::make_tuple(sqrt(t.tx*t.tx+t.ty*t.ty+t.tz*t.tz), t.id));
 
         update_map(ldata);
         auto new_peaks = detect_doors();
@@ -158,15 +159,25 @@ SpecificWorker::States SpecificWorker::after_exploring()
 {
     // do after end exploring once
     qInfo() << __FUNCTION__ << "After exploring";
+
+    // Check if in a known room
+    if(G.rooms.contains(current_tag))
+    {
+        G.current_room().is_unknown = false;
+        G.current_room_local = current_tag;
+        return States::INIT_CHANGING_ROOM;
+    }
+
     // pairwise comparison of peaks to filter in doors. Peaks are in grid RF
     for (auto &&c: iter::combinations_with_replacement(peaks, 2))
         if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 550)
-            G.add_door_to_current_room(c[0], c[1]);
+            G.add_door_to_current_room(c[0], c[1]);   // pasarlas a coordenadas del rectángulo
 
     move_robot(0, 0);
     estimate_rooms();
 
     qInfo() << __FUNCTION__ << "Changing key";
+
     // current_room is -1 for unknown rooms
     G.change_current_room_key_to(current_tag);
     G.current_room().is_unknown = false;

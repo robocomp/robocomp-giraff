@@ -58,6 +58,7 @@ void Graph_Rooms::draw_nodes(QGraphicsScene *scene)
         node->setZValue(120);
         nodes.push_back(node);
     }
+    draw_edges(scene);
 }
 void Graph_Rooms::draw_edges(QGraphicsScene *scene)
 {
