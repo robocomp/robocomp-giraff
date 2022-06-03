@@ -193,57 +193,46 @@ void SpecificWorker::compute()
     // if there is a path in G
     if(auto node_path = G->get_node(current_path_name); node_path.has_value())
     {
-            robot_pose = read_robot();
-        std::cout << "0" << std::endl;
+        robot_pose = read_robot();
             if(auto laserdata = read_laser(false); laserdata.has_value())
             {
-                std::cout << "0a" << std::endl;
                 auto ldata_value = laserdata.value();
-                std::cout << "1" << std::endl;
-                if((path.size() < 2) || from_robot_current_target.norm() < consts.final_distance_to_target)
+
+                std::vector<Eigen::Vector2d> path_robot_meters;
+                for (auto &&p: path)
                 {
-                    std::cout << "2" << std::endl;
+                    auto aux_p = from_world_to_robot(p);
+                    Eigen::Vector2d converted_point{aux_p.x(), aux_p.y()};
+                    if(aux_p.y() > 0)
+                        path_robot_meters.push_back(converted_point / 1000.0);  // meters
+                }
+
+                if((path_robot_meters.size() < 2) || from_robot_current_target.norm() < consts.final_distance_to_target)
+                {
                     move_robot(0,0);
                     qInfo() << __FUNCTION__ << "At target" << from_robot_current_target.norm();
                     return;
                 }
-                std::cout << "3" << std::endl;
-                if(path.size() < consts.num_steps_mpc)
+                if(path_robot_meters.size() < consts.num_steps_mpc)
                 {
-                    std::cout << "4" << std::endl;
                     std::cout << "PASOS MPC MENOR QUE TAMAÑO PATH" << std::endl;
                     float adv = std::clamp(from_robot_current_target.norm(), 0.f, 500.f);
                     float rot = atan2(from_robot_current_target.x(), from_robot_current_target.y());
                     move_robot(adv, rot);
-                    std::cout << "5" << std::endl;
                 }
                 else
                 {
-                    std::cout << "6" << std::endl;
-                    std::vector<Eigen::Vector2d> path_robot_meters(path.size());
-                    for (auto &&[i, p]: path | iter::enumerate)
-                    {
-//                p = (g2r * Eigen::Vector3f(p.x(), p.y(), 1.f)).head(2);
-                        p = (Eigen::Vector3f(p.x(), p.y(), 1.f)).head(2);
-                        auto aux_p = from_world_to_robot(p);
-                        path_robot_meters[i] = Eigen::Vector3d(aux_p.x(), aux_p.y(), 1.f).head(2) / 1000.0;  // meters
-                    }
                     std::cout << "MPC TARGET" << std::endl;
                     goto_target_mpc(path_robot_meters, ldata_value);
-                    std::cout << "7" << std::endl;
                 }
-                std::cout << "8" << std::endl;
-                if(not is_cyclic.load())
-                    std::cout << "1" << std::endl;
-                    remove_trailing_path(path, robot_pose.pos);
+//                if(not is_cyclic.load())
+//                    remove_trailing_path(path, robot_pose.pos);
                 if(not robot_is_active)  // robot reached the target
                 {
-                    std::cout << "9" << std::endl;
                     if(not is_cyclic.load())
-                        std::cout << "10" << std::endl;
-                        if(auto path_d = G->get_node(current_path_name); path_d.has_value())
-                            G->delete_node(path_d.value().id());
-                        else
+//                        if(auto path_d = G->get_node(current_path_name); path_d.has_value())
+//                            G->delete_node(path_d.value().id());
+//                        else
                         {
                             path = saved_path;
                             robot_is_active = true;
@@ -424,7 +413,8 @@ void SpecificWorker::goto_target_mpc(const std::vector<Eigen::Vector2d> &path_ro
         try
         {
             // move the robot
-            move_robot(advance * gaussian(rotation), rotation);
+//            move_robot(advance * gaussian(rotation), rotation);
+            move_robot(advance, rotation);
             qInfo() << __FUNCTION__ << "Adv: " << advance << "Rot:" << rotation;
 
             // draw
@@ -471,27 +461,27 @@ void SpecificWorker::draw_solution_path(const std::vector<double> &path, const m
         path_paint.back()->setZValue(30);
     }
     uint i=0;
-    auto balls_temp = balls;
-    balls_temp.erase(balls_temp.begin());
-    for(auto &[center, r, grad] : balls_temp)
-    {
-        auto bc = from_robot_to_world(center.cast<float>()*1000);
-        auto nr = r*1000;
-        ball_paint.push_back(widget_2d->scene.addEllipse(bc.x()-nr, bc.y()-nr, nr*2 , nr*2, QPen(QBrush("DarkBlue"),15), QBrush(QColor(ball_color))));
-        ball_paint.back()->setZValue(15);
-        ball_paint.back()->setOpacity(0.2);
-
-        // grads
-        if(i < path_centers.size())
-        {
-            ball_grads.push_back(widget_2d->scene.addLine(path_centers[i].x(), path_centers[i].y(), bc.x(), bc.y(), QPen(QBrush("Magenta"), 20)));
-            i++;
-        }
-
-        // centers
-        //ball_centers.push_back(viewer_robot->scene.addEllipse(bc.x()-20, bc.y()-20, 40, 40, QPen(QColor("Magenta")), QBrush(QColor("Magenta"))));
-        //ball_centers.back()->setZValue(30);
-    }
+//    auto balls_temp = balls;
+//    balls_temp.erase(balls_temp.begin());
+//    for(auto &[center, r, grad] : balls_temp)
+//    {
+//        auto bc = from_robot_to_world(center.cast<float>()*1000);
+//        auto nr = r*1000;
+//        ball_paint.push_back(widget_2d->scene.addEllipse(bc.x()-nr, bc.y()-nr, nr*2 , nr*2, QPen(QBrush("DarkBlue"),15), QBrush(QColor(ball_color))));
+//        ball_paint.back()->setZValue(15);
+//        ball_paint.back()->setOpacity(0.2);
+//
+//        // grads
+//        if(i < path_centers.size())
+//        {
+//            ball_grads.push_back(widget_2d->scene.addLine(path_centers[i].x(), path_centers[i].y(), bc.x(), bc.y(), QPen(QBrush("Magenta"), 20)));
+//            i++;
+//        }
+//
+//        // centers
+//        //ball_centers.push_back(viewer_robot->scene.addEllipse(bc.x()-20, bc.y()-20, 40, 40, QPen(QColor("Magenta")), QBrush(QColor("Magenta"))));
+//        //ball_centers.back()->setZValue(30);
+//    }
 
 }
 
@@ -666,10 +656,10 @@ void SpecificWorker::move_robot(float adv, float rot, float side)
     {
         if(auto robot_node = G->get_node("robot"); robot_node.has_value())
         {
-            G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), adv);
+            G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) adv);
             if(rot > 1.57) rot = 1.57;
 //            rot = rot * 0.7;
-            G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), rot);
+            G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) rot);
             G->update_node(robot_node.value());
         }
     }
