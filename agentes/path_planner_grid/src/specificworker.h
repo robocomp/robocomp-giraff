@@ -36,6 +36,8 @@
 #include <custom_widget.h>
 #include <grid2d/grid.h>
 #include <collisions.h>
+#include <Eigen/Core>
+#include <unsupported/Eigen/Splines>
 
 class SpecificWorker : public GenericWorker
 {
@@ -51,7 +53,7 @@ class SpecificWorker : public GenericWorker
         int startup_check();
         void initialize(int period);
         void modify_node_slot(std::uint64_t, const std::string &type);
-        void modify_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type){};
+        void modify_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type);
         void modify_node_attrs_slot(std::uint64_t id, const std::vector<std::string>& att_names){};
         void modify_edge_attrs_slot(std::uint64_t from, std::uint64_t to, const std::string &type, const std::vector<std::string>& att_names){};
         void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag){};
@@ -114,24 +116,71 @@ private:
             Eigen::Vector2f to_eigen() const {return Eigen::Vector2f(pos.x(), pos.y());}
             Eigen::Vector3f to_eigen_3() const {return Eigen::Vector3f(pos.x()/1000.f, pos.y()/1000.f, 1.f);}
             float dist_to_target_ant() const {return (to_eigen() - Eigen::Vector2f(pos_ant.x(), pos_ant.y())).norm();};
-
         private:
             QPointF pos, pos_ant = QPoint(0.f,0.f);
 
         };
         Target target;
+        Target last_target;
         template <typename Func, typename Obj>
         auto quick_bind(Func f, Obj* obj)
         { return [=](auto&&... args) { return (obj->*f)(std::forward<decltype(args)>(args)...); };}
 
-        //robot
-        struct Pose2D
+        // Pose2D
+        struct Pose2D  // pose X,Y + ang
         {
-            float ang;
-            Eigen::Vector2f pos;
-            QPointF toQpointF() const { return QPointF(pos.x(), pos.y());};
-            Eigen::Vector3d to_vec3_meters() const { return Eigen::Vector3d(pos.x()/1000.0, pos.y()/1000.0, ang);};
+            public:
+                void set_active(bool v) { active.store(v); };
+                bool is_active() const { return active.load();};
+                QGraphicsEllipseItem *draw = nullptr;
+                void set_pos(const Eigen::Vector2f &p)
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    pos_ant = pos;
+                    pos = p;
+                };
+                void set_angle(float a)
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    ang_ant = ang;
+                    ang = a;
+                };
+                Eigen::Vector2f get_pos() const
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    return pos;
+                };
+                float get_ang() const
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    return ang;
+                };
+                Eigen::Vector3f to_eigen_3() const
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    return Eigen::Vector3f(pos.x() / 1000.f, pos.y() / 1000.f, 1.f);
+                }
+                QPointF to_qpoint() const
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    return QPointF(pos.x(), pos.y());
+                };
+            private:
+                Eigen::Vector2f pos, pos_ant{0.f, 0.f};
+                float ang, ang_ant = 0.f;
+                std::atomic_bool active = ATOMIC_VAR_INIT(false);
+                mutable std::mutex mut;
         };
+
+        //robot
+//        struct Pose2D
+//        {
+//            float ang;
+//            Eigen::Vector2f pos;
+//            QPointF toQpointF() const { return QPointF(pos.x(), pos.y());};
+//            Eigen::Vector3d to_vec3_meters() const { return Eigen::Vector3d(pos.x()/1000.0, pos.y()/1000.0, ang);};
+//
+//        };
         inline QPointF e2q(const Eigen::Vector2f &p) const {return QPointF(p.x(), p.y());};
         Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p);
         Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
@@ -140,6 +189,7 @@ private:
         Eigen::Matrix3f from_grid_to_robot_matrix();
         Eigen::Matrix3f from_robot_to_grid_matrix();
         Pose2D robot_pose;
+        float act_grid_dist_to_robot = 0.f;
 
         QRectF act_grid;
 
@@ -151,7 +201,9 @@ private:
 
         //Plan
         Plan current_plan;
-        int64_t plan_node_id;
+
+        std::uint64_t plan_node_id;
+
         DoubleBuffer<Plan, Plan> plan_buffer;
         void json_to_plan(const std::string &plan_string, Plan &plan);
 
@@ -160,13 +212,15 @@ private:
         std::tuple<SearchState, Mat::Vector2d> search_a_feasible_target(const DSR::Node &target, const std::map<std::string, double> &params, const DSR::Node &robot);
         void path_planner_initialize(  DSR::QScene2dViewer *viewer_2d);
         std::optional<QPointF> search_a_feasible_target(Plan &current_plan);
-        void run_current_plan();
+        void run_current_plan(const QPolygonF &laser_poly);
         void update_grid();
 
         std::shared_ptr<Collisions> collisions;
 
         // grid
         std::vector<Eigen::Vector2f> path;
+        std::vector<Eigen::Vector2f> world_path;
+        std::vector<Eigen::Vector2f> person_path;
         QRectF dimensions;
         Grid last_grid;
         Grid grid;
@@ -174,20 +228,26 @@ private:
         Pose2D grid_world_pose;
         Pose2D last_grid_world_pose;
 
+
         float robotXWidth = 540;
         float robotZLong = 460;
         Mat::Vector3d robotBottomLeft, robotBottomRight, robotTopRight, robotTopLeft;
         void draw_path(const std::vector<Eigen::Vector2f> &path_in_robot);
+        void draw_spline_path(const std::vector<Eigen::Vector2f> &path_in_robot);
         void update_map(const RoboCompLaser::TLaserData &ldata);
-        RoboCompLaser::TLaserData read_laser(bool noise);
+        std::tuple<QPolygonF,RoboCompLaser::TLaserData> read_laser(bool noise);
         bool regenerate_grid_to_point(const Pose2D &robot_pose);
         bool person_in_grid_checker();
         void inject_grid_in_G(const Grid &grid);
         vector<std::pair <Grid::Key, Grid::T>> get_grid_already_occupied_cells();
         void insert_last_occupied_cells(const vector<std::pair <Grid::Key, Grid::T>> &last_cells);
 //        bool check_if_world_key_is_in_grid(Grid::Key key, QGraphicsRectItem act_grid);
-        std::vector<Eigen::Vector2f> get_new_path(std::vector<Eigen::Vector2f> ref_path);
+//        std::vector<Eigen::Vector2f> get_new_path(std::vector<Eigen::Vector2f> ref_path, QPolygonF laser_poly);
         std::vector<Eigen::Vector2f> add_path_section_to_person(std::vector<Eigen::Vector2f> ref_path);
+        bool check_path(std::vector<Eigen::Vector2f> ref_path, QPolygonF laser_poly);
+        void path_smoother(std::vector<Eigen::Vector2f> ref_path);
+        Eigen::Vector2f target_before_objetive(Eigen::Vector2f robot_pose, Eigen::Vector2f target_pose);
+
 };
 
 #endif
