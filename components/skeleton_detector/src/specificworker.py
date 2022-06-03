@@ -176,11 +176,13 @@ class SpecificWorker(GenericWorker):
             available_joints_counter = 0
             new_person = ifaces.RoboCompHumanCameraBody.Person()
             new_person.id = i
+            left_shoulder = []
+            right_shoulder = []
+            right_hip = []
+            left_hip = []
             TJoints = {}
             bounding_list = []
-            # print("NEW PERSON ", i)
             keypoints = self.get_keypoint(objects, i, peaks)
-
             for kpoint in range(len(keypoints)):
                 key_point = ifaces.RoboCompHumanCameraBody.KeyPoint()
                 if keypoints[kpoint][1] != None and keypoints[kpoint][2] != None:
@@ -190,20 +192,41 @@ class SpecificWorker(GenericWorker):
                     key_point.y = float(depth_image[key_point.j, key_point.i])
                     key_point.z = -(key_point.y / depth.focalx) * (key_point.j - center_y)
                     key_point.x = (key_point.y / depth.focaly) * (key_point.i - center_x)
-                    print(keypoints_names[kpoint])
-                    print(key_point.i, key_point.j)
-                    print(key_point.x, key_point.y, key_point.z)
+                    if keypoints_names[kpoint] == "left_shoulder":
+                        left_shoulder.append(key_point.i)
+                        left_shoulder.append(key_point.j)
+                    if keypoints_names[kpoint] == "right_shoulder":
+                        right_shoulder.append(key_point.i)
+                        right_shoulder.append(key_point.j)
+                    if keypoints_names[kpoint] == "left_hip":
+                        left_hip.append(key_point.i)
+                        left_hip.append(key_point.j)
+                    if keypoints_names[kpoint] == "right_hip":
+                        right_hip.append(key_point.i)
+                        right_hip.append(key_point.j)
+
+                    # print(key_point.i, key_point.j)
+                    # print(key_point.x, key_point.y, key_point.z)
                     TJoints[str(kpoint)] = key_point
                     bounding_list.append([key_point.i, key_point.j])
                     if self.display:
                         cv2.circle(self.skeleton_img, (key_point.i, key_point.j), 1, [0, 255, 0], 2)
+
+            if available_joints_counter < 3:
+                continue
+            # print("NEW PERSON ", i)
             # print("JOINT COUNTER", available_joints_counter)
-            # if available_joints_counter
             # compute ROI
             if len(bounding_list) > 0:
+                # if len(left_shoulder) == 2 and len(right_hip) == 2:
+                #     print(int(right_hip[0]), int(left_shoulder[0]), int(left_shoulder[1]), int(right_hip[1]))
+                #     cv2.imshow(i, image[int(left_shoulder[1]):int(right_hip[1]), int(left_shoulder[0]):int(right_hip[0])])
+                # elif len(right_shoulder) == 2 and len(left_hip) == 2:
+                #     print(left_hip[0], right_shoulder[0], right_shoulder[1], left_hip[1])
+                #     cv2.imshow(i, image[left_hip[0]:right_shoulder[0], right_shoulder[1]:left_hip[1]])
                 bx, by, bw, bh = cv2.boundingRect(np.array(bounding_list))
                 new_person.roi = ifaces.RoboCompHumanCameraBody.TImage()
-                temp_img = image[by:by+bh, bx:bx+bw]
+                temp_img = cv2.resize(image[by:by+bh, bx:bx+bw], dsize=(int(150), int(300)), interpolation=cv2.INTER_AREA)
                 new_person.roi.width = temp_img.shape[0]
                 new_person.roi.height = temp_img.shape[1]
                 new_person.roi.image = temp_img.tobytes()
