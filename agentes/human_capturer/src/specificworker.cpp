@@ -156,10 +156,9 @@ void SpecificWorker::compute()
     if(auto servo_position_aux = get_servo_pos_from_graph(); servo_position_aux.has_value())
     {
         servo_position = servo_position_aux.value();
-        qInfo() << __FUNCTION__ << " Servo position" << servo_position;
     }
     else return;
-
+    std::cout << "" << std::endl;
     // Read skeletons through proxy
     RoboCompHumanCameraBody::PeopleData people_data;
     try
@@ -217,6 +216,7 @@ std::vector<SpecificWorker::PersonData> SpecificWorker::build_local_people_data(
         }
         else continue;
     }
+    qInfo() << new_people_vector.size();
     return new_people_vector;
 }
 void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
@@ -229,6 +229,10 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
     if (auto robot_node_o = G->get_node(robot_name); not robot_node_o.has_value())
     { qWarning() << "No robot node found. Returning"; return;}
     else robot_node = robot_node_o.value();
+    DSR::Node intention_node;
+    if (auto intention_node_o = G->get_node(current_intention_name); not intention_node_o.has_value())
+    { qWarning() << "No intetntion node for now";}
+    else intention_node = intention_node_o.value();
 
     // If there's some people in image, proceed to try to match, add or remove
     if(not people_list.empty())
@@ -241,6 +245,7 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
             if(auto to_hungarian_matrix_ = get_dist_corr_matrix(people_list, node_data_as_leader.value()); to_hungarian_matrix_.has_value())
             {
                 auto to_hungarian_matrix = to_hungarian_matrix_.value();
+                qInfo() << to_hungarian_matrix;
                 std::vector<int> matched_nodes, assignment;
                 std::set<int> matched_people;
                 double cost = HungAlgo.Solve(to_hungarian_matrix, assignment);
@@ -251,8 +256,8 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
                     for (unsigned int j = 0; j < people_list.size(); j++)
                         if ((int)j == assignment[i])
                         {
-                            cv::Mat ROI = cv::Mat(people_list[j].image.width, people_list[j].image.height, CV_8UC3, (uchar *)&people_list[j].image.image[0]);
-                            cv::imshow(people_in_graph[i].name(), ROI);
+//                            cv::Mat ROI = cv::Mat(people_list[j].image.width, people_list[j].image.height, CV_8UC3, (uchar *)&people_list[j].image.image[0]);
+//                            cv::imshow(people_in_graph[i].name(), ROI);
                             update_person(people_in_graph[i], people_list[j]);
                             matched_nodes.push_back(i);
                             matched_people.insert(j);
@@ -283,17 +288,17 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
                     if (std::ranges::find(matched_nodes, i) == matched_nodes.end())
                     {
                         // If somebody is being followed but is lost, insert "lost" edge to avoid make it dissappear from graph
-                        if (auto robot_person_edge = G->get_edge(robot_node.id(), person.id(), following_action_type_name);
-                                robot_person_edge.has_value() and
+                        if (auto intention_node_person_edge = G->get_edge(intention_node.id(), person.id(), following_action_type_name);
+                                intention_node_person_edge.has_value() and
                                 G->get_attrib_by_name<lambda_cont_att>(person).value() < -23)
                         {
-                            DSR::Edge lost_edge = DSR::Edge::create<lost_edge_type>(robot_node.id(), person.id());
+                            DSR::Edge lost_edge = DSR::Edge::create<lost_edge_type>(intention_node.id(), person.id());
                             if (G->insert_or_assign_edge(lost_edge))
                                 std::cout << __FUNCTION__ << " Edge successfully inserted: " << std::endl;
                             else
                                 std::cout << __FUNCTION__ << " Fatal error inserting new edge: " << std::endl;
                         }
-                        else if (auto lost_person_edge = G->get_edge(robot_node.id(), person.id(), "lost"); not lost_person_edge.has_value())
+                        else if (auto lost_person_edge = G->get_edge(intention_node.id(), person.id(), "lost"); not lost_person_edge.has_value())
                             remove_person(people_in_graph[i], false);
                     }
                 }
@@ -317,7 +322,19 @@ void SpecificWorker::update_graph(const std::vector<PersonData> &people_list)
         auto people_in_graph = G->get_nodes_by_type(person_type_name);
         for (const auto &p: people_in_graph)
         {
-            remove_person(p, false);
+            // If somebody is being followed but is lost, insert "lost" edge to avoid make it dissappear from graph
+            if (auto intention_node_person_edge = G->get_edge(intention_node.id(), p.id(), following_action_type_name);
+                    intention_node_person_edge.has_value() and
+                    G->get_attrib_by_name<lambda_cont_att>(p).value() < -23)
+            {
+                DSR::Edge lost_edge = DSR::Edge::create<lost_edge_type>(intention_node.id(), p.id());
+                if (G->insert_or_assign_edge(lost_edge))
+                    std::cout << __FUNCTION__ << " Edge successfully inserted: " << std::endl;
+                else
+                    std::cout << __FUNCTION__ << " Fatal error inserting new edge: " << std::endl;
+            }
+            else if (auto lost_person_edge = G->get_edge(intention_node.id(), p.id(), "lost"); not lost_person_edge.has_value())
+                remove_person(p, false);
         }
 
         // Increment frame counter for people in cache and remove if conditions are not accomplished
@@ -777,13 +794,15 @@ std::optional<std::vector<std::vector<double>>> SpecificWorker::get_dist_corr_ma
             {
                 corr_comparisons[i][j] = 2 - (corr_comparisons[i][j] / max_corr_val);  // CHECK FOR ZERO DIVISION
                 distance_comparisons[i][j] = (int) (distance_comparisons[i][j] * corr_comparisons[i][j]);
-                if (distance_comparisons[i][j] == 0)
-                    distance_comparisons[i][j] = 1;
+//                if (distance_comparisons[i][j] == 0)
+//                    distance_comparisons[i][j] = 1;
 //                std::cout << "NODO: " << i << std::endl;
 //                std::cout << "PERSONA: " << j << std::endl;
 //                std::cout << "CORR: " << corr_comparisons[i][j] << std::endl;
 //                std::cout << "DIST: " << dist_aux[i][j] << std::endl;
             }
+        if(distance_comparisons.empty())
+            return {};
         return distance_comparisons;
     }
     else return {};
@@ -821,13 +840,31 @@ std::optional<vector<SpecificWorker::LeaderData>> SpecificWorker::node_data_to_l
                                                      person_ROI_height_att.value(), CV_8UC3,
                                                      &leader_ROI_data[0]);
                         person_node_data.ROI = person_roi;
+//                        if (auto room_node = G->get_node("room_0"); room_node.has_value())
+//                        {
+//                            if(auto edge_room = rt->get_edge_RT(room_node.value(), p.id()); edge_room.has_value())
+//                            {
+//                                if(auto person_node_pos = G->get_attrib_by_name<rt_translation_att>(edge_room.value()); person_node_pos.has_value())
+//                                {
+//                                    auto person_node_pos_val = person_node_pos.value().get();
+//                                    person_node_data.position.x = person_node_pos_val[0];
+//                                    person_node_data.position.y = person_node_pos_val[1];
+//                                    person_node_data.position.z = person_node_pos_val[2];
+//                                    qInfo() << person_node_data.position.x << " " << person_node_data.position.y
+//                                            << person_node_data.position.z;
+//                                    leader_data_vector.push_back(person_node_data);
+//                                }
                         if (auto pos_edge_world = inner_eigen->transform(world_name, p.name()); pos_edge_world.has_value())
                         {
-                            person_node_data.position.x = pos_edge_world.value().x();
-                            person_node_data.position.y = pos_edge_world.value().y();
-                            person_node_data.position.z = pos_edge_world.value().z();
-                            leader_data_vector.push_back(person_node_data);
+                                person_node_data.position.x = pos_edge_world.value().x();
+                                person_node_data.position.y = pos_edge_world.value().y();
+                                person_node_data.position.z = pos_edge_world.value().z();
+                                qInfo() << person_node_data.position.x << " " << person_node_data.position.y
+                                        << person_node_data.position.z;
+                                leader_data_vector.push_back(person_node_data);
                         }
+//                            }
+//                        }
                         else return {};
                     }
                     else return {};
@@ -1201,11 +1238,11 @@ void SpecificWorker::update_person(DSR::Node node, SpecificWorker::PersonData pe
                 {
                     if(auto last_pos = G->get_attrib_by_name<rt_translation_att>(edge_room.value()); last_pos.has_value())
                     {
-//                        std::cout << "POS x: " << last_pos.value().get()[0] << " POS y: " << last_pos.value().get()[1] << endl;
+                        std::cout << "POS x: " << last_pos.value().get()[0] << " POS y: " << last_pos.value().get()[1] << endl;
                         auto last_pos_value = last_pos.value().get();
                         std::vector<float> new_robot_pos = {(alpha * new_position_vector_robot[0]) + (beta * last_pos_value[0]), (alpha * new_position_vector_robot[1]) + (beta * last_pos_value[1]), (alpha * new_position_vector_robot[2]) + (beta * last_pos_value[2])};
 //                        std::vector<float> new_robot_pos = {(new_position_vector_robot[0]) , (new_position_vector_robot[1]) , (new_position_vector_robot[2])};
-//                        std::cout << "WORLD POS FILTERED: " <<  new_robot_pos << endl;
+                        qInfo() << "WORLD POS FILTERED: " <<  new_robot_pos[0] << new_robot_pos[1] << new_robot_pos[2];
                         G->add_or_modify_attrib_local<rt_rotation_euler_xyz_att>(edge_room.value(), orientation_vector);
                         G->add_or_modify_attrib_local<rt_translation_att>(edge_room.value(), new_robot_pos);
 
@@ -1227,20 +1264,16 @@ void SpecificWorker::update_person(DSR::Node node, SpecificWorker::PersonData pe
 
                         if (G->insert_or_assign_edge(edge_room.value()))
                         {
-//                            std::cout << __FUNCTION__ << " Edge successfully modified: " << node_value.id() << "->" << node.id()
-//                                      << " type: RT" << std::endl;
                         }
                         else
                         {
-//                            std::cout << __FUNCTION__ << ": Fatal error modifying new edge: " << node_value.id() << "->" << node.id()
-//                                      << " type: RT" << std::endl;
                             std::terminate();
                         }
 //                        G->update_node(world_node.value());
                         G->update_node(node);
 
                         auto check_pos = G->get_attrib_by_name<rt_translation_att>(edge_room.value()).value().get();
-//                        std::cout << "CHEK: " << check_pos << std::endl;
+                        qInfo() << "CHECK POS: " << check_pos[0] << check_pos[1] << check_pos[2];
 
                         // Lambda_cont increment
                         if(auto person_lc = G->get_attrib_by_name<lambda_cont_att>(node); person_lc.has_value())
@@ -1430,6 +1463,8 @@ double SpecificWorker::people_comparison_corr(const LeaderData &node_data , cons
 double SpecificWorker::people_comparison_distance(LeaderData node_data, PersonData person)
 {
     auto p_c = person.personCoords_world;
+    std::cout << "PERSON POS: " <<  p_c.x << " " <<  p_c.y << std::endl;
+    std::cout << "LEADER POS: " <<  node_data.position.x << " " <<  node_data.position.y << std::endl;
     return sqrt(pow(node_data.position.x - p_c.x, 2) + pow(node_data.position.y - p_c.y, 2));
 }
 

@@ -21,6 +21,7 @@
 
 from PySide2.QtCore import QTimer
 from PySide2.QtWidgets import QApplication
+from PySide2.QtGui import QImage
 from rich.console import Console
 from genericworker import *
 import time
@@ -52,10 +53,10 @@ class SpecificWorker(GenericWorker):
         self.last_person_position = 240
         self.Period = 100
 
-        QObject.connect(self.ui.horizontalSlider_pos, SIGNAL('valueChanged(int)'), self.slot_change_pos)
-        QObject.connect(self.ui.horizontalSlider_max_speed, SIGNAL('valueChanged(int)'), self.slot_change_max_speed)
-        QObject.connect(self.ui.pushButton_center, SIGNAL('clicked()'), self.slot_center)
-        QObject.connect(self.ui.pushButton, SIGNAL('clicked()'), self.slot_track)
+        QObject.connect(self.ui.horizontalSlider_pos, QtCore.SIGNAL('valueChanged(int)'), self.slot_change_pos)
+        QObject.connect(self.ui.horizontalSlider_max_speed, QtCore.SIGNAL('valueChanged(int)'), self.slot_change_max_speed)
+        QObject.connect(self.ui.pushButton_center, QtCore.SIGNAL('clicked()'), self.slot_center)
+        QObject.connect(self.ui.pushButton, QtCore.SIGNAL('clicked()'), self.slot_track)
         self.motor = ifaces.RoboCompJointMotorSimple.MotorState()
         self.last_goal = ifaces.RoboCompJointMotorSimple.MotorGoalPosition()
         self.last_goal.maxSpeed = 0
@@ -374,8 +375,8 @@ class SpecificWorker(GenericWorker):
     @QtCore.Slot()
     def slot_change_pos(self, pos):   # comes in degrees -150 .. 150. Sent in radians -2.62 .. 2.62
         servo_node = self.g.get_node("servo")
-        servo_node.attrs['servo_send_pos'] = Attribute(float(0.0), self.agent_id)
-        servo_node.attrs['servo_send_speed'] = Attribute(float(0.0), self.agent_id)
+        servo_node.attrs['servo_ref_pos'] = Attribute(float(0.1), self.agent_id)
+        servo_node.attrs['servo_ref_speed'] = Attribute(float(0.1), self.agent_id)
         self.g.update_node(servo_node)
 
     @QtCore.Slot()
@@ -604,55 +605,55 @@ class SpecificWorker(GenericWorker):
             intention_node = self.g.get_node(id)
             intention_data = json.loads(intention_node.attrs['current_intention'].value)
             if(list(intention_data.keys())[0] == "FOLLOW_PEOPLE"):
-                self.act_chased_person = self.g.get_node(int(intention_data["FOLLOW_PEOPLE"]["person_node_id"])).name
+                self.act_chased_person = int(intention_data["FOLLOW_PEOPLE"]["person_node_id"])
 
         if type == "person":
-            try:
-                self.obtencion_datos()
-                person_node = self.g.get_node(id)
-                if (self.act_chased_person != None) and (person_node!= None) and (person_node.name == self.act_chased_person):
-                    puntoMedioX = person_node.attrs['pixel_x'].value
-                    if(puntoMedioX!=self.last_puntoMedioX):
-                        self.last_puntoMedioX = puntoMedioX
-                        distance = person_node.attrs['distance_to_robot'].value
+            # try:
+            self.obtencion_datos()
+            person_node = self.g.get_node(id)
+            if (self.act_chased_person != None) and (person_node!= None) and (person_node.id == self.act_chased_person):
+                puntoMedioX = person_node.attrs['person_pixel_x'].value
+                if(puntoMedioX!=self.last_puntoMedioX):
+                    self.last_puntoMedioX = puntoMedioX
+                    distance = person_node.attrs['distance_to_robot'].value
 
-                        # print("POSICION PERSONA EN IMAGEN: ", puntoMedioX)
-                        # print("POSICION SERVO: ", self.motor.pos)
-                        # print("POSICION ASIGNADA A SERVO ANTERIOR: ", self.rad_old)
+                    # print("POSICION PERSONA EN IMAGEN: ", puntoMedioX)
+                    # print("POSICION SERVO: ", self.motor.pos)
+                    # print("POSICION ASIGNADA A SERVO ANTERIOR: ", self.rad_old)
 
-                        robot_node = self.g.get_node("robot")
+                    robot_node = self.g.get_node("robot")
 
-                        error = puntoMedioX - 240
+                    error = puntoMedioX - 240
 
-                        error_rads = np.arctan2(error, 382)
+                    error_rads = np.arctan2(error, 382)
 
-                        # Rotational speed given by odometry
-                        act_rot_speed = robot_node.attrs["robot_local_rotational_speed"].value
+                    # Rotational speed given by odometry
+                    act_rot_speed = robot_node.attrs["robot_ref_rot_speed"].value
 
-                        goal_rad = self.motor.pos - error_rads
-                        rad_seg = self.k5 * error_rads
-                        # print("POSICION ASIGNADA A SERVO: ", goal_rad)
+                    goal_rad = self.motor.pos - error_rads
+                    rad_seg = self.k5 * error_rads
+                    # print("POSICION ASIGNADA A SERVO: ", goal_rad)
 
-                        tracker_data = {
-                            "goal_rads" : goal_rad,
-                            "error_rads": rad_seg,
-                            "act_rot_speed": act_rot_speed,
-                            "distance": distance,
-                        }
+                    tracker_data = {
+                        "goal_rads" : goal_rad,
+                        "error_rads": rad_seg,
+                        "act_rot_speed": act_rot_speed,
+                        "distance": distance,
+                    }
 
-                        goal = self.tracker_camera(tracker_data)
-                        if(abs(self.last_goal.position-goal.position)>0.02):
-                            self.last_goal = goal
-                            servo_node = self.g.get_node("servo")
-                            servo_node.attrs['servo_send_pos'] = Attribute(float(goal.position), self.agent_id)
-                            servo_node.attrs['servo_send_speed'] = Attribute(float(goal.maxSpeed), self.agent_id)
-                            self.g.update_node(servo_node)
-                            self.error_ant = error
-                            self.rad_old = goal_rad
-                    else:
-                        print("El punto no ha sido modificado")
-            except:
-                print("DATA CANT BE OBTAINED")
+                    goal = self.tracker_camera(tracker_data)
+                    if(abs(self.last_goal.position-goal.position)>0.02):
+                        self.last_goal = goal
+                        servo_node = self.g.get_node("servo")
+                        servo_node.attrs['servo_ref_pos'] = Attribute(float(goal.position), self.agent_id)
+                        servo_node.attrs['servo_ref_speed'] = Attribute(float(goal.maxSpeed), self.agent_id)
+                        self.g.update_node(servo_node)
+                        self.error_ant = error
+                        self.rad_old = goal_rad
+                else:
+                    print("El punto no ha sido modificado")
+            # except:
+            #     print("DATA CANT BE OBTAINED")
 
     def delete_node(self, id: int):
         if id == self.intention_id:

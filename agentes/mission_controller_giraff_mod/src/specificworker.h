@@ -123,6 +123,8 @@ private:
     DoubleBuffer<std::vector<Eigen::Vector3d>,std::vector<Eigen::Vector3d>> path_buffer;
     void draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScene* viewer_2d, bool remove = false);
     void follow_path_copy_path_to_graph(const std::vector<float> &x_values, const std::vector<float> &y_values);
+
+    uint64_t from_variant_to_uint64(QVariant value);
 };
 
 #endif

@@ -311,15 +311,15 @@ void SpecificWorker::compute()
     else
     { // there should be a plan after a few seconds
     }
-    read_camera();
+//    read_camera();
     // path trail
-    if(custom_widget.path_trail_button->isChecked())
-    {
-        auto robot_pos = inner_eigen->transform(world_name, robot_name).value();
-        QLineF line(last_point.x(), last_point.y(), robot_pos.x(), robot_pos.y());
-        lines.push_back(widget_2d->scene.addLine(line, QPen(QColor("Blue"),40)));
-        last_point = QPointF(robot_pos.x(), robot_pos.y());
-    }
+//    if(custom_widget.path_trail_button->isChecked())
+//    {
+//        auto robot_pos = inner_eigen->transform(world_name, robot_name).value();
+//        QLineF line(last_point.x(), last_point.y(), robot_pos.x(), robot_pos.y());
+//        lines.push_back(widget_2d->scene.addLine(line, QPen(QColor("Blue"),40)));
+//        last_point = QPointF(robot_pos.x(), robot_pos.y());
+//    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////
@@ -641,13 +641,13 @@ void SpecificWorker::create_follow_people_mission() {
 
 void SpecificWorker::add_or_assign_node_slot(const std::uint64_t id, const std::string &type)
 {
-    if(type == rgbd_type_name and id == cam_api->get_id())
-    {
-        if (auto cam_node = G->get_node(id); cam_node.has_value())
-            if (const auto g_image = G->get_attrib_by_name<cam_rgb_att>(cam_node.value()); g_image.has_value())
-                virtual_camera_buffer.put(std::vector<uint8_t>(g_image.value().get().begin(), g_image.value().get().end()));
-    }
-    else if (type == laser_type_name)    // Laser node updated
+//    if(type == rgbd_type_name and id == cam_api->get_id())
+//    {
+//        if (auto cam_node = G->get_node(id); cam_node.has_value())
+//            if (const auto g_image = G->get_attrib_by_name<cam_rgb_att>(cam_node.value()); g_image.has_value())
+//                virtual_camera_buffer.put(std::vector<uint8_t>(g_image.value().get().begin(), g_image.value().get().end()));
+//    }
+    if (type == laser_type_name)    // Laser node updated
     {
         //qInfo() << __FUNCTION__ << " laser node change";
         if( auto node = G->get_node(id); node.has_value())
@@ -707,6 +707,7 @@ void SpecificWorker::add_or_assign_node_slot(const std::uint64_t id, const std::
                 path.reserve(x_values.size());
                 for(auto &&[p, q] : iter::zip(x_values,y_values))
                     path.emplace_back(Eigen::Vector2f(p, q));
+                qInfo() << path.size();
                 draw_path(path, &widget_2d->scene);
             }
         }
@@ -741,7 +742,32 @@ void SpecificWorker::insert_intention_node(const Plan &plan)
                     std::cout << __FUNCTION__ << ": Fatal error inserting new edge: " << mind.value().id() << "->" << intention_node_id.value()
                               << " type: has" << std::endl;
                     std::terminate();
+
                 }
+                if(plan.get_action()=="FOLLOW_PEOPLE")
+                {
+                    auto follow_plan = plan;
+                    auto person_id_str = follow_plan.get_attribute("person_node_id");
+                    auto person_id = from_variant_to_uint64(person_id_str);
+                    if(auto person_node = G->get_node(person_id); person_node.has_value())
+                    {
+                        DSR::Edge edge = DSR::Edge::create<following_action_edge_type>(intention_node.id(), person_node.value().id());
+                        if (G->insert_or_assign_edge(edge))
+                        {
+                            std::cout << __FUNCTION__ << " Edge successfully inserted: " << intention_node.id() << "->" << person_node.value().id()
+                                      << " type: floowing" << std::endl;
+                            G->add_or_modify_attrib_local<current_intention_att>(intention_node, plan.to_json());
+                            G->update_node(intention_node);
+                        }
+                        else
+                        {
+                            std::cout << __FUNCTION__ << ": Fatal error inserting new edge: " << intention_node.id() << "->" << person_node.value().id()
+                                      << " type: floowing" << std::endl;
+                        std::terminate();
+                    }
+                    }
+                }
+
             } else
             {
                 std::cout << __FUNCTION__ << ": Fatal error inserting_new 'intention' node" << std::endl;
@@ -843,10 +869,8 @@ void SpecificWorker::slot_stop_mission()
     if(current_plan.get_action()=="FOLLOW_PEOPLE")
     {
         auto person_id = current_plan.get_attribute("person_node_id");
-        uint64_t value;
-        std::istringstream iss(person_id.toString().toUtf8().constData());
-        iss >> value;
-        if(auto followed_person_node = G->get_node(value); followed_person_node.has_value())
+        auto id_value = from_variant_to_uint64(person_id);
+        if(auto followed_person_node = G->get_node(id_value); followed_person_node.has_value())
         {
             G->delete_edge(G->get_node("robot").value().id(), followed_person_node.value().id(), "lost");
         }
@@ -855,9 +879,9 @@ void SpecificWorker::slot_stop_mission()
     temporary_plan.reset();
     current_plan.reset();
     // remove path form drawing
-    std::vector<Eigen::Vector2f> fake_path;
-    draw_path(fake_path, &widget_2d->scene, true); // just remove
-    draw_path(fake_path, &pathfollow_draw_widget->scene, true); // just remove
+//    std::vector<Eigen::Vector2f> fake_path;
+//    draw_path(fake_path, &widget_2d->scene, true); // just remove
+//    draw_path(fake_path, &pathfollow_draw_widget->scene, true); // just remove
 }
 
 void SpecificWorker::slot_cancel_mission()
@@ -888,6 +912,15 @@ void SpecificWorker::slot_change_mission_selector(int index)
 /////////////////////////////////////////////////////////////////////////////////////////////
 /// Auxiliary methods
 /////////////////////////////////////////////////////////////////////////////////////////////
+uint64_t SpecificWorker::from_variant_to_uint64(QVariant value)
+{
+    uint64_t aux;
+    std::istringstream iss(value.toString().toUtf8().constData());
+    iss >> aux;
+    return aux;
+}
+
+
 void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScene* viewer_2d, bool remove)
 {
     //static std::vector<QGraphicsLineItem *> scene_road_points;
@@ -904,7 +937,11 @@ void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScen
     //clear previous points
     //for (QGraphicsLineItem* item : scene_road_points)
     for (QGraphicsLineItem* item : *scene_road_points)
+    {
         viewer_2d->removeItem((QGraphicsItem *) item);
+        delete item;
+    }
+
     //scene_road_points.clear();
     scene_road_points->clear();
 
@@ -941,6 +978,7 @@ void SpecificWorker::draw_path(std::vector<Eigen::Vector2f> &path, QGraphicsScen
             scene_road_points->push_back(line1);
             scene_road_points->push_back(line2);
         }
+    std::cout << "scene_road_points size: " << scene_road_points->size() << std::endl;
 }
 void SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds)   //adv, rot, side
 {

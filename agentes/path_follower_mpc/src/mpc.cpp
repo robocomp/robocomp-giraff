@@ -102,24 +102,24 @@ namespace mpc
         opti.set_initial(slack_vector, slack_init);
 
         // add free balls constraints
-        std::vector<Eigen::Vector2d> lpoints(ldata.size());
-        for(auto &&[i, l] : ldata | iter::enumerate)
-            lpoints[i] = Eigen::Vector2d(l.dist*sin(l.angle)/1000.0, l.dist*cos(l.angle)/1000.0);
+//        std::vector<Eigen::Vector2d> lpoints(ldata.size());
+//        for(auto &&[i, l] : ldata | iter::enumerate)
+//            lpoints[i] = Eigen::Vector2d(l.dist*sin(l.angle)/1000.0, l.dist*cos(l.angle)/1000.0);
         Balls balls;
-        balls.push_back(Ball{Eigen::Vector2d(0.0,0.0), 0.25, Eigen::Vector2d(0.2, 0.3)});  // first point on robot
-        for (auto i: iter::range(0, consts.num_steps))
-        {
-            opti_local.set_initial(state(all, i), std::vector<double>{previous_values_of_solution[3 * i],
-                                                                      previous_values_of_solution[3 * i + 1],
-                                                                      previous_values_of_solution[3 * i + 2]});
-            auto ball = compute_free_ball(Eigen::Vector2d(previous_values_of_solution[3*i],
-                                                          previous_values_of_solution[3*i+1]), lpoints);
-
-            auto &[center, radius, grad] = ball;
-            double r = consts.robot_radius/1000.f;
-            opti_local.subject_to(casadi::MX::sumsqr(pos(all, i) - e2v(center) + r) < (radius-0.01) + slack_vector(i));
-            balls.push_back(ball);
-        }
+//        balls.push_back(Ball{Eigen::Vector2d(0.0,0.0), 0.25, Eigen::Vector2d(0.2, 0.3)});  // first point on robot
+//        for (auto i: iter::range(0, consts.num_steps))
+//        {
+//            opti_local.set_initial(state(all, i), std::vector<double>{previous_values_of_solution[3 * i],
+//                                                                      previous_values_of_solution[3 * i + 1],
+//                                                                      previous_values_of_solution[3 * i + 2]});
+//            auto ball = compute_free_ball(Eigen::Vector2d(previous_values_of_solution[3*i],
+//                                                          previous_values_of_solution[3*i+1]), lpoints);
+//
+//            auto &[center, radius, grad] = ball;
+//            double r = consts.robot_radius/1000.f;
+//            opti_local.subject_to(casadi::MX::sumsqr(pos(all, i) - e2v(center) + r) < (radius-0.01) + slack_vector(i));
+//            balls.push_back(ball);
+//        }
 
         // cost function
         double alfa = 1.1;
@@ -154,8 +154,8 @@ namespace mpc
 //                             casadi::MX::dot(slack_vector, mu_vector));
 
         opti_local.minimize( sum_dist_path  +
-                             casadi::MX::sumsqr(pos(all, consts.num_steps) - t) +
-                             casadi::MX::dot(slack_vector, mu_vector));
+                             casadi::MX::sumsqr(pos(all, consts.num_steps) - t) /*+
+                             casadi::MX::dot(slack_vector, mu_vector)*/);
         // solve NLP ------
         try
         {
