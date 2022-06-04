@@ -42,6 +42,7 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/types.hpp>
 #include <opencv2/imgproc.hpp>
+#include <delayed_action.h>
 
 #define DEBUG(x) std::cout << #x << " = " << x << std::endl;
 

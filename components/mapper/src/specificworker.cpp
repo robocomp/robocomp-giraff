@@ -95,7 +95,7 @@ void SpecificWorker::compute()
             state = init_exploring();
             break;
         case States::EXPLORING:
-            state = exploring();    // if a tag is found that corresponds to an existing room, quit exploring
+            state = exploring();    /**/
             break;
         case States::AFTER_EXPLORING:
             state = after_exploring();
@@ -212,13 +212,7 @@ SpecificWorker::States SpecificWorker::init_changing_room()
             new_door_id = d_id;
             break;
         }
-            //    if( auto hit = std::ranges::find_if(G.current_room().doors_ids,[this](auto id){ auto d = G.doors.at(id); d.rooms[]
-            //        return d.}); hit != G.current_room().doors.end())
-            //    {
-            //        new_door = (*hit);
-            //        new_room_id = -1;
-            //    }
-        else //  door to known room
+        else //  door to known room.
         {
             std::vector<int> selected_doors;
             auto gen = std::mt19937{std::random_device{}()};
@@ -237,13 +231,13 @@ SpecificWorker::States SpecificWorker::init_changing_room()
             }
         }
     auto &new_door = G.doors.at(new_door_id);
+    // pick a point 1 meter ahead of center of door position and in the other room
     mid_point = new_door.get_external_midpoint(from_robot_to_grid(Eigen::Vector2f(0.f, 0.f)));
     return States::CHANGING_ROOM;
 }
 SpecificWorker::States SpecificWorker::changing_room()
 {
     // move to the new room
-    // pick a point 1 meter ahead of center of door position and in the other room
     auto mp = from_grid_to_world(mid_point);
     viewer_robot->scene.addEllipse(mp.x()-100, mp.y()-100, 200, 200, QPen(QColor("blue"), 20), QBrush(QColor("blue")));
     float dist = from_grid_to_robot(mid_point).norm();
@@ -266,6 +260,8 @@ SpecificWorker::States SpecificWorker::changing_room()
         move_robot(advance, rotation);
         return States::CHANGING_ROOM;
     }
+    // check if it is in the middle of the room
+
     return States::AFTER_CHANGING_ROOM;
 }
 SpecificWorker::States SpecificWorker::after_changing_room()

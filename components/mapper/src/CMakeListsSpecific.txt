@@ -8,6 +8,7 @@ SET ( SOURCES
   dynamic_window.cpp
   graph_rooms.cpp
   room_detector_grad_stocastic.cpp
+  delayed_action.cpp
 )
 
 # Headers set

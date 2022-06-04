@@ -43,7 +43,7 @@ public:
         bool operator ==(const Door &d) { return ((d.p1-p1).norm() < diff and (d.p2-p2).norm() < diff) or
                                                  ((d.p1-p2).norm() < diff and (d.p2-p1).norm() < diff);};
         Eigen::Vector2f get_midpoint() const {return p1 + ((p2-p1)/2.0);};
-        Eigen::Vector2f get_external_midpoint(const Eigen::Vector2f &inside_point, int dist = 1200) const
+        Eigen::Vector2f get_external_midpoint(const Eigen::Vector2f &inside_point, int dist = 1500) const
         {
             Eigen::ParametrizedLine<float, 2> r1 =  Eigen::ParametrizedLine<float, 2>(get_midpoint(), (p1-p2).unitOrthogonal());
             Eigen::ParametrizedLine<float, 2> r2 =  Eigen::ParametrizedLine<float, 2>(get_midpoint(), (p2-p1).unitOrthogonal());
