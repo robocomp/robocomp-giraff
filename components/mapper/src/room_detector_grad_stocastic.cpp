@@ -257,21 +257,20 @@ bool Room_Detector_Grad_Stochastic::check_constraints(const Graph_Rooms::Room &r
 
 double Room_Detector_Grad_Stochastic::door_distance_error(const Graph_Rooms &G, const std::vector<Graph_Rooms::Room> &local_rooms)
 {
-    // error = sum of distance from room r to doors at the neighboor rooms' doores
+    // error = sum of distance from local_room r's doors to doors at the neighboor rooms' doors
     double total_dist = 0.0;
     for(const auto &r: local_rooms)
-        for(const auto &d_id: r.doors_ids)
+        for(const auto &d_id: r.doors_ids)  // ids of doors in r
         {
-            const auto &d = G.doors.at(d_id);
-            if (d.to_room != -1)
-                if (auto res = std::ranges::find_if(G.rooms.at(d.to_room).doors_ids, [id = d.id, G](auto d)
-                    { return G.doors.at(id).id == id; }); res != G.rooms.at(d.to_room).doors_ids.end())
-                {
-                    double dist = G.min_distance_from_point_to_closest_side(r, G.doors.at((*res)).p1) +
-                                  G.min_distance_from_point_to_closest_side(r, G.doors.at((*res)).p2);
-                    total_dist += dist;
-
-                }
+            auto &d = G.doors.at(d_id);  // door in r
+            for (const auto &[id, rooms_in_d]: d.my_rooms)  // rooms in door in r
+                for (const auto &adj_doors: G.rooms.at(id).doors_ids)  // doors in adjacent room
+                    if (adj_doors == d.id) // check if adjacent room has door with the same id
+                    {
+                        double dist = G.min_distance_from_point_to_closest_side(r, G.doors.at((adj_doors)).p1_in_grid) +
+                                      G.min_distance_from_point_to_closest_side(r, G.doors.at((adj_doors)).p2_in_grid);
+                        total_dist += dist;
+                    }
         }
     return total_dist;
 };

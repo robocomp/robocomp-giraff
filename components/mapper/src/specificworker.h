@@ -43,6 +43,8 @@
 #include <opencv2/core/types.hpp>
 #include <opencv2/imgproc.hpp>
 #include <delayed_action.h>
+#include <iterator>
+#include <gsl_assert/assert>
 
 #define DEBUG(x) std::cout << #x << " = " << x << std::endl;
 
@@ -113,13 +115,12 @@ private:
     States after_exploring();
     std::vector<Eigen::Vector2f> peaks;
     float initial_angle;
-    int current_tag;
+    int current_tag = -1;
 
     States init_changing_room();
     States changing_room();
     States after_changing_room();
     Eigen::Vector2f mid_point;
-    int new_door_id, new_room_id;
 
     std::vector<Eigen::Vector2f> detect_doors();
     bool estimate_rooms();
@@ -138,11 +139,13 @@ private:
     Eigen::Vector2f from_world_to_grid(const Eigen::Vector2f &p);
     Eigen::Vector2f from_robot_to_grid(const Eigen::Vector2f &p);
     Eigen::Vector2f from_grid_to_robot(const Eigen::Vector2f &p);
+    Eigen::Vector2f from_grid_to_rect(const Eigen::Vector2f &p, const cv::RotatedRect &r);
     Eigen::Matrix3f from_grid_to_robot_matrix();
     Eigen::Matrix3f from_grid_to_world_matrix();
     Eigen::Matrix3f from_robot_to_grid_matrix();
     Eigen::Matrix3f from_robot_to_world_matrix();
     Eigen::Matrix3f from_world_to_grid_matrix();
+
 
     inline QPointF e2q(const Eigen::Vector2f &p) const {return QPointF(p.x(), p.y());};
     inline Eigen::Vector2f q2e(const QPointF &p) const {return Eigen::Vector2f(p.x(), p.y());};

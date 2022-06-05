@@ -20,4 +20,4 @@ SET ( HEADERS
 
 INCLUDE( $ENV{ROBOCOMP}/cmake/modules/opencv4.cmake )
 add_definitions(-g -march=native  -fmax-errors=5 )
-SET (LIBS ${LIBS} tbb )
+SET (LIBS ${LIBS} tbb uuid)
