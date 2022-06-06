@@ -56,6 +56,16 @@ class Graph_Rooms
                     else
                         return r2.pointAt(dist);
                 };
+                Eigen::Vector2f get_midpoint_world() const {return p1_in_world + ((p2_in_world-p1_in_world)/2.0);};
+                Eigen::Vector2f get_external_midpoint_world(const Eigen::Vector2f &inside_point, int dist = 1500) const
+                {
+                    Eigen::ParametrizedLine<float, 2> r1 =  Eigen::ParametrizedLine<float, 2>(get_midpoint_world(), (p1_in_world-p2_in_world).unitOrthogonal());
+                    Eigen::ParametrizedLine<float, 2> r2 =  Eigen::ParametrizedLine<float, 2>(get_midpoint_world(), (p2_in_world-p1_in_world).unitOrthogonal());
+                    if ((inside_point-r1.pointAt(dist)).norm() > (inside_point-r2.pointAt(dist)).norm())
+                        return r1.pointAt(dist);
+                    else
+                        return r2.pointAt(dist);
+                };
                 Door& operator=(Door other)
                 {
                     std::swap(id, other.id);

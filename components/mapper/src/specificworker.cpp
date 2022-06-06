@@ -60,11 +60,7 @@ void SpecificWorker::initialize(int period)
     viewer_graph = new AbstractGraphicViewer(this->frame_graph, this->dimensions);
     this->resize(1200,450);
 
-    //connect(viewer_robot, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
-    // grid
-    // grid.initialize(dimensions, constants.tile_size, &viewer_robot->scene, false);
-    // qInfo() << __FUNCTION__ << "Grid initialized to " << this->dimensions;
-
+    connect(viewer_robot, &AbstractGraphicViewer::new_mouse_coordinates, this, &SpecificWorker::new_target_slot);
 
     ////////////////////////////////////////////////////
     this->Period = period;
@@ -86,6 +82,8 @@ void SpecificWorker::compute()
     tags.clear();
     tags = read_apriltags(img);
 
+    if(stop_execution) return;
+
     switch(state)
     {
         case States::IDLE:
@@ -98,7 +96,7 @@ void SpecificWorker::compute()
             break;
         case States::AFTER_EXPLORING:
             state = after_exploring();
-            G.draw_nodes(&viewer_graph->scene);
+            G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
             qInfo() << __FUNCTION__ << "AFTER_EXPLORING"; G.print();
             break;
         case States::INIT_CHANGING_ROOM:
@@ -136,7 +134,18 @@ SpecificWorker::States SpecificWorker::exploring()
     if(not (fabs(current - initial_angle) < (M_PI + 0.1) and fabs(current - initial_angle) > (M_PI - 0.1)))
     {
         for(const auto &t : this->tags)
-            tags_set.push_back(std::make_tuple(sqrt(t.tx*t.tx+t.ty*t.ty+t.tz*t.tz), t.id));
+        {
+            if(G.rooms.contains(t.id) and sqrt(t.tx*t.tx+t.ty*t.ty+t.tz*t.tz) < 3000)
+            {
+                qInfo() << __FUNCTION__ << "Room " << t.id << "RECOGNIZED!";
+                G.set_current_room(t.id);
+                // when changing from here, grid coordinates to compute door's mid_point are not valid in this grid
+                // we need to ground the model and locate in it the doors with respect to the robot
+                // using also the detected doors so far to match the doors in the model
+                return States::INIT_CHANGING_ROOM;  // Grounding should be done here
+            }
+            tags_set.push_back(std::make_tuple(sqrt(t.tx * t.tx + t.ty * t.ty + t.tz * t.tz), t.id));
+        }
 
         update_map(ldata);
         auto new_peaks = detect_doors();
@@ -176,6 +185,7 @@ SpecificWorker::States SpecificWorker::after_exploring()
     G.current_room().is_unknown = false;
 
     // Compute doors from LIDAR: pairwise comparison of peaks to filter in doors. Peaks are in grid RF
+    // Doors are in local grid coordinates
     for (auto &&c: iter::combinations_with_replacement(peaks, 2))
         if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 550)
             G.add_door_to_current_room(c[0], c[1]);
@@ -183,26 +193,34 @@ SpecificWorker::States SpecificWorker::after_exploring()
     estimate_rooms();  // needs doors to handle outliers
 
     // Filter computed doors now that we have a rect model. New doors have been added with ids greater than last existing door
-    // If coming from another room (current_door not -1) then one of the computed doors must match the current_door
+    // current_door has coordinates in the former, non existing grid. To compare we need to transform current_door into the current grid
+    // ÑAPA monumental. Cambiar por algo que no involucre al world
     if(G.there_is_a_current_door())
-        if(auto res = std::ranges::find_if(G.current_room().doors_ids, [this, cd = G.current_door()](auto d){ return G.doors.at(d).distance_to(cd);}); res != G.current_room().doors_ids.end())
+    {
+        G.current_door().p1_in_grid = from_world_to_grid(G.current_door().p1_in_world);
+        G.current_door().p2_in_grid = from_world_to_grid(G.current_door().p2_in_world);
+        if (auto res = std::ranges::min_element(G.current_room().doors_ids, [this, cd = G.current_door()](auto &a, auto&b)mutable
+                    { return cd.distance_to(G.doors.at(a)) < cd.distance_to(G.doors.at(b));}); res != G.current_room().doors_ids.end())
         {
             // *res is the matched door
             // merge both doors in one: *res -> is removed and G.current_room().doors_ids.at(*res.id) replaced by G.current_door.id()
-            qInfo() << "matched door" << QString::fromStdString(*res) << "current_door" << QString::fromStdString(G.current_door().id);
+            qInfo() << __FUNCTION__ << "matched door" << QString::fromStdString(*res) << "current_door" << QString::fromStdString(G.current_door().id);
             G.doors.at(*res).print();
+//            for(auto &d: G.current_room().doors_ids) G.doors.at(d).print();
+//            qInfo() << __FUNCTION__ << "current door";
+            G.current_door().print();
             G.doors.erase(*res);
             *res = G.current_door().id;  // change matched door id to current_door in current_room
             G.current_door().my_rooms.insert(std::make_pair(G.current_room().id, Graph_Rooms::Door::From_Room{.room_id = G.current_room().id}));
             // add rect coordinates to this door in the new rooms' rect
         }
-    qInfo() << __FUNCTION__ << "gola";
+    }
     // add position coordinates to current_room doors in world and rect, that are not the matched door.
     for(auto d : G.current_room().doors_ids)
     {
         if(not G.there_is_a_current_door() or d != G.current_door().id)  // don't want to change the matched door
         {
-            qInfo() << __FUNCTION__ << "door coor update" << QString::fromStdString(d);
+            qInfo() << __FUNCTION__ << "door coordinates update" << QString::fromStdString(d);
             G.doors.at(d).p1_in_rect = from_grid_to_rect(G.doors.at(d).p1_in_grid, G.current_room().room_rect);
             G.doors.at(d).p2_in_rect = from_grid_to_rect(G.doors.at(d).p2_in_grid, G.current_room().room_rect);
             G.doors.at(d).p1_in_world = from_grid_to_world(G.doors.at(d).p1_in_grid);
@@ -212,37 +230,40 @@ SpecificWorker::States SpecificWorker::after_exploring()
 
     // room_detector.minimize_door_distances(G);
 
-    // draw
-    for (const auto &d: G.current_room().doors_ids)
-        G.doors.at(d).draw(&viewer_robot->scene, grid_world_pose.pos, grid_world_pose.ang);
     local_grid_is_active = false;
-
     return States::INIT_CHANGING_ROOM;
 }
 SpecificWorker::States SpecificWorker::init_changing_room()
 {
     // before start
-    qInfo() << __FUNCTION__ << "Entering from room " << G.current_room().id;
+    qInfo() << __FUNCTION__ << "Entering from room: " << G.current_room().id;
     // Choose an un-explored destination room if there is one
+    bool found_unknown = false;
     for (const auto &d_id: G.current_room().doors_ids)
         if (G.doors.at(d_id).my_rooms.size() == 1) // the other room that the door connects to, is unknown
         {
-            //new_door_id = d_id;
             G.set_current_door(G.doors.at(d_id).id);
+            qInfo() << __FUNCTION__ << "Door selected to UNknown room: " << QString::fromStdString(G.current_door().id);
+            found_unknown = true;
             break;
         }
-        else //  door to known room.
+
+    if(not found_unknown) //  pick door to known room.
+    {
+        std::vector<std::string> selected_doors;
+        auto gen = std::mt19937{std::random_device{}()};
+        std::ranges::sample(G.current_room().doors_ids, std::back_inserter(selected_doors), 1, gen);
+        if (not selected_doors.empty())
         {
-            std::vector<std::string> selected_doors;
-            auto gen = std::mt19937{std::random_device{}()};
-            std::ranges::sample(G.current_room().doors_ids, std::back_inserter(selected_doors), 1, gen);
-            if (not selected_doors.empty())
-                G.set_current_door( selected_doors.front());
-            else
-            {qInfo() << "WARNING, no door to choose"; std::terminate();}
+            G.set_current_door(selected_doors.front());
+            qInfo() << __FUNCTION__ << "Door selected to KNOWN room: " << QString::fromStdString(G.current_door().id);
         }
+        else
+        {qInfo() << "WARNING, no door to choose"; std::terminate();}
+    }
     // pick a point 1 meter ahead of center of door position and in the other room
-    mid_point = G.current_door().get_external_midpoint(from_robot_to_grid(Eigen::Vector2f(0.f, 0.f)));
+    // FOR NOW USING WORLD RF
+    mid_point = from_world_to_grid(G.current_door().get_external_midpoint_world(from_robot_to_world(Eigen::Vector2f(0.f, 0.f))));
     return States::CHANGING_ROOM;
 }
 SpecificWorker::States SpecificWorker::changing_room()
@@ -621,8 +642,7 @@ void SpecificWorker::draw_laser(const RoboCompLaser::TLaserData &ldata) // robot
 void SpecificWorker::new_target_slot(QPointF t)
 {
     qInfo() << __FUNCTION__ << " Received new target at " << t;
-    target.pos = t;
-    target.active = true;
+    stop_execution = !stop_execution;
 }
 /////////////////////////////////////////////////////////
 int SpecificWorker::startup_check()

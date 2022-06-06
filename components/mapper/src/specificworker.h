@@ -180,7 +180,7 @@ private:
     RoboCompAprilTags::TagsList tags;
     int current_detected_room;
 
-
+    bool stop_execution = false;  // to stop the robot
 
 };
 
