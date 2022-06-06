@@ -503,7 +503,7 @@ std::vector<Eigen::Vector2f> SpecificWorker::add_path_section_to_person(std::vec
     auto last_path_point = ref_path.back();
     auto grid_target_pose = from_world_to_grid(target.to_eigen());
     auto destination_pose = target_before_objetive(last_path_point, grid_target_pose);
-    auto new_path = grid.compute_path(e2q(last_path_point), e2q(destination_pose), constants.robot_length/2);
+    auto new_path = grid.compute_path(e2q(last_path_point), e2q(destination_pose), constants.robot_length);
 //    auto new_path = grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())), constants.robot_length/2);
 
     if(new_path.size() > 0)
@@ -531,11 +531,24 @@ bool SpecificWorker::check_path(std::vector<Eigen::Vector2f> ref_path, QPolygonF
     }
     return true;
 }
+
 void SpecificWorker::path_smoother(std::vector<Eigen::Vector2f> ref_path)
 {
     using Spline2f = Eigen::Spline<float,2>;
     using PointType = Spline2f::PointType;
-//    using ControlPointVectorType = Spline2f::ControlPointVectorType ;
+
+    // TEST
+//    vector <float> x_vals{4267, 728, -1847, -3981};
+//    vector <float> y_vals{1613, 1830, 1847, -1795};
+//
+//    Eigen::MatrixXf test_values(2, x_vals.size());
+//    for(int i = 0; i < x_vals.size(); i++)
+//    {
+//        test_values(0, i) = x_vals[i];
+//        test_values(1, i) = y_vals[i];
+//    }
+
+//    Spline2f spline = Eigen::SplineFitting<Spline2f>::Interpolate(test_values,3);
 
     qInfo() << "REF PATH SIZE:" << ref_path.size();
     Eigen::MatrixXf values(2, ref_path.size());
@@ -545,7 +558,7 @@ void SpecificWorker::path_smoother(std::vector<Eigen::Vector2f> ref_path)
         values(1, i) = path_point.y();
     }
 
-    Spline2f spline = Eigen::SplineFitting<Spline2f>::Interpolate(values,3);
+    Spline2f spline = Eigen::SplineFitting<Spline2f>::Interpolate(values,ref_path.size()-1);
 
     qInfo() << __FUNCTION__ << "------------------------- FITTING PATH -------------------------";
 
@@ -566,6 +579,7 @@ void SpecificWorker::path_smoother(std::vector<Eigen::Vector2f> ref_path)
 //    }
     draw_spline_path(spline_path);
 }
+
 void SpecificWorker::run_current_plan(const QPolygonF &laser_poly)
 {
 //    Eigen::Vector3d nose_3d = inner_eigen->transform(world_name, Mat::Vector3d(0, 380, 0), robot_name).value();
@@ -581,34 +595,34 @@ void SpecificWorker::run_current_plan(const QPolygonF &laser_poly)
     auto destination_pose = target_before_objetive(grid_robot_pose, grid_target_pose);
     auto target_to_robot = from_world_to_robot(target.to_eigen());
 
-    if(path.empty())
-    {
-        path = grid.compute_path(e2q(grid_robot_pose), e2q(destination_pose), constants.robot_length/2);
-        if(laser_poly.containsPoint(e2q(target_to_robot), Qt::OddEvenFill))
-        {
-            qInfo() << "INSIDE LASER";
-            std::vector<Eigen::Vector2f> two_points_path{path.front(),path.at(path.size()/2) , path.back()};
-
-            path = two_points_path;
-        }
-    }
-//        path = grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())), constants.robot_length/2);
-    else
-    {
-        is_good_path = check_path(path, laser_poly);
-        if(is_good_path)
-        {
-            if((target.to_eigen() - last_target.to_eigen()).norm() * 1.2 > constants.robot_length)
-            {
-//                qInfo() << "ADDING PATH SECTION: ";
-                auto aux_path = path;
-                path = add_path_section_to_person(aux_path);
-//                qInfo() << "ACT PATH LENGHT: " << path.size();
-                last_target = target;
-            }
-        }
-    }
-
+//    if(path.empty())
+//    {
+//        path = grid.compute_path(e2q(grid_robot_pose), e2q(destination_pose), constants.robot_length);
+////        if(laser_poly.containsPoint(e2q(target_to_robot), Qt::OddEvenFill))
+////        {
+////            qInfo() << "INSIDE LASER";
+////            std::vector<Eigen::Vector2f> two_points_path{path.front(),path.at(path.size()/2) , path.back()};
+////
+////            path = two_points_path;
+////        }
+//    }
+////        path = grid.compute_path(e2q(from_world_to_grid(robot_pose.pos)), e2q(from_world_to_grid(target.to_eigen())), constants.robot_length/2);
+//    else
+//    {
+//        is_good_path = check_path(path, laser_poly);
+////        if(is_good_path)
+////        {
+////            if((target.to_eigen() - last_target.to_eigen()).norm() * 1.2 > constants.robot_length)
+////            {
+//////                qInfo() << "ADDING PATH SECTION: ";
+////                auto aux_path = path;
+////                path = add_path_section_to_person(aux_path);
+//////                qInfo() << "ACT PATH LENGHT: " << path.size();
+////                last_target = target;
+////            }
+////        }
+//    }
+    path = grid.compute_path(e2q(grid_robot_pose), e2q(destination_pose), constants.robot_length);
 //    float path_length_reverse = 0.f;
 //    int aux_pos = 0;
 //
@@ -627,9 +641,10 @@ void SpecificWorker::run_current_plan(const QPolygonF &laser_poly)
 
 //    qInfo() << "IS GOOD PATH: " << is_good_path;
 //    if(path.size() > 3)
-//        path_smoother(path);
+    path_smoother(path);
 
-    if (is_good_path && !path.empty())
+//    if (is_good_path && !path.empty())
+    if (!path.empty())
     {
         world_path.clear();
         std::vector<float> x_values, y_values;
@@ -678,13 +693,13 @@ void SpecificWorker::run_current_plan(const QPolygonF &laser_poly)
     }
     else
     {
-        path = grid.compute_path(e2q(grid_robot_pose), e2q(destination_pose), constants.robot_length/2);
-        if(laser_poly.containsPoint(e2q(target_to_robot), Qt::OddEvenFill))
-        {
-            qInfo() << "IN LASER";
-            std::vector<Eigen::Vector2f> two_points_path{path.front(),path.at(path.size()/2) , path.back()};
-            path = two_points_path;
-        }
+        path = grid.compute_path(e2q(grid_robot_pose), e2q(destination_pose), constants.robot_length);
+//        if(laser_poly.containsPoint(e2q(target_to_robot), Qt::OddEvenFill))
+//        {
+//            qInfo() << "IN LASER";
+//            std::vector<Eigen::Vector2f> two_points_path{path.front(),path.at(path.size()/2) , path.back()};
+//            path = two_points_path;
+//        }
         qWarning() << __FUNCTION__ << "Empty path. Computing new path";
     }
 }
