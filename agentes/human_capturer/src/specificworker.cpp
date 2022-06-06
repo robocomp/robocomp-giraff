@@ -1217,12 +1217,12 @@ void SpecificWorker::update_person(DSR::Node node, SpecificWorker::PersonData pe
             // Memory for leader ROIs, for oclussion dealing test
             auto t_end = std::chrono::high_resolution_clock::now();
             double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end-t_start).count();
-            leader_ROI_memory.insert(leader_ROI_memory.cbegin(), persondata.image);
-            if (leader_ROI_memory.size() > memory_size and elapsed_time_ms > 1000)
-            {
-                t_start = std::chrono::high_resolution_clock::now();
-                leader_ROI_memory.pop_back();
-            }
+//            leader_ROI_memory.insert(leader_ROI_memory.cbegin(), persondata.image);
+//            if (leader_ROI_memory.size() > memory_size and elapsed_time_ms > 1000)
+//            {
+//                t_start = std::chrono::high_resolution_clock::now();
+//                leader_ROI_memory.pop_back();
+//            }
 
 //          std::cout << "ORIENTATION: " << persondata.orientation << std::endl;
             if(persondata.orientation > (2*M_PI - (M_PI/6)) || persondata.orientation < (M_PI/6)) G->add_or_modify_attrib_local<is_ready_att>(node, true);
@@ -1365,12 +1365,12 @@ void SpecificWorker::insert_person(const vector<PersonData> &people_data, bool d
                         // time management
                         auto t_end = std::chrono::high_resolution_clock::now();
                         double elapsed_time_ms = std::chrono::duration<double, std::milli>(t_end - t_start).count();
-                        leader_ROI_memory.insert(leader_ROI_memory.cbegin(), new_person.image);
-                        if (leader_ROI_memory.size() > memory_size and elapsed_time_ms > 1000)
-                        {
-                            t_start = std::chrono::high_resolution_clock::now();
-                            leader_ROI_memory.pop_back();
-                        }
+//                        leader_ROI_memory.insert(leader_ROI_memory.cbegin(), new_person.image);
+//                        if (leader_ROI_memory.size() > memory_size and elapsed_time_ms > 1000)
+//                        {
+//                            t_start = std::chrono::high_resolution_clock::now();
+//                            leader_ROI_memory.pop_back();
+//                        }
 
                         // To make the robot take into count that somebody could want to interact
                         if (new_person.orientation > (2 * M_PI - (M_PI / 6)) or new_person.orientation < (M_PI / 6))
