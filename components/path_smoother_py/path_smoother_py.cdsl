@@ -1,0 +1,11 @@
+import "PathSmoother.idsl";
+
+Component path_smoother_py
+{
+    Communications
+    {
+        implements PathSmoother;
+    };
+    language python;
+};
+

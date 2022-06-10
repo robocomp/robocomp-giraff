@@ -1,0 +1,20 @@
+import "Laser.idsl";
+import "DifferentialRobot.idsl";
+import "CameraRGBDSimple.idsl";
+import "CameraSimple.idsl" ;
+import "JointMotorSimple.idsl";
+import "FullPoseEstimation.idsl";
+import "BillCoppelia.idsl";
+import "PathSmoother.idsl";
+
+
+Component local_grid
+{
+    Communications
+    {
+        requires Laser, DifferentialRobot, CameraRGBDSimple, CameraSimple, JointMotorSimple, FullPoseEstimation, BillCoppelia, PathSmoother;
+    };
+    language Cpp11;
+    gui Qt(QWidget);
+};
+

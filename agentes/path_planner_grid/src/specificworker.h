@@ -36,6 +36,7 @@
 #include <custom_widget.h>
 #include <grid2d/grid.h>
 #include <collisions.h>
+
 #include <Eigen/Core>
 #include <unsupported/Eigen/Splines>
 
@@ -120,8 +121,8 @@ private:
             QPointF pos, pos_ant = QPoint(0.f,0.f);
 
         };
-        Target target;
-        Target last_target;
+//        Target target;
+//        Target last_target;
         template <typename Func, typename Obj>
         auto quick_bind(Func f, Obj* obj)
         { return [=](auto&&... args) { return (obj->*f)(std::forward<decltype(args)>(args)...); };}
@@ -150,6 +151,11 @@ private:
                     std::lock_guard<std::mutex> lg(mut);
                     return pos;
                 };
+                Eigen::Vector2f get_last_pos() const
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    return pos_ant;
+                };
                 float get_ang() const
                 {
                     std::lock_guard<std::mutex> lg(mut);
@@ -172,6 +178,12 @@ private:
                 mutable std::mutex mut;
         };
 
+        Eigen::Vector2f last_relevant_person_pos{0.f, 0.f};
+
+        // Relevant node IDs
+        u_int64_t followed_person_id = 0;
+        u_int64_t actual_room_id = 0;
+
         //robot
 //        struct Pose2D
 //        {
@@ -188,6 +200,8 @@ private:
         Eigen::Vector2f from_world_to_grid(const Eigen::Vector2f &p);
         Eigen::Matrix3f from_grid_to_robot_matrix();
         Eigen::Matrix3f from_robot_to_grid_matrix();
+        Pose2D target;
+        Pose2D last_target;
         Pose2D robot_pose;
         float act_grid_dist_to_robot = 0.f;
 
@@ -239,6 +253,7 @@ private:
         bool regenerate_grid_to_point(const Pose2D &robot_pose);
         bool person_in_grid_checker();
         void inject_grid_in_G(const Grid &grid);
+        void inject_grid_data_in_G(const std::vector<float> &grid_size);
         vector<std::pair <Grid::Key, Grid::T>> get_grid_already_occupied_cells();
         void insert_last_occupied_cells(const vector<std::pair <Grid::Key, Grid::T>> &last_cells);
 //        bool check_if_world_key_is_in_grid(Grid::Key key, QGraphicsRectItem act_grid);
