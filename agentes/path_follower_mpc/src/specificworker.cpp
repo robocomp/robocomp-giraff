@@ -59,23 +59,31 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
         osg_3d_view = params["3d_view"].value == "true";
 
 //        consts.num_steps_mpc = stof(params.at("num_steps_mpc").value);
-//        consts.max_adv_speed = stof(params.at("max_advance_speed").value);
-//        consts.max_rot_speed = stof(params.at("max_rotation_speed").value);
+        consts.max_adv_speed = stof(params.at("max_advance_speed").value);
+        qInfo() << __FUNCTION__ << "max_advance_speed";
+        consts.max_rot_speed = stof(params.at("max_rotation_speed").value);
+        qInfo() << __FUNCTION__ << "max_rotation_speed";
 //        consts.max_side_speed = stof(params.at("max_side_speed").value);
 //        consts.robot_length = stof(params.at("robot_length").value);
 //        consts.robot_width = stof(params.at("robot_width").value);
 //        consts.robot_radius = stof(params.at("robot_radius").value);
 //        consts.lateral_correction_gain = stof(params.at("lateral_correction_gain").value);
 //        consts.lateral_correction_for_side_velocity = stof(params.at("lateral_correction_for_side_velocity").value);
-//        consts.rotation_gain = std::stof(params.at("rotation_gain").value);
+        consts.rotation_gain = std::stof(params.at("rotation_gain").value);
+        qInfo() << __FUNCTION__ << "rotation_gain";
 //        consts.times_final_distance_to_target_before_zero_rotation = stof(params.at("times_final_distance_to_target_before_zero_rotation").value);
-//        consts.advance_gaussian_cut_x = stof(params.at("advance_gaussian_out_x").value);
-//        consts.advance_gaussian_cut_y = stof(params.at("advance_gaussian_out_y").value);
-//        consts.final_distance_to_target = stof(params.at("final_distance_to_target").value); // mm
+        consts.advance_gaussian_cut_x = stof(params.at("advance_gaussian_cut_x").value);
+        qInfo() << __FUNCTION__ << "advance_gaussian_cut_x";
+        consts.advance_gaussian_cut_y = stof(params.at("advance_gaussian_cut_y").value);
+        qInfo() << __FUNCTION__ << "advance_gaussian_cut_y";
+        consts.final_distance_to_target = stof(params.at("final_distance_to_target").value); // mm
+        qInfo() << __FUNCTION__ << "final_distance_to_target";
 //        consts.laser_noise_sigma = stof(params.at("laser_noise_sigma").value); // mm
 //        consts.num_lidar_affected_rays_by_hard_noise = stof(params.at("num_lidar_affected_rays_by_hard_noise").value); // mm
-//        consts.xset_gaussian = stof(params.at("xset_gaussian").value); // mm
-//        consts.yset_gaussian = stof(params.at("yset_gaussian").value); // mm
+        consts.xset_gaussian = stof(params.at("xset_gaussian").value); // mm
+        qInfo() << __FUNCTION__ << "xset_gaussian";
+        consts.yset_gaussian = stof(params.at("yset_gaussian").value); // mm
+        qInfo() << __FUNCTION__ << "yset_gaussian";
 //        consts.lidar_noise_sigma = stof(params.at("lidar_noise_sigma").value); // mm
 
     }
@@ -90,7 +98,6 @@ bool SpecificWorker::setParams(RoboCompCommonBehavior::ParameterList params)
 void SpecificWorker::initialize(int period)
 {
     std::cout << __FUNCTION__ << std::endl;
-    this->Period = period;
     if(this->startup_check_flag)
         this->startup_check();
     else
@@ -114,14 +121,11 @@ void SpecificWorker::initialize(int period)
             current_opts = current_opts | opts::scene;
         if(osg_3d_view)
             current_opts = current_opts | opts::osg;
-        std::cout << "1" << std::endl;
         dsr_viewer = std::make_unique<DSR::DSRViewer>(this, G, current_opts, main);
-        std::cout << "1" << std::endl;
         setWindowTitle(QString::fromStdString(agent_name + "-" + std::to_string(agent_id)));
-        std::cout << "1" << std::endl;
         //dsr update signals
         connect(G.get(), &DSR::DSRGraph::update_node_signal, this, &SpecificWorker::add_or_assign_node_slot, Qt::QueuedConnection);
-        //connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::add_or_assign_edge_slot);
+        connect(G.get(), &DSR::DSRGraph::update_edge_signal, this, &SpecificWorker::add_or_assign_edge_slot, Qt::QueuedConnection);
         //connect(G.get(), &DSR::DSRGraph::update_attrs_signal, this, &SpecificWorker::add_or_assign_attrs_slot);
         //connect(G.get(), &DSR::DSRGraph::del_edge_signal, this, &SpecificWorker::del_edge_slot);
         connect(G.get(), &DSR::DSRGraph::del_node_signal, this, &SpecificWorker::del_node_slot, Qt::QueuedConnection);
@@ -155,10 +159,23 @@ void SpecificWorker::initialize(int period)
         widget_2d = qobject_cast<DSR::QScene2dViewer *>(dsr_viewer->get_widget(opts::scene));
         if (widget_2d != nullptr)
             widget_2d->set_draw_laser(false);
-        std::cout << "1" << std::endl;
+
+        if(auto robot_pos = inner_eigen->transform(grid_type_name, robot_name); robot_pos.has_value())
+        {
+//                    auto edge = rt->get_edge_RT(room_node.value(), robot_node->id()).value();
+//                    if(auto robot_grid_pos = G->get_attrib_by_name<rt_translation_grid_att>(edge); robot_grid_pos.has_value())
+//                    {
+            if(auto robot_ang = inner_eigen->get_euler_xyz_angles(grid_type_name, robot_name); robot_ang.has_value())
+            {
+                robot_pose.set_pos(Eigen::Vector2f{robot_pos.value().x(), robot_pos.value().y()});
+//                            robot_pose.set_grid_pos(Eigen::Vector2f{robot_grid_pos.value().get()[0], robot_grid_pos.value().get()[1]});
+                robot_pose.set_angle(robot_ang.value().z());
+            }
+//                    }
+        }
+
         // path planner
         path_follower_initialize();
-        std::cout << "1" << std::endl;
         // check for existing path node
         if(auto paths = G->get_nodes_by_type(path_to_target_type_name); not paths.empty())
         {
@@ -174,89 +191,238 @@ void SpecificWorker::initialize(int period)
 
 void SpecificWorker::compute()
 {
-    static std::vector<Eigen::Vector2f> path, saved_path;
-    // Check for existing path_to_target_nodes
     if (auto path_o = path_buffer.try_get(); path_o.has_value()) // NEW PATH!
     {
-
         qInfo() << __FUNCTION__ << "New path";
         path.clear();
         path = path_o.value();
-        if(is_cyclic.load())
+        if (is_cyclic.load())
             saved_path = path;
-        current_target = path.back();
-        from_robot_current_target = from_world_to_robot(current_target);
+        if (!isnan(path.back().x()) and !isnan(path.back().y()))
+            current_target = path.back();
+        else
+        {
+            qWarning() << __FUNCTION__ << "NaN values as target.";
+            return;
+        }
+
         robot_is_active = true;
-        if(widget_2d != nullptr)
+        if (widget_2d != nullptr)
             draw_path(path, &widget_2d->scene);
-    }
-    // if there is a path in G
-    if(auto node_path = G->get_node(current_path_name); node_path.has_value())
-    {
-        robot_pose = read_robot();
-            if(auto laserdata = read_laser(false); laserdata.has_value())
-            {
-                auto ldata_value = laserdata.value();
 
-                std::vector<Eigen::Vector2d> path_robot_meters;
-                for (auto &&p: path)
-                {
-                    auto aux_p = from_world_to_robot(p);
-                    Eigen::Vector2d converted_point{aux_p.x(), aux_p.y()};
-                    if(aux_p.y() > 0)
-                        path_robot_meters.push_back(converted_point / 1000.0);  // meters
-                }
 
-                if((path_robot_meters.size() < 2) || from_robot_current_target.norm() < consts.final_distance_to_target)
-                {
-                    move_robot(0,0);
-                    qInfo() << __FUNCTION__ << "At target" << from_robot_current_target.norm();
-                    return;
-                }
-                if(path_robot_meters.size() < consts.num_steps_mpc)
-                {
-                    std::cout << "PASOS MPC MENOR QUE TAMAÑO PATH" << std::endl;
-                    float adv = std::clamp(from_robot_current_target.norm(), 0.f, 500.f);
-                    float rot = atan2(from_robot_current_target.x(), from_robot_current_target.y());
-                    move_robot(adv, rot);
-                }
-                else
-                {
-                    std::cout << "MPC TARGET" << std::endl;
-                    goto_target_mpc(path_robot_meters, ldata_value);
-                }
-//                if(not is_cyclic.load())
-//                    remove_trailing_path(path, robot_pose.pos);
-                if(not robot_is_active)  // robot reached the target
-                {
-                    if(not is_cyclic.load())
-//                        if(auto path_d = G->get_node(current_path_name); path_d.has_value())
-//                            G->delete_node(path_d.value().id());
-//                        else
-                        {
-                            path = saved_path;
-                            robot_is_active = true;
-                        }
-                }
-            }
-            else
-            {
-                std::cout << "NO HAY_ LASER" << std::endl;
+        std::vector <Eigen::Vector2d> path_robot_meters(path.size());
+        for (auto &&[i, p]: iter::enumerate(path)) {
+            Eigen::Vector2d converted_point{p.x(), p.y()};
+//            if(p.y() > 0)
+            path_robot_meters[i] = (converted_point / 1000.0);  // meters
+        }
+        if (auto laserdata = read_laser(false); laserdata.has_value()) {
+            auto ldata_value = laserdata.value();
+
+            // If robot is near from followed person, stop
+//            if (current_target.norm() < consts.final_distance_to_target) {
+//                move_robot(0, 0);
+//                robot_is_active = false;
+//                qInfo() << __FUNCTION__ << "At target" << current_target.norm();
+//                return;
+//            }
+
+            if (path_robot_meters.size() < consts.num_steps_mpc) {
+                std::cout << "PASOS MPC MENOR QUE TAMAÑO PATH" << std::endl;
+                float rot = consts.rotation_gain * atan2(current_target.x(), current_target.y());
+                float dt = current_target.norm();
+                float stop_clamp = std::clamp(dt * 2/(consts.final_distance_to_target + 700) - 1, -1.f,
+                                       1.f);
+                float adv = consts.max_adv_speed * gaussian(rot) * stop_clamp;
+
+                std::cout << "ADVANCE SPEED: " << adv << std::endl;
+                std::cout << "ROTATION SPEED: " << rot << std::endl;
+
+                move_robot(adv, rot);
+                std::cout << "asdfgag3456q34rgD: " << rot << std::endl;
                 return;
             }
 
+            // When grid exists (path with more points than person one)
+            if (auto grid_node = G->get_node(grid_type_name); grid_node.has_value()) {
+                // Checks if grid is activated
+                if (auto is_activated_grid = G->get_attrib_by_name<grid_activated_att>(
+                            grid_node.value()); is_activated_grid.value()) {
+                    std::cout << "MPC TARGET WITH GRID" << std::endl;
+                    goto_target_mpc(path_robot_meters, ldata_value, true);
+                } else {
+                    std::cout << "MPC TARGET WITHOUT GRID" << std::endl;
+                    goto_target_mpc(path_robot_meters, ldata_value);
+                }
+            } else
+                qWarning() << "Not grid in graph. Try to choose a .json with node grid";
 
-            
 
 
-//            print_current_state(path, robot_pose, adv, side, rot);
+
+//            if(not robot_is_active)  // robot reached the target
+//            {
+//                if(not is_cyclic.load()){
+//                    std:cout << "Not cyclic" <<endl;
+//                    if(auto intention = G->get_node(current_intention_name); intention.has_value()) {
+//                        if (auto path = G->get_node(current_path_name); path.has_value()) {
+//
+//                            if (auto edge_think = G->get_edges_by_type(think_type_name); !edge_think.empty()) {
+//                                for (auto edge: edge_think) {
+//                                    if (edge.from() == path.value().id())
+//                                        G->delete_edge(edge.from(), edge.to(), think_type_name);
+//                                    else if (edge.to() == path.value().id())
+//                                        G->delete_edge(edge.from(), edge.to(), think_type_name);
+//                                }
+//                            }
+//                            if (auto edge_has = G->get_edges_by_type(has_type_name); !edge_has.empty()) {
+//                                for (auto edge: edge_has) {
+//                                    if (edge.from() == intention.value().id())
+//                                        G->delete_edge(edge.from(), edge.to(), has_type_name);
+//                                    else if (edge.to() == intention.value().id())
+//                                        G->delete_edge(edge.from(), edge.to(), has_type_name);
+//                                }
+//                            }
+//                            G->delete_node(intention.value().id());
+//                            G->delete_node(path.value().id());
+//                        }
+//                    }
+//                }
+//
+////                    if(not is_cyclic.load())
+//////                        if(auto path_d = G->get_node(current_path_name); path_d.has_value())
+//////                            G->delete_node(path_d.value().id());
+//////                        else
+////                        {
+//////                            path = saved_path;
+//////                            robot_is_active = true;
+////                        }
+//            }
+        }
+        else
+        {
+            std::cout << "NO HAY_ LASER" << std::endl;
+            return;
+        }
     }
-    else // stop controlling
-    {
-        qDebug() << __FUNCTION__ << "No path_node found in G. Stopping the robot";
-    }
+
+
+//    fps.print("FPS: ", [this](auto x){ dsr_viewer->set_external_hz(x);});
+
+
+//    static std::vector<Eigen::Vector2f> path, saved_path;
+//    // Check for existing path_to_target_nodes
+//    if (auto path_o = path_buffer.try_get(); path_o.has_value()) // NEW PATH!
+//    {
+//
+//        qInfo() << __FUNCTION__ << "New path";
+//        path.clear();
+//        path = path_o.value();
+//        if(is_cyclic.load())
+//            saved_path = path;
+//        current_target = path.back();
+//        from_robot_current_target = from_world_to_robot(current_target);
+//        robot_is_active = true;
+//        if(widget_2d != nullptr)
+//            draw_path(path, &widget_2d->scene);
+//    }
+//    // if there is a path in G
+//    if(auto node_path = G->get_node(current_path_name); node_path.has_value())
+//    {
+//        robot_pose = read_robot();
+//        if(auto laserdata = read_laser(false); laserdata.has_value())
+//        {
+//            auto ldata_value = laserdata.value();
+//
+/////////////////// When world exists...
+////            std::vector<Eigen::Vector2d> path_robot_meters;
+////            for (auto &&p: path)
+////            {
+////                auto aux_p = from_world_to_robot(p);
+////                Eigen::Vector2d converted_point{aux_p.x(), aux_p.y()};
+////                if(aux_p.y() > 0)
+////                    path_robot_meters.push_back(converted_point / 1000.0);  // meters
+////            }
+//
+//            if((path_robot_meters.size() < 2) || from_robot_current_target.norm() < consts.final_distance_to_target)
+//            {
+//                move_robot(0,0);
+//                qInfo() << __FUNCTION__ << "At target" << from_robot_current_target.norm();
+//                return;
+//            }
+//            if(path_robot_meters.size() < consts.num_steps_mpc)
+//            {
+//                std::cout << "PASOS MPC MENOR QUE TAMAÑO PATH" << std::endl;
+//                float adv = std::clamp(from_robot_current_target.norm(), 0.f, 500.f);
+//                float rot = atan2(from_robot_current_target.x(), from_robot_current_target.y());
+//                move_robot(adv, rot);
+//            }
+//            else
+//            {
+//                std::cout << "MPC TARGET" << std::endl;
+//                goto_target_mpc(path_robot_meters, ldata_value);
+//            }
+////                if(not is_cyclic.load())
+////                    remove_trailing_path(path, robot_pose.pos);
+//            if(not robot_is_active)  // robot reached the target
+//            {
+//                if(not is_cyclic.load()){
+//                    std:cout << "Not cyclic" <<endl;
+//                    if(auto intention = G->get_node(current_intention_name); intention.has_value()) {
+//                        if (auto path = G->get_node(current_path_name); path.has_value()) {
+//
+//                            if (auto edge_think = G->get_edges_by_type(think_type_name); !edge_think.empty()) {
+//                                for (auto edge: edge_think) {
+//                                    if (edge.from() == path.value().id())
+//                                        G->delete_edge(edge.from(), edge.to(), think_type_name);
+//                                    else if (edge.to() == path.value().id())
+//                                        G->delete_edge(edge.from(), edge.to(), think_type_name);
+//                                }
+//                            }
+//                            if (auto edge_has = G->get_edges_by_type(has_type_name); !edge_has.empty()) {
+//                                for (auto edge: edge_has) {
+//                                    if (edge.from() == intention.value().id())
+//                                        G->delete_edge(edge.from(), edge.to(), has_type_name);
+//                                    else if (edge.to() == intention.value().id())
+//                                        G->delete_edge(edge.from(), edge.to(), has_type_name);
+//                                }
+//                            }
+//                            G->delete_node(intention.value().id());
+//                            G->delete_node(path.value().id());
+//                        }
+//                    }
+//                }
+//
+////                    if(not is_cyclic.load())
+//////                        if(auto path_d = G->get_node(current_path_name); path_d.has_value())
+//////                            G->delete_node(path_d.value().id());
+//////                        else
+////                        {
+//////                            path = saved_path;
+//////                            robot_is_active = true;
+////                        }
+//            }
+//        }
+//        else
+//        {
+//            std::cout << "NO HAY_ LASER" << std::endl;
+//            return;
+//        }
+//
+//
+//
+//
+//
+////            print_current_state(path, robot_pose, adv, side, rot);
+//
+//    else // stop controlling
+//    {
+//        qDebug() << __FUNCTION__ << "No path_node found in G. Stopping the robot";
+//    }
 //    fps.print("FPS: ", [this](auto x){ dsr_viewer->set_external_hz(x);});
 }
+
 void SpecificWorker::path_follower_initialize()
 {
     qDebug() << __FUNCTION__ << "Controller - ";
@@ -299,23 +465,6 @@ float SpecificWorker::dist_along_path(const std::vector<Eigen::Vector2f> &path)
     return len;
 };
 
-SpecificWorker::Pose2D SpecificWorker::read_robot()
-{
-    Pose2D rp;
-    try
-    {
-        auto robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
-        auto robot_rotation_3d = inner_eigen->get_euler_xyz_angles(world_name, robot_name).value();
-
-        rp = {.ang=robot_rotation_3d.z(), .pos=Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y())};
-        //qInfo()  << bState.x << bState.y << bState.rz;
-//        robot_polygon->setRotation(robot_rotation_3d.z()*180/M_PI);
-//        robot_polygon->setPos(robot_pose_3d.x(), robot_pose_3d.y());
-    }
-    catch(const Ice::Exception &e){ std::cout << e.what() << std::endl;}
-    return rp;
-}
-
 //TODO: Change to OPTIONAL
 std::optional<RoboCompLaser::TLaserData> SpecificWorker::read_laser(bool noise)
 {
@@ -334,8 +483,7 @@ std::optional<RoboCompLaser::TLaserData> SpecificWorker::read_laser(bool noise)
                 if (auto laser_angle = G->get_attrib_by_name<laser_angles_att>(laser_node.value()); laser_angle.has_value())
                 {
                     auto angles = laser_angle.value().get();
-                    std::cout << "DIST SIZE: " << dists.size() << std::endl;
-                    std::cout << "ANGLES SIZE: " << angles.size() << std::endl;
+
                     // add radial noise la ldata
                     if(noise)
                         for (int i = 0; i < dists.size(); ++i)
@@ -345,7 +493,7 @@ std::optional<RoboCompLaser::TLaserData> SpecificWorker::read_laser(bool noise)
 //                    static std::uniform_int_distribution<int> unif_dist(0, dists.size());
 //                    for(int i: iter::range(consts.num_lidar_affected_rays_by_hard_noise))
 //                        dists[unif_dist(mt)] /= 5;
-                    std::cout << "LLEGA AQUI" << std::endl;
+
                     // Simplify laser contour with Ramer-Douglas-Peucker
                     //poly_robot = ramer_douglas_peucker(ldata, consts.max_RDP_deviation);
                     // Build raw polygon
@@ -355,7 +503,7 @@ std::optional<RoboCompLaser::TLaserData> SpecificWorker::read_laser(bool noise)
                         act_data.dist = dists[i]; act_data.angle = angles[i];
                         ldata.push_back(act_data);
                     }
-                    std::cout << "LLEGA AQUI 2" << std::endl;
+
 //                    draw_laser(ldata);
                     return ldata;
                 }
@@ -394,7 +542,7 @@ float SpecificWorker::gaussian(float x)
     return exp(-x*x/s);
 }
 
-void SpecificWorker::goto_target_mpc(const std::vector<Eigen::Vector2d> &path_robot, const RoboCompLaser::TLaserData &ldata)  //path in robot RS
+void SpecificWorker::goto_target_mpc(const std::vector<Eigen::Vector2d> &path_robot, const RoboCompLaser::TLaserData &ldata, bool exists_grid)  //path in robot RS
 {
     // lambda para unificar las dos salidas de los if
     auto exit = [this, path_robot]()
@@ -407,7 +555,7 @@ void SpecificWorker::goto_target_mpc(const std::vector<Eigen::Vector2d> &path_ro
         qInfo() << __FUNCTION__ << "Target reached";
     };
 
-    if(auto r = mpc.minimize_balls_path(path_robot, robot_pose.to_vec3_meters(), ldata); r.has_value())
+    if(auto r = mpc.minimize_balls_path(path_robot, robot_pose.to_eigen_3(), ldata, exists_grid); r.has_value())
     {
         auto [advance, rotation, solution, balls] = r.value();
         try
@@ -627,6 +775,7 @@ std::tuple<float, float, float> SpecificWorker::send_command_to_robot(const std:
     auto &[adv_, side_, rot_] = speeds;
     if(auto robot_node = G->get_node(robot_name); robot_node.has_value())
     {
+        qInfo() << __FUNCTION__ << "___________________ ENTRA ___________________";
         G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) adv_);
         G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) rot_);
         G->add_or_modify_attrib_local<robot_ref_side_speed_att>(robot_node.value(), (float) side_);
@@ -639,26 +788,29 @@ std::tuple<float, float, float> SpecificWorker::send_command_to_robot(const std:
 Eigen::Vector2f SpecificWorker::from_world_to_robot(const Eigen::Vector2f &p)
 {
     Eigen::Matrix2f matrix;
-    matrix << cos(robot_pose.ang) , -sin(robot_pose.ang) , sin(robot_pose.ang) , cos(robot_pose.ang);
-    return (matrix.transpose() * (p - robot_pose.pos));
+    matrix << cos(robot_pose.get_ang()) , -sin(robot_pose.get_ang()) , sin(robot_pose.get_ang()) , cos(robot_pose.get_ang());
+    return (matrix.transpose() * (p - robot_pose.get_pos()));
 }
 
 Eigen::Vector2f SpecificWorker::from_robot_to_world(const Eigen::Vector2f &p)
 {
     Eigen::Matrix2f matrix;
-    matrix << cos(robot_pose.ang) , -sin(robot_pose.ang) , sin(robot_pose.ang) , cos(robot_pose.ang);
-    return (matrix * p) + robot_pose.pos;
+    matrix << cos(robot_pose.get_ang()) , -sin(robot_pose.get_ang()) , sin(robot_pose.get_ang()) , cos(robot_pose.get_ang());
+    return (matrix * p) + robot_pose.get_pos();
 }
 
 void SpecificWorker::move_robot(float adv, float rot, float side)
 {
+    qInfo() << __FUNCTION__ << "___________________ ENTRA1111 ___________________";
     try
     {
+        qInfo() << __FUNCTION__ << "___________________ ENTRA2222 ___________________";
         if(auto robot_node = G->get_node("robot"); robot_node.has_value())
         {
+            qInfo() << __FUNCTION__ << "___________________ ENTRA3333 ___________________";
             G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) adv);
-            if(rot > 1.57) rot = 1.57;
-//            rot = rot * 0.7;
+//            if(rot > 1.57) rot = 1.57;
+////            rot = rot * 0.7;
             G->add_or_modify_attrib_local<robot_ref_rot_speed_att>(robot_node.value(), (float) rot);
             G->update_node(robot_node.value());
         }
@@ -777,6 +929,36 @@ void SpecificWorker::add_or_assign_node_slot(const std::uint64_t id, const std::
 //            }
 //        }
 //    }
+}
+
+void SpecificWorker::add_or_assign_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type)
+{
+    if(from == 76873712028090388 and to == 200 and type == "RT")
+    {
+        std::cout << "////////////////////////////////////////////////////" << std::endl;
+        if(auto room_node = G->get_node(from); room_node.has_value())
+        {
+            if(auto robot_node = G->get_node(to); robot_node.has_value())
+            {
+                if(auto robot_pos = inner_eigen->transform(G->get_node(from).value().name(), G->get_node(to).value().name()); robot_pos.has_value())
+                {
+                    auto edge = rt->get_edge_RT(room_node.value(), robot_node->id()).value();
+                    if(auto robot_grid_pos = G->get_attrib_by_name<rt_translation_grid_att>(edge); robot_grid_pos.has_value())
+                    {
+                        std::cout << "////////////////////////////////////////////////////" << std::endl;
+                        if(auto robot_ang = inner_eigen->get_euler_xyz_angles(G->get_node(from).value().name(), G->get_node(to).value().name()); robot_ang.has_value())
+                        {
+                            qInfo() << __FUNCTION__ << "GET RT Robot EDGE";
+                            robot_pose.set_pos(Eigen::Vector2f{robot_pos.value().x(), robot_pos.value().y()});
+                            std::cout << robot_pose.get_pos() << std::endl;
+                            robot_pose.set_grid_pos(Eigen::Vector2f{robot_grid_pos.value().get()[0], robot_grid_pos.value().get()[1]});
+                            robot_pose.set_angle(robot_ang.value().z());
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 void SpecificWorker::del_node_slot(std::uint64_t from)

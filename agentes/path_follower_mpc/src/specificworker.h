@@ -80,7 +80,7 @@ private:
     // DSR graph
     std::shared_ptr<DSR::DSRGraph> G;
     std::shared_ptr<DSR::InnerEigenAPI> inner_eigen;
-    std::shared_ptr<DSR::RT_API> rt_api;
+    std::shared_ptr<DSR::RT_API> rt;
     std::unique_ptr<DSR::AgentInfoAPI> agent_info_api;
 
     //DSR params
@@ -98,7 +98,7 @@ private:
     QHBoxLayout mainLayout;
     void add_or_assign_node_slot(std::uint64_t, const std::string &type);
     void add_or_assign_attrs_slot(std::uint64_t id, const std::map<std::string, DSR::Attribute> &attribs){};
-    void add_or_assign_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type){};
+    void add_or_assign_edge_slot(std::uint64_t from, std::uint64_t to,  const std::string &type);
     void del_edge_slot(std::uint64_t from, std::uint64_t to, const std::string &edge_tag){};
     void del_node_slot(std::uint64_t from);
     bool startup_check_flag;
@@ -122,11 +122,11 @@ private:
 
     struct CONSTANTS
     {
-        int num_steps_mpc = 8;
+        int num_steps_mpc = 10;
         float robot_length = 500;
         float robot_width = 400;
         float robot_radius = robot_length / 2.0;
-        float max_adv_speed = 500;
+        float max_adv_speed = 1200;
         float max_rot_speed = 3;
         float max_side_speed = 400;
         float max_lag = 100;  // ms
@@ -136,7 +136,7 @@ private:
         float times_final_distance_to_target_before_zero_rotation = 3;
         float advance_gaussian_cut_x = 0.7;
         float advance_gaussian_cut_y = 0.2;
-        float final_distance_to_target = 50; // mm
+        float final_distance_to_target = 3000; // mm
         float laser_noise_sigma  = 15;
         int num_lidar_affected_rays_by_hard_noise = 1;
         float xset_gaussian = 0.5;             // gaussian break x set value
@@ -163,7 +163,7 @@ private:
     bool robot_is_active = false;
 
     // go to
-    void goto_target_mpc(const std::vector<Eigen::Vector2d> &path_robot, const RoboCompLaser::TLaserData &ldata);
+    void goto_target_mpc(const std::vector<Eigen::Vector2d> &path_robot, const RoboCompLaser::TLaserData &ldata, bool exists_grid = false);
 
     // mpc
     mpc::MPC mpc;
@@ -176,18 +176,75 @@ private:
 //    void draw_laser(const RoboCompLaser::TLaserData &ldata); // robot coordinates
 
     // robot
-    struct Pose2D
+    // Pose2D
+    struct Pose2D  // pose X,Y + ang
     {
-        float ang;
-        Eigen::Vector2f pos;
-        QPointF toQpointF() const { return QPointF(pos.x(), pos.y());};
-        Eigen::Vector3d to_vec3_meters() const { return Eigen::Vector3d(pos.x()/1000.0, pos.y()/1000.0, ang);};
+    public:
+        void set_active(bool v) { active.store(v); };
+        bool is_active() const { return active.load();};
+        QGraphicsEllipseItem *draw = nullptr;
+        void set_pos(const Eigen::Vector2f &p)
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            pos_ant = pos;
+            pos = p;
+        };
+        void set_grid_pos(const Eigen::Vector2f &p)
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            grid_pos = p;
+        };
+        void set_angle(float a)
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            ang_ant = ang;
+            ang = a;
+        };
+        Eigen::Vector2f get_pos() const
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            return pos;
+        };
+        Eigen::Vector2f get_grid_pos() const
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            return grid_pos;
+        };
+        Eigen::Vector2f get_last_pos() const
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            return pos_ant;
+        };
+        float get_ang() const
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            return ang;
+        };
+        Eigen::Vector3d to_eigen_3() const
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            return Eigen::Vector3d(pos.x() / 1000.f, pos.y() / 1000.f, 1.f);
+        }
+        QPointF to_qpoint() const
+        {
+            std::lock_guard<std::mutex> lg(mut);
+            return QPointF(pos.x(), pos.y());
+        };
+    private:
+        Eigen::Vector2f pos, pos_ant, grid_pos{0.f, 0.f};
+        float ang, ang_ant = 0.f;
+        std::atomic_bool active = ATOMIC_VAR_INIT(false);
+        mutable std::mutex mut;
     };
+
     Eigen::Vector2f from_robot_to_world(const Eigen::Vector2f &p);
     Eigen::Vector2f from_world_to_robot(const Eigen::Vector2f &p);
     void move_robot(float adv, float rot, float side=0);
     Pose2D robot_pose;
     Pose2D read_robot();
+
+    //
+    std::vector<Eigen::Vector2f> path, saved_path;
 
     // remove trailing path
     void remove_trailing_path(const std::vector<Eigen::Vector2f> &path, const Eigen::Vector2f &robot_pose );

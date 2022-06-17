@@ -33,13 +33,14 @@
 
 #include <GenericBase.h>
 #include <Laser.h>
+#include <PathSmoother.h>
 
 
 #define CHECK_PERIOD 5000
 #define BASIC_PERIOD 100
 
 
-using TuplePrx = std::tuple<RoboCompLaser::LaserPrxPtr>;
+using TuplePrx = std::tuple<RoboCompLaser::LaserPrxPtr,RoboCompPathSmoother::PathSmootherPrxPtr>;
 
 
 class GenericWorker : public QMainWindow, public Ui_guiDlg
@@ -56,6 +57,7 @@ public:
 
 
 	RoboCompLaser::LaserPrxPtr laser_proxy;
+	RoboCompPathSmoother::PathSmootherPrxPtr pathsmoother_proxy;
 
 
 protected:

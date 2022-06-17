@@ -1,4 +1,5 @@
 CommonBehavior.Endpoints=tcp -p 10017
+PathSmootherProxy = pathsmoother:tcp -h localhost -p 10098
 
 # Proxies for required interfaces
 LaserProxy = laser:tcp -h localhost -p 10003

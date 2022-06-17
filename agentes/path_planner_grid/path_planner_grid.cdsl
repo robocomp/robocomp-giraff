@@ -1,10 +1,11 @@
 import "Laser.idsl";
+import "PathSmoother.idsl";
 
 Component path_planner_grid
 {
     Communications
     {
-    	requires Laser;
+    	requires Laser, PathSmoother;
     };
     language Cpp11;
     gui Qt(QMainWindow);

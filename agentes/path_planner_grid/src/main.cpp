@@ -131,6 +131,7 @@ int ::path_planner_grid::run(int argc, char* argv[])
 	int status=EXIT_SUCCESS;
 
 	RoboCompLaser::LaserPrxPtr laser_proxy;
+	RoboCompPathSmoother::PathSmootherPrxPtr pathsmoother_proxy;
 
 	string proxy, tmp;
 	initialize();
@@ -151,7 +152,23 @@ int ::path_planner_grid::run(int argc, char* argv[])
 	rInfo("LaserProxy initialized Ok!");
 
 
-	tprx = std::make_tuple(laser_proxy);
+	try
+	{
+		if (not GenericMonitor::configGetString(communicator(), prefix, "PathSmootherProxy", proxy, ""))
+		{
+			cout << "[" << PROGRAM_NAME << "]: Can't read configuration for proxy PathSmootherProxy\n";
+		}
+		pathsmoother_proxy = Ice::uncheckedCast<RoboCompPathSmoother::PathSmootherPrx>( communicator()->stringToProxy( proxy ) );
+	}
+	catch(const Ice::Exception& ex)
+	{
+		cout << "[" << PROGRAM_NAME << "]: Exception creating proxy PathSmoother: " << ex;
+		return EXIT_FAILURE;
+	}
+	rInfo("PathSmootherProxy initialized Ok!");
+
+
+	tprx = std::make_tuple(laser_proxy,pathsmoother_proxy);
 	SpecificWorker *worker = new SpecificWorker(tprx, startup_check_flag);
 	//Monitor thread
 	SpecificMonitor *monitor = new SpecificMonitor(worker,communicator());

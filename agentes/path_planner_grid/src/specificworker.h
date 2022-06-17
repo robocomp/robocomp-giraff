@@ -140,6 +140,11 @@ private:
                     pos_ant = pos;
                     pos = p;
                 };
+                void set_grid_pos(const Eigen::Vector2f &p)
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    grid_pos = p;
+                };
                 void set_angle(float a)
                 {
                     std::lock_guard<std::mutex> lg(mut);
@@ -150,6 +155,11 @@ private:
                 {
                     std::lock_guard<std::mutex> lg(mut);
                     return pos;
+                };
+                Eigen::Vector2f get_grid_pos() const
+                {
+                    std::lock_guard<std::mutex> lg(mut);
+                    return grid_pos;
                 };
                 Eigen::Vector2f get_last_pos() const
                 {
@@ -172,7 +182,7 @@ private:
                     return QPointF(pos.x(), pos.y());
                 };
             private:
-                Eigen::Vector2f pos, pos_ant{0.f, 0.f};
+                Eigen::Vector2f pos, pos_ant, grid_pos{0.f, 0.f};
                 float ang, ang_ant = 0.f;
                 std::atomic_bool active = ATOMIC_VAR_INIT(false);
                 mutable std::mutex mut;
@@ -182,7 +192,7 @@ private:
 
         // Relevant node IDs
         u_int64_t followed_person_id = 0;
-        u_int64_t actual_room_id = 0;
+        u_int64_t grid_id = 0;
 
         //robot
 //        struct Pose2D
@@ -226,7 +236,7 @@ private:
         std::tuple<SearchState, Mat::Vector2d> search_a_feasible_target(const DSR::Node &target, const std::map<std::string, double> &params, const DSR::Node &robot);
         void path_planner_initialize(  DSR::QScene2dViewer *viewer_2d);
         std::optional<QPointF> search_a_feasible_target(Plan &current_plan);
-        void run_current_plan(const QPolygonF &laser_poly);
+        void run_current_plan(const QPolygonF &laser_poly, bool grid_exists=false);
         void update_grid();
 
         std::shared_ptr<Collisions> collisions;
@@ -238,6 +248,7 @@ private:
         QRectF dimensions;
         Grid last_grid;
         Grid grid;
+        bool exist_grid = false;
         bool grid_updated = false;
         Pose2D grid_world_pose;
         Pose2D last_grid_world_pose;
@@ -250,8 +261,8 @@ private:
         void draw_spline_path(const std::vector<Eigen::Vector2f> &path_in_robot);
         void update_map(const RoboCompLaser::TLaserData &ldata);
         std::tuple<QPolygonF,RoboCompLaser::TLaserData> read_laser(bool noise);
-        bool regenerate_grid_to_point(const Pose2D &robot_pose);
-        bool person_in_grid_checker();
+        bool regenerate_grid_to_point(const Pose2D &robot_pose, bool with_leader=false);
+        bool person_in_grid_checker(bool is_following = true);
         void inject_grid_in_G(const Grid &grid);
         void inject_grid_data_in_G(const std::vector<float> &grid_size);
         vector<std::pair <Grid::Key, Grid::T>> get_grid_already_occupied_cells();

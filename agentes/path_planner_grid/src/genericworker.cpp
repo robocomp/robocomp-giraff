@@ -24,6 +24,7 @@ GenericWorker::GenericWorker(TuplePrx tprx) : Ui_guiDlg()
 {
 
 	laser_proxy = std::get<0>(tprx);
+	pathsmoother_proxy = std::get<1>(tprx);
 
 	mutex = new QMutex(QMutex::Recursive);
 
