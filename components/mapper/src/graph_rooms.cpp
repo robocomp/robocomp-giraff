@@ -58,37 +58,72 @@ void Graph_Rooms::draw_nodes(QGraphicsScene *scene)
         node->setZValue(120);
         nodes.push_back(node);
     }
-    draw_edges(scene);
 }
 void Graph_Rooms::draw_edges(QGraphicsScene *scene)
 {
-    static std::vector<QGraphicsItem *> edges;
+    static std::vector<QGraphicsItem *> gdoors;
     static std::vector<QGraphicsItem *> texts;
-//    for(const auto &e : edges)
-//    {
-//        for (auto c: e->childItems())
-//            scene->removeItem(c);
-//        scene->removeItem(e);
-//    }
-//    edges.clear();
+    for(auto &d : gdoors)
+    {
+        for (auto &c: d->childItems())
+            for (auto &f: c->childItems())
+                scene->removeItem(c);
+        scene->removeItem(d);
+    }
+    gdoors.clear();
+    int offset = 200;
+    qInfo() << __FUNCTION__ << "number of doors" << doors.size();
+    for(const auto &[kd, door]: doors)
+    {
+        qInfo() << __FUNCTION__ << "drawing door" << QString::fromStdString(kd);
+        QGraphicsTextItem *text;
+        QGraphicsEllipseItem *gdoor;
+        if (door.my_rooms.size() > 0)
+        {
+            auto &[kr, from_room] = *(door.my_rooms.begin());
+            auto room = rooms.at(from_room.room_id);
+            gdoor = scene->addEllipse(0, 0, 400, 400, QPen(QColor("lightGreen"), 50), QBrush(QColor("lightGreen")));
+            gdoor->setPos(room.room_world_rect.center.x+600, room.room_world_rect.center.y+offset);
+            gdoor->setZValue(120);
+            QFont f; f.setPointSize(180);
+            auto text = scene->addText("D", f);
+            text->setParentItem(gdoor);
+            flip_text(text);
+            text->setPos(180, 400);
 
-//    for(const auto &[k, r]: rooms)
-//        for(const auto &d_id : r.doors_ids)
-//        {
-//            const auto &d = doors.at(d_id);
-//            QPointF p1(r.room_world_rect.center.x, r.room_world_rect.center.y);
-//            QPointF p2(rooms.at(d.to_room).room_world_rect.center.x, rooms.at(d.to_room).room_world_rect.center.y);
-//            QLineF line(p1, p2);
-//            auto edge = scene->addLine(line, QPen(QColor("darkGreen"), 50));
-//            edge->setZValue(50);
-//            QFont f;
-//            f.setPointSize(180);
-//            auto text = scene->addText("d" + QString::number(d.id) + " (" + QString::number(r.id) + "-" + QString::number(rooms.at(d.to_room).id) + ")", f);
-//            text->setParentItem(edge);
-//            flip_text(text);
-//            text->setPos(line.center());
-//            edges.push_back(edge);
-//        }
+            // edge
+            QPointF p1(room.room_world_rect.center.x, room.room_world_rect.center.y);
+            QLineF line(p1, gdoor->pos());
+            auto edge = scene->addLine(line, QPen(QColor("darkGreen"), 50));
+            //edge->setParentItem(gdoor);
+            //edge->setPos();
+            text = scene->addText("d" + QString::fromStdString(kd).mid(0,4) + " (" + QString::number(room.id) + ")", f);
+            text->setParentItem(edge);
+            flip_text(text);
+            text->setPos(line.center());
+            gdoors.push_back(gdoor);
+            qInfo() << __FUNCTION__ << "door > 0 drawn from room " << kr << "name " << QString::fromStdString(kd);
+        }
+        if (door.my_rooms.size() == 2)
+        {
+            auto &[kr, from_room] = *(std::next(door.my_rooms.begin()));
+            qInfo() << __FUNCTION__ << "ga";
+            auto room = rooms.at(from_room.room_id);
+            qInfo() << __FUNCTION__ << "ga";
+            QPointF p1(room.room_world_rect.center.x, room.room_world_rect.center.y);
+            QLineF line(p1, gdoor->pos());
+            auto edge = scene->addLine(line, QPen(QColor("darkGreen"), 50));
+            QFont f;
+            f.setPointSize(180);
+            //scene->removeItem(text); // remove previous text
+            auto text = scene->addText("d" + QString::fromStdString(kd).mid(0,4) + " (" + QString::number(door.my_rooms.begin()->second.room_id) + "-" + QString::number(kr) + ")", f);
+            text->setParentItem(edge);
+            flip_text(text);
+            text->setPos(line.center());
+            qInfo() << __FUNCTION__ << "door ==2 drawn from room " << kr << "to room " << door.my_rooms.begin()->second.room_id << "name " << QString::fromStdString(kd);
+        }
+        offset -=1400;
+    }
 }
 
 void Graph_Rooms::draw_all(QGraphicsScene *robot_scene, QGraphicsScene *graph_scene)

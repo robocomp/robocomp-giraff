@@ -96,8 +96,8 @@ void SpecificWorker::compute()
             break;
         case States::AFTER_EXPLORING:
             state = after_exploring();
-            G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
             qInfo() << __FUNCTION__ << "AFTER_EXPLORING"; G.print();
+            G.draw_all(&viewer_robot->scene, &viewer_graph->scene);
             break;
         case States::INIT_CHANGING_ROOM:
             state = init_changing_room();
