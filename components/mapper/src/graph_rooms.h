@@ -78,6 +78,21 @@ class Graph_Rooms
                     poly_draw = other.poly_draw;
                     return *this;
                 }
+                std::optional<int> get_the_other_room(int room_id) const
+                {
+                    for(const auto &[k, v] : my_rooms)
+                        if(k != room_id)
+                            return k;
+                    return {};
+                }
+                bool has_only_one_room() const { return my_rooms.size() == 1; };
+                std::optional<int> get_the_only_room() const
+                {
+                    if (my_rooms.size() == 1)
+                        return my_rooms.begin()->first;
+                    else
+                        return {};
+                };
                 float distance_to_robot(const Eigen::Vector2f &robot) const { return (get_midpoint() - robot).norm(); };
                 void print()
                 {
@@ -112,23 +127,6 @@ class Graph_Rooms
             };
         struct Room
         {
-        public:
-            IOU::Quad quad;   //eliminate
-            int id;
-            cv::RotatedRect room_rect, room_world_rect;
-            IOU::Vertexes points;
-            QGraphicsItem *poly_draw = nullptr;
-            std::vector<std::string> doors_ids;
-            bool is_unknown = true;
-            double get_witdh() const { return room_rect.size.width;};
-            double get_height() const { return room_rect.size.height;};
-            double get_semi_witdh() const { return room_rect.size.width/2.0;};
-            double get_semi_height() const { return room_rect.size.height/2.0;};
-            bool operator == (const Room &d)
-            {
-                double iou = IOU::iou(quad, d.quad);
-                return iou > 0.9;
-            }
             Room(int id_) : id(id_)
             {
 
@@ -145,6 +143,22 @@ class Graph_Rooms
                 is_unknown = other.is_unknown;
                 poly_draw = other.poly_draw;
                 return *this;
+            }
+            IOU::Quad quad;   //eliminate
+            int id;
+            cv::RotatedRect room_rect, room_world_rect;
+            IOU::Vertexes points;
+            QGraphicsItem *poly_draw = nullptr;
+            std::vector<std::string> doors_ids;
+            bool is_unknown = true;
+            double get_witdh() const { return room_rect.size.width;};
+            double get_height() const { return room_rect.size.height;};
+            double get_semi_witdh() const { return room_rect.size.width/2.0;};
+            double get_semi_height() const { return room_rect.size.height/2.0;};
+            bool operator == (const Room &d)
+            {
+                double iou = IOU::iou(quad, d.quad);
+                return iou > 0.9;
             }
             void print()
             {
@@ -176,7 +190,7 @@ class Graph_Rooms
             //                void add_step_to_center_y(double step) {room_rect.moveCenter(room_rect.center() + QPointF(0.f, step));};
         };
 
-        std::map<int, Room> rooms;
+        std::map<int, Room> rooms;   // so they can be used inside Door and Room
         std::map<std::string, Door> doors;
 
         Room& current_room() { return rooms.at(current_room_local);};
@@ -186,7 +200,7 @@ class Graph_Rooms
         Door current_door() const { return doors.at( current_door_local);};
         void set_current_door(const std::string &id) { current_door_local = id;};
         bool there_is_a_current_door() const { return current_door_local != "none";};
-
+        void merge_doors(int room_orig, const std::string &door_orig, int room_dest, const std::string &door_dest);
         void change_current_room_key_to(int key)
         {
             auto nodeHandler = rooms.extract(current_room_local);
@@ -205,8 +219,10 @@ class Graph_Rooms
         Eigen::Vector2f  project_point_on_closest_side(const Room &room, const Eigen::Vector2f &p);
         float  min_distance_from_point_to_closest_side(const Room &r, const Eigen::Vector2f &p) const;
         void project_doors_on_room_side(Room &r, QGraphicsScene *scene);
+        std::optional<std::string> get_door_with_only_one_room(int room) const;
+        void remove_door(const std::string &id);
+        void remove_doors_not_parallel_walls(Room &r);
         void print();
-
     private:
         int current_room_local = -1;
         std::string current_door_local = "none";

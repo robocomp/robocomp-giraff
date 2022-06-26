@@ -63,66 +63,89 @@ void Graph_Rooms::draw_edges(QGraphicsScene *scene)
 {
     static std::vector<QGraphicsItem *> gdoors;
     static std::vector<QGraphicsItem *> texts;
-    for(auto &d : gdoors)
-    {
-        for (auto &c: d->childItems())
-            for (auto &f: c->childItems())
-                scene->removeItem(c);
+    static std::vector<QGraphicsLineItem *> edges;
+    for(auto &t: texts)
+        scene->removeItem(t);
+    for(auto &e: edges)
+        scene->removeItem(e);
+    for(auto &d: gdoors)
         scene->removeItem(d);
-    }
     gdoors.clear();
-    int offset = 200;
-    qInfo() << __FUNCTION__ << "number of doors" << doors.size();
+    texts.clear();
+    edges.clear();
+
+    std::set<int> doors_in_rooms;  // to avoid drawing two one-room doors in the same spot
     for(const auto &[kd, door]: doors)
     {
-        qInfo() << __FUNCTION__ << "drawing door" << QString::fromStdString(kd);
-        QGraphicsTextItem *text;
         QGraphicsEllipseItem *gdoor;
-        if (door.my_rooms.size() > 0)
+        if (door.my_rooms.size() == 0)
+            qWarning() << __FUNCTION__ << "Door with no rooms" << QString::fromStdString(door.id);
+        if (door.my_rooms.size() == 1) // place it to the right of the room
         {
             auto &[kr, from_room] = *(door.my_rooms.begin());
             auto room = rooms.at(from_room.room_id);
-            gdoor = scene->addEllipse(0, 0, 400, 400, QPen(QColor("lightGreen"), 50), QBrush(QColor("lightGreen")));
-            gdoor->setPos(room.room_world_rect.center.x+600, room.room_world_rect.center.y+offset);
+            gdoor = scene->addEllipse(-200, -200, 400, 400, QPen(QColor("lightGreen"), 50), QBrush(QColor("lightGreen")));
+            if(not doors_in_rooms.contains(kr))
+                gdoor->setPos(room.room_world_rect.center.x+1500, room.room_world_rect.center.y-1000);
+            else
+                gdoor->setPos(room.room_world_rect.center.x+1200, room.room_world_rect.center.y+1000);
             gdoor->setZValue(120);
             QFont f; f.setPointSize(180);
             auto text = scene->addText("D", f);
             text->setParentItem(gdoor);
             flip_text(text);
-            text->setPos(180, 400);
+            text->setPos(-90,110);
+            texts.push_back(text);
+            doors_in_rooms.insert(kr);
+            gdoors.push_back(gdoor);
 
             // edge
             QPointF p1(room.room_world_rect.center.x, room.room_world_rect.center.y);
             QLineF line(p1, gdoor->pos());
             auto edge = scene->addLine(line, QPen(QColor("darkGreen"), 50));
-            //edge->setParentItem(gdoor);
-            //edge->setPos();
-            text = scene->addText("d" + QString::fromStdString(kd).mid(0,4) + " (" + QString::number(room.id) + ")", f);
-            text->setParentItem(edge);
-            flip_text(text);
-            text->setPos(line.center());
-            gdoors.push_back(gdoor);
-            qInfo() << __FUNCTION__ << "door > 0 drawn from room " << kr << "name " << QString::fromStdString(kd);
+            edges.push_back(edge);
+            auto text2 = scene->addText(QString::fromStdString(kd).mid(0,4) + " (" + QString::number(room.id) + ")", f);
+            text2->setParentItem(edge);
+            flip_text(text2);
+            text2->setPos(line.center()-QPointF(300, 0));
+            texts.push_back(text2);
         }
-        if (door.my_rooms.size() == 2)
+        if (door.my_rooms.size() == 2)  //place the edge between the two rooms
         {
-            auto &[kr, from_room] = *(std::next(door.my_rooms.begin()));
-            qInfo() << __FUNCTION__ << "ga";
-            auto room = rooms.at(from_room.room_id);
-            qInfo() << __FUNCTION__ << "ga";
-            QPointF p1(room.room_world_rect.center.x, room.room_world_rect.center.y);
-            QLineF line(p1, gdoor->pos());
-            auto edge = scene->addLine(line, QPen(QColor("darkGreen"), 50));
-            QFont f;
-            f.setPointSize(180);
-            //scene->removeItem(text); // remove previous text
-            auto text = scene->addText("d" + QString::fromStdString(kd).mid(0,4) + " (" + QString::number(door.my_rooms.begin()->second.room_id) + "-" + QString::number(kr) + ")", f);
-            text->setParentItem(edge);
+            auto &[kfr, from_room_id] = *(door.my_rooms.begin());
+            auto &[ktr, to_room_id] = *(std::next(door.my_rooms.begin()));
+            Room from_room = rooms.at(from_room_id.room_id);
+            Room to_room = rooms.at(to_room_id.room_id);
+            gdoor = scene->addEllipse(-200, -200, 400, 400, QPen(QColor("lightGreen"), 50), QBrush(QColor("lightGreen")));
+            auto r_center = (to_room.room_world_rect.center + from_room.room_world_rect.center)/2.f;
+            gdoor->setPos(QPointF(r_center.x, r_center.y));
+            gdoor->setZValue(120);
+            QFont f; f.setPointSize(180);
+            auto text = scene->addText("D", f);
+            text->setParentItem(gdoor);
             flip_text(text);
-            text->setPos(line.center());
-            qInfo() << __FUNCTION__ << "door ==2 drawn from room " << kr << "to room " << door.my_rooms.begin()->second.room_id << "name " << QString::fromStdString(kd);
+            text->setPos(-90,110);
+            texts.push_back(text);
+
+            QPointF p1(from_room.room_world_rect.center.x, from_room.room_world_rect.center.y);
+            QLineF line1(p1, gdoor->pos());
+            auto edge1 = scene->addLine(line1, QPen(QColor("darkGreen"), 50));
+            edges.push_back(edge1);
+            auto text1 = scene->addText(QString::fromStdString(kd).mid(0,4) + " (" + QString::number(door.my_rooms.begin()->second.room_id) + "-" + QString::number(kfr) + ")", f);
+            text1->setParentItem(edge1);
+            flip_text(text1);
+            text1->setPos(line1.center());
+            texts.push_back(text1);
+            QPointF p2(to_room.room_world_rect.center.x, to_room.room_world_rect.center.y);
+            QLineF line2(gdoor->pos(), p2);
+            auto edge2 = scene->addLine(line2, QPen(QColor("darkGreen"), 50));
+            edges.push_back(edge2);
+            auto text2 = scene->addText(QString::fromStdString(kd).mid(0,4) + " (" + QString::number(door.my_rooms.begin()->second.room_id) + "-" + QString::number(ktr) + ")", f);
+            text2->setParentItem(edge2);
+            flip_text(text2);
+            text2->setPos(line2.center());
+            texts.push_back(text2);
         }
-        offset -=1400;
     }
 }
 
@@ -167,12 +190,11 @@ void Graph_Rooms::add_door_to_current_room(const Eigen::Vector2f &p1_grid, const
     char uuid_str[37];
     uuid_unparse_lower(uuid, uuid_str);
     std::string key(uuid_str);
-    Graph_Rooms::Door new_door(p1_grid, p2_grid, key);  // coords in temporal grid RS.
+    Graph_Rooms::Door new_door(p1_grid, p2_grid, key);  // coords in temporal grid CS.
 
+    // check if door already exists
     auto res = std::ranges::find_if(current_room().doors_ids, [ds = doors, new_door ](auto d)mutable{ return new_door == ds.at(d);});
-    if(res != std::end(current_room().doors_ids)) // found. Cannot add door to an existing door
-        return;  // skip
-    else  // add a new door
+    if(res == std::end(current_room().doors_ids)) // Not found, go ahead to add a new door
     {
         new_door.my_rooms[current_room().id] = Door::From_Room{.room_id = current_room().id};
         doors.insert(std::pair(key, new_door));
@@ -181,37 +203,7 @@ void Graph_Rooms::add_door_to_current_room(const Eigen::Vector2f &p1_grid, const
         //qInfo() << __FUNCTION__ << "NEW door added" << new_door.id << " connected to current_room [" << p1.x() << p1.y() << "]"
         //        << "[" << p2.x() << p2.y() << "]" ;
     }
-
-//    bool door_found = false;
-//    // search for an existing door in other rooms with the same coordinates
-//    for (auto &r: rooms)
-//        for (auto &d_id: r.doors_ids)
-//        {
-//            auto &d = doors.at(d_id);
-//            if (new_door == d)
-//            {
-//                if (r.id != room.id  and d.to_room == -1) // exists a free connecting door in a nearby room
-//                {
-//                    d.to_room = room.id;
-//                    d.from_room = r.id;
-//                    //                    new_door.to_room = r.id;
-//                    //                    new_door.from_room = room.id;
-//                    //                    new_door.id = d.id;
-//                    room.doors_ids.emplace_back(new_door.id);
-//                    qInfo() << __FUNCTION__ << "RECOGNIZED door " << new_door.id << "added to room" << room.id;
-//                    d.print();
-//                }
-//                door_found = true;
-//                break;
-//            }
-//    if( not door_found)
-//    {
-//        new_door.id = number_of_doors++;
-//        new_door.from_room = current_room().id;
-//        room.doors_ids.emplace_back(new_door.id);
-//        qInfo() << __FUNCTION__ << "NEW door " << new_door.id << "added to room" << room.id;
-//        new_door.print();
-//    }
+    //else Cannot add door to an existing door
 }
 Eigen::Matrix<double, 4, 3> Graph_Rooms::get_room_sides_matrix(const Room &r)
 {
@@ -270,25 +262,49 @@ float  Graph_Rooms::min_distance_from_point_to_closest_side(const Room &r, const
     return std::ranges::min(distances);
 
 }
-void Graph_Rooms::project_doors_on_room_side(Room &r,QGraphicsScene *scene)
+void Graph_Rooms::project_doors_on_room_side(Room &r, QGraphicsScene *scene)
 {
     for(auto &d_id: r.doors_ids)
     {
         auto &d = doors.at(d_id);
         d.p1_in_grid = project_point_on_closest_side(r, d.p1_in_grid);
         d.p2_in_grid = project_point_on_closest_side(r, d.p2_in_grid);
+
         // compute doors coordinates in Rect RS
         Eigen::Matrix2f matrix;
         float ang = qDegreesToRadians(r.room_rect.angle);
         matrix << cos(ang) , -sin(ang) , sin(ang) , cos(ang);
         d.my_rooms.at(r.id).p1 = matrix.transpose() * ( d.p1_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
         d.my_rooms.at(r.id).p2 = matrix.transpose() * ( d.p2_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
-        //qInfo() << __FUNCTION__ << "door " << d.id << "in rect"
-        //        <<  d.rooms.at(r.id).p1.x() <<  d.rooms.at(r.id).p1.y()
-        //        <<  d.rooms.at(r.id).p2.x() <<  d.rooms.at(r.id).p2.y();
-
-        //d.draw(scene);
     }
+}
+void Graph_Rooms::remove_doors_not_parallel_walls(Room &r)
+{
+    for(auto &d_id: r.doors_ids)
+    {
+        auto &d = doors.at(d_id);
+
+        d.p1_in_grid = project_point_on_closest_side(r, d.p1_in_grid);
+        d.p2_in_grid = project_point_on_closest_side(r, d.p2_in_grid);
+
+        // compute doors coordinates in Rect RS
+        Eigen::Matrix2f matrix;
+        float ang = qDegreesToRadians(r.room_rect.angle);
+        matrix << cos(ang) , -sin(ang) , sin(ang) , cos(ang);
+        auto p1 = matrix.transpose() * ( d.p1_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
+        auto p2 = matrix.transpose() * ( d.p2_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
+        QLineF door(QPointF(p1.x(), p1.y()), QPointF(p2.x(), p2.y()));
+        //QLineF vert_axis(QPointF(0, -r.room_rect.size.height), QPointF(0, r.room_rect.size.height));
+        //QLineF horz_axis(QPointF(-r.room_rect.size.width, 0), QPointF(r.room_rect.size.width, 0));
+        if(door.angle() > 15)  //degrees
+            remove_door(d_id);
+    }
+}
+void Graph_Rooms::remove_door(const std::string &id)
+{
+    for(const auto &[room, v] : doors.at(id).my_rooms)
+        std::erase(rooms.at(room).doors_ids, .erase();
+    doors.erase(id);
 }
 void Graph_Rooms::print()
 {
@@ -303,3 +319,21 @@ void Graph_Rooms::print()
     }
     qInfo() << "--------------------------------------";
 }
+
+void Graph_Rooms::merge_doors(int room_orig, const std::string &door_orig, int room_dest, const std::string &door_dest)
+{
+    Door::From_Room new_room; new_room.room_id = room_orig;
+    doors.at(door_dest).my_rooms.insert(std::make_pair(room_orig, new_room));
+    rooms.at(room_dest).doors_ids.push_back(door_dest);
+    rooms.at(room_orig).doors_ids.push_back(door_dest);
+    doors.erase(door_orig);
+}
+
+std::optional<std::string> Graph_Rooms::get_door_with_only_one_room(int room) const
+{
+    for(const auto d_id: rooms.at(room).doors_ids)
+        if(doors.at(d_id).has_only_one_room())
+            return d_id;
+    return {};
+}
+

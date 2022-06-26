@@ -74,12 +74,6 @@ void SpecificWorker::compute()
     read_base();
     read_laser();
     RoboCompCameraRGBDSimple::TImage img = read_camera();
-    if (img.image.empty())
-    {
-        qWarning() << __FUNCTION__ << "Image empty. Returning;";
-        return;
-    };
-    tags.clear();
     tags = read_apriltags(img);
 
     if(stop_execution) return;
@@ -133,31 +127,50 @@ SpecificWorker::States SpecificWorker::exploring()
     static std::vector<std::tuple<float, int>> tags_set;
     if(not (fabs(current - initial_angle) < (M_PI + 0.1) and fabs(current - initial_angle) > (M_PI - 0.1)))
     {
-        for(const auto &t : this->tags)
+        for(const auto &t : tags)
         {
-            if(G.rooms.contains(t.id) and sqrt(t.tx*t.tx+t.ty*t.ty+t.tz*t.tz) < 3000)
+            qInfo() << __FUNCTION__ << "tags_list" << t.id;
+            if(G.rooms.contains(t.id) and sqrt(t.tx*t.tx+t.ty*t.ty+t.tz*t.tz) < 2) // meters
             {
                 qInfo() << __FUNCTION__ << "Room " << t.id << "RECOGNIZED!";
                 G.set_current_room(t.id);
                 // when changing from here, grid coordinates to compute door's mid_point are not valid in this grid
                 // we need to ground the model and locate in it the doors with respect to the robot
                 // using also the detected doors so far to match the doors in the model
-                return States::INIT_CHANGING_ROOM;  // Grounding should be done here
+
+                if(auto res = std::ranges::find(G.current_room().doors_ids, G.current_door().id); res != G.current_room().doors_ids.end())
+                    qInfo() << __FUNCTION__ << "MATCH between doors: " << QString::fromStdString(G.current_door().id).mid(0,4) << "and" << QString::fromStdString(*res);
+
+                // if coming from a door with only one room, we need to merge both doors into one.
+                if(G.current_door().has_only_one_room())
+                {   // merge G.current_door() and G.current_room().closest_door_to(G.current_door());
+                    // ÑAPA: merge G.current_door() and G.current_room().get_door_with_one_room() );  (first door with one room)
+                    if (auto d = G.get_door_with_only_one_room(G.current_room().id); d.has_value())
+                    {
+                        G.merge_doors(G.current_room().id, d.value(), G.current_door().get_the_only_room().value(), G.current_door().id);
+                        qInfo() << __FUNCTION__ << "MERGE doors:" << QString::fromStdString(G.current_door().id).mid(0,4) << "and" << QString::fromStdString(d.value()).mid(0,4);
+                    }
+                    else
+                        qWarning() << __FUNCTION__ << "Current room" << G.current_room().id << "does NOT have a door with only one room";
+                }
+                current_tag = t.id;
+                tags_set.clear();
+                return States::AFTER_EXPLORING;  // Grounding should be done here
             }
             tags_set.push_back(std::make_tuple(sqrt(t.tx * t.tx + t.ty * t.ty + t.tz * t.tz), t.id));
         }
 
         update_map(ldata);
-        auto new_peaks = detect_doors();
+        auto new_peaks = detect_peaks_in_lidar(ldata);
         peaks.insert(std::end(peaks), std::begin(new_peaks), std::end(new_peaks));
     }
-    else
+    else  // finish turning. Select current_tag as the minimum in the list
     {
         if(not tags_set.empty())
         {
             auto [dist, id] = std::ranges::min(tags_set, [](auto a, auto b) { return std::get<0>(a) < std::get<0>(b); });
             tags_set.clear();
-            qInfo() << __FUNCTION__ << "Finished exploring. Current detected room" << id;
+            qInfo() << __FUNCTION__ << "Finished exploring. Current detected room" << id << "at " << dist;
             current_tag = id;
             return States::AFTER_EXPLORING;
         }
@@ -190,7 +203,21 @@ SpecificWorker::States SpecificWorker::after_exploring()
         if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 550)
             G.add_door_to_current_room(c[0], c[1]);
 
-    estimate_rooms();  // needs doors to handle outliers
+    // elicit room from data
+    if(const auto est_room = estimate_room(); est_room.has_value())  // needs doors to handle outliers
+    {
+        Graph_Rooms::Room &room = G.current_room();
+        room.room_rect = est_room;
+        auto g2w = from_grid_to_world(Eigen::Vector2f{est_room.center.x, est_room.center.y});
+        room.room_world_rect = cv::RotatedRect(cv::Point2f(g2w.x(), g2w.y()), cv::Size2f(est_room.size),
+                                               qRadiansToDegrees(grid_world_pose.ang) + est_room.angle);
+        G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
+    }
+    else
+    {
+        qInfo() << __FUNCTION__ << "Warning: Could not estimate a room. Returning";
+        return;
+    }
 
     // Filter computed doors now that we have a rect model. New doors have been added with ids greater than last existing door
     // current_door has coordinates in the former, non existing grid. To compare we need to transform current_door into the current grid
@@ -235,15 +262,13 @@ SpecificWorker::States SpecificWorker::after_exploring()
 }
 SpecificWorker::States SpecificWorker::init_changing_room()
 {
-    // before start
-    qInfo() << __FUNCTION__ << "Entering from room: " << G.current_room().id;
     // Choose an un-explored destination room if there is one
     bool found_unknown = false;
     for (const auto &d_id: G.current_room().doors_ids)
         if (G.doors.at(d_id).my_rooms.size() == 1) // the other room that the door connects to, is unknown
         {
             G.set_current_door(G.doors.at(d_id).id);
-            qInfo() << __FUNCTION__ << "Door selected to UNknown room: " << QString::fromStdString(G.current_door().id);
+            qInfo() << __FUNCTION__ << "Selected door"  << QString::fromStdString(G.current_door().id).mid(0,4) << "from room" << G.current_room().id << "to UNKNOWN room: ";
             found_unknown = true;
             break;
         }
@@ -255,8 +280,12 @@ SpecificWorker::States SpecificWorker::init_changing_room()
         std::ranges::sample(G.current_room().doors_ids, std::back_inserter(selected_doors), 1, gen);
         if (not selected_doors.empty())
         {
-            G.set_current_door(selected_doors.front());
-            qInfo() << __FUNCTION__ << "Door selected to KNOWN room: " << QString::fromStdString(G.current_door().id);
+            const Graph_Rooms::Door &door = G.doors.at(selected_doors.front());
+            G.set_current_door(door.id);
+            if(const auto dest = door.get_the_other_room(G.current_room().id); dest.has_value())
+                qInfo() << __FUNCTION__ << "Selected door" << QString::fromStdString(G.current_door().id).mid(0,4) << "from room" << G.current_room().id << "to KNOWN room" << dest.value();
+            else
+                qWarning() << "Selected known door with only one room!";
         }
         else
         {qInfo() << "WARNING, no door to choose"; std::terminate();}
@@ -307,7 +336,7 @@ SpecificWorker::States SpecificWorker::after_changing_room()
 }
 
 ////////////////////////////////////////////////////////////////////
-std::vector<Eigen::Vector2f> SpecificWorker::detect_doors()
+std::vector<Eigen::Vector2f> SpecificWorker::detect_peaks_in_lidar(const RoboCompLaser::TLaserData &ldata)
 {
     // get peaks from former iteration and add the new ones
     std::vector<Eigen::Vector2f> peaks;
@@ -336,7 +365,7 @@ std::vector<Eigen::Vector2f> SpecificWorker::detect_doors()
     }
     return peaks;
 }
-bool SpecificWorker::estimate_rooms()
+std::optional<cv::RotatedRect> SpecificWorker::estimate_room()
 {
     // create list of occuppied points
     RoboCompRoomDetection::ListOfPoints points;
@@ -387,7 +416,7 @@ bool SpecificWorker::estimate_rooms()
     //    std::ranges::sample(inside_points, std::back_inserter(sampled_points), std::clamp((double)inside_points.size(), inside_points.size() / 4.0, 400.0), gen);
 
     if(inside_points.empty())
-        return false;
+        return {};
 
     Eigen::MatrixX3d my_points;
     my_points.resize(inside_points.size(), 3);
@@ -400,25 +429,7 @@ bool SpecificWorker::estimate_rooms()
 
     // call optimizer
     cv::RotatedRect ro = cv::minAreaRect(cv_points);
-
-//    cv::RotatedRect ro = room_detector.compute_room(my_points);
-//    cv::Point2f ro_points[4];
-//    ro.points(ro_points);
-//    IOU::Quad max(IOU::Point(ro_points[0].x, ro_points[0].y),
-//                  IOU::Point(ro_points[1].x, ro_points[1].y),
-//                  IOU::Point(ro_points[2].x, ro_points[2].y),
-//                  IOU::Point(ro_points[3].x, ro_points[3].y));
-
-    // update current room
-    Graph_Rooms::Room &room = G.current_room();
-    //room.quad = max;
-    room.room_rect = ro;
-    auto g2w = from_grid_to_world(Eigen::Vector2f{ ro.center.x, ro.center.y});
-    room.room_world_rect = cv::RotatedRect(cv::Point2f(g2w.x(), g2w.y()), cv::Size2f(ro.size), qRadiansToDegrees(grid_world_pose.ang));
-    G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
-    // DRAW: move model room to world ref system to draw it
-
-    return true;
+    return ro;
 }
 
 ////////////////////////////////// AUX /////////////////////////////////////
@@ -470,6 +481,11 @@ RoboCompCameraRGBDSimple::TImage SpecificWorker::read_camera()
 RoboCompAprilTags::TagsList SpecificWorker::read_apriltags(const RoboCompCameraRGBDSimple::TImage &img)
 {
     RoboCompAprilTags::TagsList tags;
+    if (img.image.empty())
+    {
+        qWarning() << __FUNCTION__ << "Image empty while reading Apriltags. Returning;";
+        return tags;
+    };
     try
     {
         tags = apriltags_proxy->getAprilTags(img, 0.5, "36h11");
@@ -529,7 +545,7 @@ void SpecificWorker::update_map(const RoboCompLaser::TLaserData &ldata)
                 local_grid.add_hit(tip);
         }
     }
-    local_grid.update_costs();
+    local_grid.update_costs(false);
 }
 Eigen::Vector2f SpecificWorker::from_robot_to_world(const Eigen::Vector2f &p)
 {

@@ -122,8 +122,8 @@ private:
     States after_changing_room();
     Eigen::Vector2f mid_point;
 
-    std::vector<Eigen::Vector2f> detect_doors();
-    bool estimate_rooms();
+    std::vector<Eigen::Vector2f> detect_peaks_in_lidar(const RoboCompLaser::TLaserData &ldata);
+    std::optional<cv::RotatedRect> estimate_room();
 
     // grid
     QRectF dimensions;
