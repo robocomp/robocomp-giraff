@@ -129,7 +129,6 @@ SpecificWorker::States SpecificWorker::exploring()
     {
         for(const auto &t : tags)
         {
-            qInfo() << __FUNCTION__ << "tags_list" << t.id;
             if(G.rooms.contains(t.id) and sqrt(t.tx*t.tx+t.ty*t.ty+t.tz*t.tz) < 2) // meters
             {
                 qInfo() << __FUNCTION__ << "Room " << t.id << "RECOGNIZED!";
@@ -148,7 +147,7 @@ SpecificWorker::States SpecificWorker::exploring()
                     if (auto d = G.get_door_with_only_one_room(G.current_room().id); d.has_value())
                     {
                         G.merge_doors(G.current_room().id, d.value(), G.current_door().get_the_only_room().value(), G.current_door().id);
-                        qInfo() << __FUNCTION__ << "MERGE doors:" << QString::fromStdString(G.current_door().id).mid(0,4) << "and" << QString::fromStdString(d.value()).mid(0,4);
+                        qInfo() << __FUNCTION__ << "MERGE doors:" << "and" << QString::fromStdString(d.value()).mid(0,4) <<  QString::fromStdString(G.current_door().id).mid(0,4) ;
                     }
                     else
                         qWarning() << __FUNCTION__ << "Current room" << G.current_room().id << "does NOT have a door with only one room";
@@ -157,7 +156,8 @@ SpecificWorker::States SpecificWorker::exploring()
                 tags_set.clear();
                 return States::AFTER_EXPLORING;  // Grounding should be done here
             }
-            tags_set.push_back(std::make_tuple(sqrt(t.tx * t.tx + t.ty * t.ty + t.tz * t.tz), t.id));
+            if(sqrt(t.tx*t.tx+t.ty*t.ty+t.tz*t.tz) < 3)
+                tags_set.push_back(std::make_tuple(sqrt(t.tx * t.tx + t.ty * t.ty + t.tz * t.tz), t.id));
         }
 
         update_map(ldata);
@@ -203,20 +203,23 @@ SpecificWorker::States SpecificWorker::after_exploring()
         if ((c[0] - c[1]).norm() < 1100 and (c[0] - c[1]).norm() > 550)
             G.add_door_to_current_room(c[0], c[1]);
 
+    // needs doors to handle outliers
     // elicit room from data
-    if(const auto est_room = estimate_room(); est_room.has_value())  // needs doors to handle outliers
+    if(const auto est_room = estimate_room(); est_room.has_value())
     {
+        // add elicited data to graph
         Graph_Rooms::Room &room = G.current_room();
-        room.room_rect = est_room;
-        auto g2w = from_grid_to_world(Eigen::Vector2f{est_room.center.x, est_room.center.y});
-        room.room_world_rect = cv::RotatedRect(cv::Point2f(g2w.x(), g2w.y()), cv::Size2f(est_room.size),
-                                               qRadiansToDegrees(grid_world_pose.ang) + est_room.angle);
-        G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);
+        auto est = est_room.value();
+        room.room_rect = est;
+        auto g2w = from_grid_to_world(Eigen::Vector2f{est.center.x, est.center.y});
+        room.room_world_rect = cv::RotatedRect(cv::Point2f(g2w.x(), g2w.y()), cv::Size2f(est.size),
+                                               qRadiansToDegrees(grid_world_pose.ang) + est.angle);
+        G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);  //SHOULD REMOVE DOORS at HIGH ANGLE WITH WALLS
     }
     else
     {
         qInfo() << __FUNCTION__ << "Warning: Could not estimate a room. Returning";
-        return;
+        return States::AFTER_EXPLORING;
     }
 
     // Filter computed doors now that we have a rect model. New doors have been added with ids greater than last existing door
@@ -233,9 +236,6 @@ SpecificWorker::States SpecificWorker::after_exploring()
             // merge both doors in one: *res -> is removed and G.current_room().doors_ids.at(*res.id) replaced by G.current_door.id()
             qInfo() << __FUNCTION__ << "matched door" << QString::fromStdString(*res) << "current_door" << QString::fromStdString(G.current_door().id);
             G.doors.at(*res).print();
-//            for(auto &d: G.current_room().doors_ids) G.doors.at(d).print();
-//            qInfo() << __FUNCTION__ << "current door";
-            G.current_door().print();
             G.doors.erase(*res);
             *res = G.current_door().id;  // change matched door id to current_door in current_room
             G.current_door().my_rooms.insert(std::make_pair(G.current_room().id, Graph_Rooms::Door::From_Room{.room_id = G.current_room().id}));
@@ -254,9 +254,8 @@ SpecificWorker::States SpecificWorker::after_exploring()
             G.doors.at(d).p2_in_world = from_grid_to_world(G.doors.at(d).p2_in_grid);
         }
     }
-
+    //G.remove_doors_not_parallel_to_walls(G.current_room().id);
     // room_detector.minimize_door_distances(G);
-
     local_grid_is_active = false;
     return States::INIT_CHANGING_ROOM;
 }

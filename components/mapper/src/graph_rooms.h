@@ -221,7 +221,7 @@ class Graph_Rooms
         void project_doors_on_room_side(Room &r, QGraphicsScene *scene);
         std::optional<std::string> get_door_with_only_one_room(int room) const;
         void remove_door(const std::string &id);
-        void remove_doors_not_parallel_walls(Room &r);
+        void remove_doors_not_parallel_to_walls(int room_id);
         void print();
     private:
         int current_room_local = -1;

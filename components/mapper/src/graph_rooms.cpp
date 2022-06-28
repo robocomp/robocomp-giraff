@@ -278,8 +278,9 @@ void Graph_Rooms::project_doors_on_room_side(Room &r, QGraphicsScene *scene)
         d.my_rooms.at(r.id).p2 = matrix.transpose() * ( d.p2_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
     }
 }
-void Graph_Rooms::remove_doors_not_parallel_walls(Room &r)
+void Graph_Rooms::remove_doors_not_parallel_to_walls(int room_id)
 {
+    auto r = rooms.at(room_id);
     for(auto &d_id: r.doors_ids)
     {
         auto &d = doors.at(d_id);
@@ -294,16 +295,24 @@ void Graph_Rooms::remove_doors_not_parallel_walls(Room &r)
         auto p1 = matrix.transpose() * ( d.p1_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
         auto p2 = matrix.transpose() * ( d.p2_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
         QLineF door(QPointF(p1.x(), p1.y()), QPointF(p2.x(), p2.y()));
-        //QLineF vert_axis(QPointF(0, -r.room_rect.size.height), QPointF(0, r.room_rect.size.height));
-        //QLineF horz_axis(QPointF(-r.room_rect.size.width, 0), QPointF(r.room_rect.size.width, 0));
-        if(door.angle() > 15)  //degrees
+        const float delta = 15;
+        if((door.angle() > delta and door.angle() < M_PI / 2 - delta) //degrees
+           or
+           (door.angle() > M_PI/2+delta and door.angle() < M_PI)
+           or
+           (door.angle() > M_PI + delta and door.angle() < 3*M_PI/2 - delta)
+           or
+           (door.angle() > 3*M_PI/2 + delta and door.angle() < 2*M_PI - delta))
+        {
             remove_door(d_id);
+            qInfo() << __FUNCTION__ << "Removed door not parallel to sides" << QString::fromStdString(d_id);
+        }
     }
 }
 void Graph_Rooms::remove_door(const std::string &id)
 {
     for(const auto &[room, v] : doors.at(id).my_rooms)
-        std::erase(rooms.at(room).doors_ids, .erase();
+        std::erase(rooms.at(room).doors_ids, id);
     doors.erase(id);
 }
 void Graph_Rooms::print()
@@ -324,7 +333,7 @@ void Graph_Rooms::merge_doors(int room_orig, const std::string &door_orig, int r
 {
     Door::From_Room new_room; new_room.room_id = room_orig;
     doors.at(door_dest).my_rooms.insert(std::make_pair(room_orig, new_room));
-    rooms.at(room_dest).doors_ids.push_back(door_dest);
+    std::erase(rooms.at(room_orig).doors_ids, door_orig);
     rooms.at(room_orig).doors_ids.push_back(door_dest);
     doors.erase(door_orig);
 }
