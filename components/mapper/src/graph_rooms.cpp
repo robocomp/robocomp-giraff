@@ -218,13 +218,8 @@ Eigen::Matrix<double, 4, 3> Graph_Rooms::get_room_sides_matrix(const Room &r)
 //            c4.y() - c1.y(), c1.x() - c4.x(), (c4.x() - c1.x()) * c4.y() + (c1.y() - c4.y()) * c4.x();
     return L;
 }
-Eigen::Vector2f Graph_Rooms::project_point_on_closest_side(const Room &r, const Eigen::Vector2f &p)
+std::tuple<std::size_t, Eigen::Vector2f> Graph_Rooms::project_point_on_closest_side(const Room &r, const Eigen::Vector2f &p)
 {
-//    std::vector<Eigen::Vector2f> corners = {  Eigen::Vector2f(r.room_rect.right(), r.room_rect.top()),
-//                                              Eigen::Vector2f(r.room_rect.right(), r.room_rect.bottom()),
-//                                              Eigen::Vector2f(r.room_rect.left(), r.room_rect.bottom()),
-//                                              Eigen::Vector2f(r.room_rect.left(), r.room_rect.top())};
-
     cv::Point2f points[4];
     r.room_rect.points(points);
     std::vector<Eigen::Vector2f> corners = {  Eigen::Vector2f(points[0].x, points[0].y),
@@ -234,15 +229,15 @@ Eigen::Vector2f Graph_Rooms::project_point_on_closest_side(const Room &r, const 
 
     std::vector<Eigen::ParametrizedLine<float, 2>> lines;
     std::vector<float> distances;
-    for(int i=0; i<4; i++)
+    for(std::size_t i = 0; i <4; i++)
     {
         lines.emplace_back(Eigen::ParametrizedLine<float, 2>::Through(corners[i], corners[(i + 1) % 4]));
         distances.push_back(lines.back().distance(p));
     }
     auto min = std::ranges::min_element(distances);
-    int idx = std::distance(distances.begin(), min);
+    std::size_t idx = std::distance(distances.begin(), min);
     auto proj = lines[idx].projection(p);
-    return proj;
+    return std::make_tuple(idx, proj);
 }
 
 float  Graph_Rooms::min_distance_from_point_to_closest_side(const Room &r, const Eigen::Vector2f &p) const
@@ -264,12 +259,17 @@ float  Graph_Rooms::min_distance_from_point_to_closest_side(const Room &r, const
 }
 void Graph_Rooms::project_doors_on_room_side(Room &r, QGraphicsScene *scene)
 {
+    // room in grid coordinates
+    std::vector<std::string> doors_to_delete;
     for(auto &d_id: r.doors_ids)
     {
         auto &d = doors.at(d_id);
-        d.p1_in_grid = project_point_on_closest_side(r, d.p1_in_grid);
-        d.p2_in_grid = project_point_on_closest_side(r, d.p2_in_grid);
-
+        const auto &[side1, p1] = project_point_on_closest_side(r, d.p1_in_grid);
+        const auto &[side2, p2] = project_point_on_closest_side(r, d.p2_in_grid);
+        if(side1 != side2)
+            doors_to_delete.push_back(d_id);
+        d.p1_in_grid = p1;
+        d.p2_in_grid = p2;
         // compute doors coordinates in Rect RS
         Eigen::Matrix2f matrix;
         float ang = qDegreesToRadians(r.room_rect.angle);
@@ -277,6 +277,8 @@ void Graph_Rooms::project_doors_on_room_side(Room &r, QGraphicsScene *scene)
         d.my_rooms.at(r.id).p1 = matrix.transpose() * ( d.p1_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
         d.my_rooms.at(r.id).p2 = matrix.transpose() * ( d.p2_in_grid - Eigen::Vector2f(r.room_rect.center.x, r.room_rect.center.y));
     }
+    for(auto &d: doors_to_delete)
+        remove_door(d);
 }
 void Graph_Rooms::remove_doors_not_parallel_to_walls(int room_id)
 {
@@ -284,10 +286,10 @@ void Graph_Rooms::remove_doors_not_parallel_to_walls(int room_id)
     for(auto &d_id: r.doors_ids)
     {
         auto &d = doors.at(d_id);
-
-        d.p1_in_grid = project_point_on_closest_side(r, d.p1_in_grid);
-        d.p2_in_grid = project_point_on_closest_side(r, d.p2_in_grid);
-
+        const auto &[side1, pp1] = project_point_on_closest_side(r, d.p1_in_grid);
+        const auto &[side2, pp2] = project_point_on_closest_side(r, d.p2_in_grid);
+        d.p1_in_grid = pp1;
+        d.p2_in_grid = pp2;
         // compute doors coordinates in Rect RS
         Eigen::Matrix2f matrix;
         float ang = qDegreesToRadians(r.room_rect.angle);

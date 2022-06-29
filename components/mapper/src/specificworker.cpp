@@ -215,6 +215,8 @@ SpecificWorker::States SpecificWorker::after_exploring()
         room.room_world_rect = cv::RotatedRect(cv::Point2f(g2w.x(), g2w.y()), cv::Size2f(est.size),
                                                qRadiansToDegrees(grid_world_pose.ang) + est.angle);
         G.project_doors_on_room_side(G.current_room(), &viewer_robot->scene);  //SHOULD REMOVE DOORS at HIGH ANGLE WITH WALLS
+        //
+        //G.remove_doors_not_parallel_to_walls(G.current_room().id);
     }
     else
     {
@@ -254,7 +256,6 @@ SpecificWorker::States SpecificWorker::after_exploring()
             G.doors.at(d).p2_in_world = from_grid_to_world(G.doors.at(d).p2_in_grid);
         }
     }
-    //G.remove_doors_not_parallel_to_walls(G.current_room().id);
     // room_detector.minimize_door_distances(G);
     local_grid_is_active = false;
     return States::INIT_CHANGING_ROOM;

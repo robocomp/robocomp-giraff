@@ -216,7 +216,7 @@ class Graph_Rooms
         void flip_text(QGraphicsTextItem *text);
         void add_door_to_current_room(const Eigen::Vector2f &p1_grid, const Eigen::Vector2f &p2_grid);
         Eigen::Matrix<double, 4, 3> get_room_sides_matrix(const Room &r);
-        Eigen::Vector2f  project_point_on_closest_side(const Room &room, const Eigen::Vector2f &p);
+        std::tuple<std::size_t, Eigen::Vector2f>  project_point_on_closest_side(const Room &room, const Eigen::Vector2f &p);
         float  min_distance_from_point_to_closest_side(const Room &r, const Eigen::Vector2f &p) const;
         void project_doors_on_room_side(Room &r, QGraphicsScene *scene);
         std::optional<std::string> get_door_with_only_one_room(int room) const;
