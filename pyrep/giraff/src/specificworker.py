@@ -121,23 +121,26 @@ class SpecificWorker(GenericWorker):
                                                     }
 
         self.omni_camera_rgb_name = "/Giraff/neck/frame_base/Cuboid_frame_top/sphericalVisionRGBAndDepth/sensorRGB"
-        cam = VisionSensor(self.omni_camera_rgb_name)
-        self.cameras_write[self.omni_camera_rgb_name] = {"handle": cam,
-                                                    "id": 0,
-                                                    "angle": np.radians(cam.get_perspective_angle()),
-                                                    "width": cam.get_resolution()[0],
-                                                    "height": cam.get_resolution()[1],
-                                                    "focalx": (cam.get_resolution()[0] / 2) / np.tan(
-                                                        np.radians(cam.get_perspective_angle() / 2.0)),
-                                                    "focaly": (cam.get_resolution()[1] / 2) / np.tan(
-                                                        np.radians(cam.get_perspective_angle() / 2)),
-                                                    "rgb": np.array(0),
-                                                    "depth": np.ndarray(0),
-                                                    "is_ready": False,
-                                                    "is_rgbd": False,
-                                                    "rotated": False,
-                                                    "has_depth": False
-                                                    }
+        try:
+            cam = VisionSensor(self.omni_camera_rgb_name)
+            self.cameras_write[self.omni_camera_rgb_name] = {"handle": cam,
+                                                        "id": 0,
+                                                        "angle": np.radians(cam.get_perspective_angle()),
+                                                        "width": cam.get_resolution()[0],
+                                                        "height": cam.get_resolution()[1],
+                                                        "focalx": (cam.get_resolution()[0] / 2) / np.tan(
+                                                            np.radians(cam.get_perspective_angle() / 2.0)),
+                                                        "focaly": (cam.get_resolution()[1] / 2) / np.tan(
+                                                            np.radians(cam.get_perspective_angle() / 2)),
+                                                        "rgb": np.array(0),
+                                                        "depth": np.ndarray(0),
+                                                        "is_ready": False,
+                                                        "is_rgbd": False,
+                                                        "rotated": False,
+                                                        "has_depth": False
+                                                        }
+        except:
+            print("Camera OMNI sensorRGB  not found in Coppelia")
 
         self.omni_camera_depth_name = "/Giraff/neck/frame_base/Cuboid_frame_top/sphericalVisionRGBAndDepth/sensorDepth"
         try:
@@ -159,7 +162,7 @@ class SpecificWorker(GenericWorker):
                                                               "has_depth": False
                                                      }
         except:
-            print("Camera sensorDEPTH not found in Coppelia")
+            print("Camera OMNI sensorDEPTH not found in Coppelia")
 
         self.cameras_read = self.cameras_write.copy()
 
@@ -235,8 +238,8 @@ class SpecificWorker(GenericWorker):
             self.read_robot_pose()
             self.move_robot()
             self.read_laser_raw()
-            #self.read_cameras([self.tablet_camera_name, self.top_camera_name])
-            self.read_cameras([self.omni_camera_rgb_name, self.omni_camera_depth_name, self.top_camera_name])
+            self.read_cameras([self.tablet_camera_name, self.top_camera_name])
+            #self.read_cameras([self.omni_camera_rgb_name, self.omni_camera_depth_name, self.top_camera_name])
             self.read_people()
             self.read_joystick()
             self.move_eye()
