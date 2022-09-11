@@ -354,7 +354,8 @@ class SpecificWorker(GenericWorker):
                                                          depth=3,
                                                          focalx=cam["focalx"],
                                                          focaly=cam["focaly"],
-                                                         alivetime=time.time(),
+                                                         alivetime=int(time.time()*1000),
+                                                         period=50,  # ms
                                                          image=image.tobytes(),
                                                          compressed=False)
 
@@ -372,7 +373,8 @@ class SpecificWorker(GenericWorker):
                                                           depth=3,
                                                           focalx=cam["focalx"],
                                                           focaly=cam["focaly"],
-                                                          alivetime=time.time(),
+                                                          alivetime=int(time.time()*1000),
+                                                          period=50,  # ms
                                                           image=image.tobytes(),
                                                           compressed=False)
 
@@ -390,7 +392,8 @@ class SpecificWorker(GenericWorker):
                                                           depth=3,
                                                           focalx=cam["focalx"],
                                                           focaly=cam["focaly"],
-                                                          alivetime=time.time(),
+                                                          alivetime=int(time.time()*1000),
+                                                          period=50,  # ms
                                                           image=image.tobytes(),
                                                           compressed=False)
 
@@ -412,7 +415,8 @@ class SpecificWorker(GenericWorker):
                                                             height=cam["width"],
                                                             focalx=cam["focaly"],
                                                             focaly=cam["focalx"],
-                                                            alivetime=time.time(),
+                                                            alivetime=int(time.time()*1000),
+                                                            period=50, # ms
                                                             depthFactor=1.0,
                                                             depth=depth.tobytes())
             cam["rgb"] = RoboCompCameraRGBDSimple.TImage( cameraID=cam["id"],
@@ -421,7 +425,8 @@ class SpecificWorker(GenericWorker):
                                                           depth=3,
                                                           focalx=cam["focaly"],
                                                           focaly=cam["focalx"],
-                                                          alivetime=time.time(),
+                                                          alivetime=int(time.time()*1000),
+                                                          period=50,  # ms
                                                           image=image.tobytes(),
                                                           compressed=False)
             cam["is_ready"] = True
