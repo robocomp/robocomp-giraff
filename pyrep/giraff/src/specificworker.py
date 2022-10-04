@@ -240,7 +240,7 @@ class SpecificWorker(GenericWorker):
             self.read_laser_raw()
             self.read_cameras([self.tablet_camera_name, self.top_camera_name])
             #self.read_cameras([self.omni_camera_rgb_name, self.omni_camera_depth_name, self.top_camera_name])
-            self.read_people()
+            #self.read_people()
             self.read_joystick()
             self.move_eye()
             tc.wait()
@@ -282,7 +282,7 @@ class SpecificWorker(GenericWorker):
     ###########################################
     def read_people(self):
         people_data = RoboCompHumanToDSRPub.PeopleData()
-        people_data.timestamp = time.time()
+        people_data.timestamp = int(time.time())
         people = []  # RoboCompHumanToDSRPub.People()
         for name, handle in self.people.items():
             pos = handle.get_position()
@@ -291,11 +291,11 @@ class SpecificWorker(GenericWorker):
                                                   pi - rot[2] - pi / 2,
                                                   {})
             people.append(person)
-        try:
-            people_data.peoplelist = people
-            self.humantodsrpub_proxy.newPeopleData(people_data)
-        except Ice.Exception as e:
-            print(e)
+        # try:
+        #     people_data.peoplelist = people
+        #     self.humantodsrpub_proxy.newPeopleData(people_data)
+        # except Ice.Exception as e:
+        #     print(e)
 
     def read_laser(self):
         data = self.pr.script_call("get_depth_data@Hokuyo", 1)
@@ -344,7 +344,7 @@ class SpecificWorker(GenericWorker):
     def read_cameras(self, camera_names):
          if self.tablet_camera_name in camera_names:  # RGB not-rotated
             cam = self.cameras_write[self.tablet_camera_name]
-            image_float = cam["handle"].capture_rgb()
+            image_float = cam["handle"].capture_rgb()   #TODO: CAMBIAR PARA COGER DIRECTAMENTE EN BYTES!!
             image = cv2.normalize(src=image_float, dst=None, alpha=0, beta=255, norm_type=cv2.NORM_MINMAX,
                                   dtype=cv2.CV_8U)
             image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
