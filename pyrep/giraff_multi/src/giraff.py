@@ -154,8 +154,16 @@ if __name__ == '__main__':
     adapter.add(laserI.LaserI(worker), ic.stringToIdentity('laser'))
     adapter.activate()
 
+    adapter = ic.createObjectAdapter('LaserMulti')
+    adapter.add(lasermultiI.LaserMultiI(worker), ic.stringToIdentity('lasermulti'))
+    adapter.activate()
+
     adapter = ic.createObjectAdapter('DifferentialRobot')
     adapter.add(differentialrobotI.DifferentialRobotI(worker), ic.stringToIdentity('differentialrobot'))
+    adapter.activate()
+
+    adapter = ic.createObjectAdapter('DifferentialRobotMulti')
+    adapter.add(differentialrobotmultiI.DifferentialRobotMultiI(worker), ic.stringToIdentity('differentialrobotmulti'))
     adapter.activate()
 
     adapter = ic.createObjectAdapter('FullPoseEstimation')

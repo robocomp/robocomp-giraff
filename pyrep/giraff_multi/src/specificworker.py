@@ -30,6 +30,8 @@ import numpy as np
 import numpy_indexed as npi
 import cv2
 import itertools as it
+from threading import Thread, Event
+import queue
 from math import *
 
 class TimeControl:
@@ -60,6 +62,7 @@ class SpecificWorker(GenericWorker):
 
     def setParams(self, params):
         SCENE_FILE = params["scene_file"]
+        print("SCENE_FILE", SCENE_FILE)
         self.WITH_BILL = False
         if "bill" in SCENE_FILE:
             self.WITH_BILL = True
@@ -71,109 +74,41 @@ class SpecificWorker(GenericWorker):
         # robots
         self.robots = dict()
         try:
-            robot_name = "/Giraff"
             i = 0
             while True:
-                self.robots[id]["shape"] = Shape(robot_name + "[" + i + "]")
-                self.robots[id]["left_wheel"] = Joint("Pioneer_p3dx_leftMotor")
-                self.robots[id]["right_wheel"] = Joint("Pioneer_p3dx_rightMotor")
-                self.robots[id]["radius"].radius = 100  # wheel radius in mm
-                self.robots[id]["semi_width"] = 165  # axle semi width in mm
-                self.robots[id]["name"] = robot_name + "[" + i + "]"   # axle semi width in mm
+                self.robots[i] = {}
+                robot_name = "/Giraff[" + str(i) + "]"
+                self.robots[i]["shape"] = Shape(robot_name)
+                self.robots[i]["id"] = i
+                self.robots[i]["name"] = robot_name
+                self.robots[i]["left_wheel"] = Joint(robot_name + "/Pioneer_p3dx_leftMotor")
+                self.robots[i]["right_wheel"] = Joint(robot_name + "/Pioneer_p3dx_rightMotor")
+                self.robots[i]["radius"] = 100  # wheel radius in mm
+                self.robots[i]["semi_width"] = 165  # axle semi width in mm
+                self.robots[i]["bState_write"] = RoboCompGenericBase.TBaseState()
+                self.robots[i]["bState_read"] = RoboCompGenericBase.TBaseState()
+                self.robots[i]["ldata_write"] = []
+                self.robots[i]["ldata_read"] = []
+                self.robots[i]["speed"] = [0, 0]
                 i += 1
         except:
+            del self.robots[i]
             print("Read ", i-1, "robots")
+            #print(self.robots)
 
-        self.speed_robot = []
-        self.speed_robot_ant = []
-        self.bState = RoboCompGenericBase.TBaseState()
-
-        # cameras
-        self.cameras_write = {}
-        self.cameras_read = {}
-
-        self.top_camera_name = "camera_top"
-        cam = VisionSensor(self.top_camera_name)
-        self.cameras_write[self.top_camera_name] = { "handle": cam,
-                                                     "id": 0,
-                                                     "angle": np.radians(cam.get_perspective_angle()),
-                                                     "width": cam.get_resolution()[0],
-                                                     "height": cam.get_resolution()[1],
-                                                     "focalx": (cam.get_resolution()[0] / 2) / np.tan(
-                                                        np.radians(cam.get_perspective_angle() / 2.0)),
-                                                     "focaly": (cam.get_resolution()[1] / 2) / np.tan(
-                                                         np.radians(cam.get_perspective_angle() / 2)),
-                                                     "rgb": np.array(0),
-                                                     "depth": np.ndarray(0),
-                                                     "is_ready": False,
-                                                     "is_rgbd": True,
-                                                     "rotated": True,
-                                                     "has_depth": True
-                                                    }
-
-   
-        self.cameras_read = self.cameras_write.copy()
-
-        # Read existing people
-        self.people = {}
-        if Dummy.exists("Bill_base"):
-            self.people["Bill"] = Dummy("Bill_base")
-        elif Dummy.exists("Bill"):
-            self.people["Bill"] = Dummy("Bill")
-
-        for i in range(0, 2):
-            name = "Bill#" + str(i)
-            name_base = "Bill_base#" + str(i)
-            if Dummy.exists(name_base):
-                self.people[name] = Dummy(name_base)
-            elif Dummy.exists(name):
-                self.people[name] = Dummy(name)
-
-        # laser
-        self.lasers = {}
-        self.hokuyo_front_left_name = "Hokuyo_sensor2"
-        cam = VisionSensor(self.hokuyo_front_left_name)
-        self.lasers[self.hokuyo_front_left_name] = { "handle": cam,
-                                                      "id": 0,
-                                                      "angle": np.radians(cam.get_perspective_angle()),
-                                                      "width": cam.get_resolution()[0],
-                                                     "semiwidth": cam.get_resolution()[0] / 2.0,
-                                                      "height": cam.get_resolution()[1],
-                                                      "focal": (cam.get_resolution()[0] / 2) / np.tan(
-                                                          np.radians(cam.get_perspective_angle() / 2)),
-                                                      "rgb": np.array(0),
-                                                      "depth": np.ndarray(0),
-                                                      "offset_angle": -np.pi/3.0
-                                                     }
-        self.hokuyo_front_right_name = "Hokuyo_sensor1"
-        cam = VisionSensor(self.hokuyo_front_right_name)
-        self.lasers[self.hokuyo_front_right_name] = { "handle": cam,
-                                                      "id": 0,
-                                                      "angle": np.radians(cam.get_perspective_angle()),
-                                                      "width": cam.get_resolution()[0],
-                                                      "semiwidth": cam.get_resolution()[0]/2.0,
-                                                      "height": cam.get_resolution()[1],
-                                                      "focal": (cam.get_resolution()[0] / 2) / np.tan(
-                                                        np.radians(cam.get_perspective_angle() / 2)),
-                                                      "rgb": np.array(0),
-                                                      "depth": np.ndarray(0),
-                                                      "offset_angle": np.pi / 3.0
-                                                    }
-        self.ldata_write = []
-        self.ldata_read = []
-        
-        # PoseEstimation
-        self.robot_full_pose_write = RoboCompFullPoseEstimation.FullPoseEuler()
-        self.robot_full_pose_read = RoboCompFullPoseEstimation.FullPoseEuler()
+        # laser thread
+        # self.laser_read_queue = queue.Queue(1)
+        # self.event = Event()
+        # self.laser_read_thread = Thread(target=self.laser_thread, args=[self.event], name="laser_read_queue", daemon=True)
+        # self.laser_read_thread.start()
 
         # JoyStick
         self.joystick_newdata = []
-
         self.last_received_data_time = 0
 
         # Eye pan motor
-        self.eye_motor = Joint("camera_joint")
-        self.eye_new_pos = None
+        # self.eye_motor = Joint("camera_joint")
+        # self.eye_new_pos = None
 
     def compute(self):
         tc = TimeControl(0.05)
@@ -191,26 +126,32 @@ class SpecificWorker(GenericWorker):
     ###########################################
     ### LASER get and publish laser data
     ###########################################
+    def laser_thread(self, event: Event):
+        while(True):
+            for robot in self.robots.values():
+                data = self.pr.script_call('get_depth_data@' + robot["name"] + '/Hokuyo', 1)
+                if len(data[1]) > 0:
+                    robot["ldata_write"] = []
+                    for x, y, z in self.grouper(data[1], 3):                      # extract non-intersecting groups of 3
+                        robot["ldata_write"].append(RoboCompLaser.TData(-np.arctan2(y, x), np.linalg.norm([x, y])*1000.0))
+
+                    del robot["ldata_write"][-7:]
+                    del robot["ldata_write"][:7]
+
+                    robot["ldata_read"], robot["ldata_write"] = robot["ldata_write"], robot["ldata_read"]
+            self.laser_read_queue.put(True)
+
     def read_laser_raw(self):
-        data = self.pr.script_call("get_depth_data@Hokuyo", 1)
-        if len(data[1]) > 0:
-            self.hokuyo = Shape("Hokuyo")
-            h_pos = self.hokuyo.get_position()
-            polar = np.zeros(shape=(int(len(data[1])/3), 2))
-            self.ldata_write = []
-            for x, y, z in self.grouper(data[1], 3):                      # extract non-intersecting groups of 3
-                self.ldata_write.append(RoboCompLaser.TData(-np.arctan2(y, x), np.linalg.norm([x, y])*1000.0))
+        for robot in self.robots.values():
+            data = self.pr.script_call('get_depth_data@' + robot["name"] + '/Hokuyo', 1)
+            if len(data[1]) > 0:
+                robot["ldata_write"] = []
+                for x, y, z in self.grouper(data[1], 3):                      # extract non-intersecting groups of 3
+                    robot["ldata_write"].append(RoboCompLaserMulti.TData(-np.arctan2(y, x), np.linalg.norm([x, y])*1000.0))
+                del robot["ldata_write"][-7:]
+                del robot["ldata_write"][:7]
 
-            del self.ldata_write[-7:]
-            del self.ldata_write[:7]
-
-            self.ldata_read, self.ldata_write = self.ldata_write, self.ldata_read
-
-            # try:
-            #     self.laserpub_proxy.pushLaserData(self.ldata_read)
-            # except Ice.Exception as e:
-            #     print(e)
-
+                robot["ldata_read"], robot["ldata_write"] = robot["ldata_write"], robot["ldata_read"]
 
     def read_laser(self):
         data = self.pr.script_call("get_depth_data@Hokuyo", 1)
@@ -354,6 +295,9 @@ class SpecificWorker(GenericWorker):
     def read_joystick(self):
         if self.joystick_newdata:  # and (time.time() - self.joystick_newdata[1]) > 0.1:
             datos = self.joystick_newdata[0]
+            if not int(datos.id) in self.robots.keys():
+                print("Robot ", datos.id, "not found")
+                return
             adv = 0.0
             rot = 0.0
             bill_advance = 0.0
@@ -369,75 +313,52 @@ class SpecificWorker(GenericWorker):
                 if x.name == "bill_rotate":
                     bill_rotate = x.value if np.abs(x.value) > 0.05 else 0
 
-            converted = self.convert_base_speed_to_motors_speed(adv, rot)
+            self.convert_base_speed_to_motors_speed(int(datos.id), adv, rot)
 
             #print("Joystick ", [adv, rot], converted)
             self.joystick_newdata = None
             self.last_received_data_time = time.time()
-        else:
-            elapsed = time.time() - self.last_received_data_time
-            if elapsed > 2 and elapsed < 3:
-                self.convert_base_speed_to_motors_speed(0, 0)
 
-    def convert_base_speed_to_motors_speed(self, adv, rot):
-        left_vel = (adv + self.semi_width * rot) / self.radius
-        right_vel = (adv - self.semi_width * rot) / self.radius
-        self.left_wheel.set_joint_target_velocity(left_vel)
-        self.right_wheel.set_joint_target_velocity(right_vel)
-        return left_vel, right_vel
+    def convert_base_speed_to_motors_speed(self, idr: int, adv: float, rot: float):
+        left_vel = (adv + self.robots[idr]["semi_width"] * rot) / self.robots[idr]["radius"]
+        right_vel = (adv - self.robots[idr]["semi_width"] * rot) / self.robots[idr]["radius"]
+        self.robots[idr]["left_wheel"].set_joint_target_velocity(left_vel)
+        self.robots[idr]["right_wheel"].set_joint_target_velocity(right_vel)
+
 
     ###########################################
     ### ROBOT POSE get and publish robot position
     ###########################################
     def read_robot_pose(self):
+        for robot in self.robots.values():
+            pose = robot["shape"].get_position()
+            rot = robot["shape"].get_orientation()
+            linear_vel, ang_vel = robot["shape"].get_velocity()
 
-        pose = self.robot_object.get_position()
-        rot = self.robot_object.get_orientation()
-        linear_vel, ang_vel = self.robot_object.get_velocity()
+            isMoving = np.abs(linear_vel[0]) > 0.01 or np.abs(linear_vel[1]) > 0.01 or np.abs(ang_vel[2]) > 0.01
+            robot["bState_write"] = RoboCompGenericBase.TBaseState( x=pose[0] * 1000,
+                                                                    z=pose[1] * 1000,
+                                                                    alpha=rot[2],
+                                                                    advVx=linear_vel[0] * 1000,
+                                                                    advVz=linear_vel[1] * 1000,
+                                                                    rotV=ang_vel[2],
+                                                                    isMoving=isMoving)
 
-        isMoving = np.abs(linear_vel[0]) > 0.01 or np.abs(linear_vel[1]) > 0.01 or np.abs(ang_vel[2]) > 0.01
-        self.bState = RoboCompGenericBase.TBaseState(x=pose[0] * 1000,
-                                                     z=pose[1] * 1000,
-                                                     alpha=rot[2],
-                                                     advVx=linear_vel[0] * 1000,
-                                                     advVz=linear_vel[1] * 1000,
-                                                     rotV=ang_vel[2],
-                                                     isMoving=isMoving)
-        
-        self.robot_full_pose_write.x = pose[0] * 1000
-        self.robot_full_pose_write.y = pose[1] * 1000
-        self.robot_full_pose_write.z = pose[2] * 1000
-        self.robot_full_pose_write.rx = rot[0]
-        self.robot_full_pose_write.ry = rot[1]
-        self.robot_full_pose_write.rz = rot[2]
-        self.robot_full_pose_write.vx = linear_vel[0] * 1000.0
-        self.robot_full_pose_write.vy = linear_vel[1] * 1000.0
-        self.robot_full_pose_write.vz = linear_vel[2] * 1000.0
-        self.robot_full_pose_write.vrx = ang_vel[0]
-        self.robot_full_pose_write.vry = ang_vel[1]
-        self.robot_full_pose_write.vrz = ang_vel[2]
-
-        # swap
-        self.robot_full_pose_write, self.robot_full_pose_read = self.robot_full_pose_read, self.robot_full_pose_write
+            # swap
+            robot["bState_write"], robot["bState_read"] = robot["bState_read"], robot["bState_write"]
 
     ###########################################
     ### MOVE ROBOT from Omnirobot interface
     ###########################################
     def move_robot(self):
-
-        if self.speed_robot:
-            self.convert_base_speed_to_motors_speed(self.speed_robot[0], self.speed_robot[1])
-            print("Velocities sent to robot:", self.speed_robot)
-            self.speed_robot = None
+        for robot in self.robots.values():
+            if robot["speed"]:
+                self.convert_base_speed_to_motors_speed(robot["id"], robot["speed"][0], robot["speed"][1])
+            robot["speed"] = None
 
     ###########################################
     ### MOVE ROBOT from Omnirobot interface
     ###########################################
-    def move_tablet(self):
-        if self.tablet_new_pos:
-            self.tablet_motor.set_joint_position(self.tablet_new_pos)  # radians
-            self.tablet_new_pos = None
-
     def move_eye(self):
         if self.eye_new_pos:
             self.eye_motor.set_joint_position(self.eye_new_pos)  # radians
@@ -516,8 +437,8 @@ class SpecificWorker(GenericWorker):
     # getBaseState
     #
     def DifferentialRobot_getBaseState(self):
-        if self.bState:
-            return self.bState
+        if id in self.robots.keys():
+            return self.robots[id]["bState_read"]
         else:
             return RoboCompGenericBase.TBaseState()
 
@@ -543,13 +464,22 @@ class SpecificWorker(GenericWorker):
     # setSpeedBase
     #
     def DifferentialRobot_setSpeedBase(self, advz, rot):
-        self.speed_robot = [advz, rot]
-
+        self.robots[0]["speed"] = [advz, rot]
     #
     # stopBase
     #
     def DifferentialRobot_stopBase(self):
         pass
+
+    def DifferentialRobotMulti_setSpeedBase(self, id, advz, rot):
+        if id in self.robots.keys():
+            self.robots[id]["speed"] = [advz, rot]
+
+    def DifferentialRobotMulti_getBaseState(self, id):
+        if id in self.robots.keys():
+            return self.robots[id]["bState_read"]
+        else:
+            return RoboCompGenericBase.TBaseState()
 
     # ===================================================================
     # CoppeliaUtils
@@ -710,6 +640,9 @@ class SpecificWorker(GenericWorker):
  # ===================================================================
     # IMPLEMENTATION of getMotorParams method from JointMotorSimple interface
     # ===================================================================
+    def LaserMulti_getLaserData(self, robotid):
+        if robotid in self.robots.keys():
+            return self.robots[robotid]["ldata_read"]
 
     def JointMotorSimple_getMotorParams(self, motor):
         ret = RoboCompJointMotorSimple.MotorParams()

@@ -40,8 +40,12 @@ Ice.loadSlice("-I ./src/ --all ./src/JoystickAdapter.ice")
 import RoboCompJoystickAdapter 
 Ice.loadSlice("-I ./src/ --all ./src/Laser.ice")
 import RoboCompLaser
+Ice.loadSlice("-I ./src/ --all ./src/LaserMulti.ice")
+import RoboCompLaserMulti
 Ice.loadSlice("-I ./src/ --all ./src/DifferentialRobot.ice")
 import RoboCompDifferentialRobot
+Ice.loadSlice("-I ./src/ --all ./src/DifferentialRobotMulti.ice")
+import RoboCompDifferentialRobotMulti
 Ice.loadSlice("-I ./src/ --all ./src/CoppeliaUtils.ice")
 import RoboCompCoppeliaUtils
 Ice.loadSlice("-I ./src/ --all ./src/HumanToDSRPub.ice")
@@ -68,6 +72,8 @@ import batterystatusI
 import rssistatusI
 import jointmotorsimpleI
 import billcoppeliaI
+import lasermultiI
+import differentialrobotmultiI
 
 class GenericWorker():
 

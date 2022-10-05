@@ -29,17 +29,17 @@ if len(ROBOCOMP)<1:
     raise RuntimeError('ROBOCOMP environment variable not set! Exiting.')
 
 
-Ice.loadSlice("-I ./src/ --all ./src/DifferentialRobotMulti.ice")
+Ice.loadSlice("-I ./src/ --all ./src/LaserMulti.ice")
 
-from RoboCompDifferentialRobotMulti import *
+from RoboCompLaserMulti import *
 
-class DifferentialRobotMultiI(DifferentialRobotMulti):
+class LaserMultiI(LaserMulti):
     def __init__(self, worker):
         self.worker = worker
 
 
-    def getBaseState(self, robotid, c):
-        return self.worker.DifferentialRobotMulti_getBaseState(robotid)
+    def getLaserConfData(self, robotid, c):
+        return self.worker.LaserMulti_getLaserConfData(robotid)
 
-    def setSpeedBase(self, robotid, adv, rot, c):
-        return self.worker.DifferentialRobotMulti_setSpeedBase(robotid, adv, rot)
+    def getLaserData(self, robotid, c):
+        return self.worker.LaserMulti_getLaserData(robotid)
