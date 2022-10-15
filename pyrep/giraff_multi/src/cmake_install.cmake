@@ -1,4 +1,4 @@
-# Install script for directory: /home/pbustos/robocomp/components/robocomp-giraff/pyrep/giraff/src
+# Install script for directory: /home/pbustos/robocomp/components/robocomp-giraff/pyrep/giraff_multi/src
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
