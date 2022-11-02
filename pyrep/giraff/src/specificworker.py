@@ -89,10 +89,10 @@ class SpecificWorker(GenericWorker):
                                                         "angle": np.radians(cam.get_perspective_angle()),
                                                         "width": cam.get_resolution()[0],
                                                         "height": cam.get_resolution()[1],
-                                                        "focalx": (cam.get_resolution()[0] / 2) / np.tan(
-                                                         np.radians(cam.get_perspective_angle() / 2)),
-                                                        "focaly": (cam.get_resolution()[1] / 2) / np.tan(
-                                                            np.radians(cam.get_perspective_angle() / 2)),
+                                                        "focalx": int((cam.get_resolution()[0] / 2) / np.tan(
+                                                         np.radians(cam.get_perspective_angle() / 2))),
+                                                        "focaly": int((cam.get_resolution()[1] / 2) / np.tan(
+                                                            np.radians(cam.get_perspective_angle() / 2))),
                                                         "rgb": np.array(0),
                                                         "depth": np.ndarray(0),
                                                         "is_ready": False,
@@ -101,17 +101,17 @@ class SpecificWorker(GenericWorker):
                                                         "has_depth": False
                                                     }
 
-        self.top_camera_name = "camera_top"
+        self.top_camera_name = "/Giraff/camera_top"
         cam = VisionSensor(self.top_camera_name)
         self.cameras_write[self.top_camera_name] = { "handle": cam,
                                                      "id": 0,
                                                      "angle": np.radians(cam.get_perspective_angle()),
                                                      "width": cam.get_resolution()[0],
                                                      "height": cam.get_resolution()[1],
-                                                     "focalx": (cam.get_resolution()[0] / 2) / np.tan(
-                                                        np.radians(cam.get_perspective_angle() / 2.0)),
-                                                     "focaly": (cam.get_resolution()[1] / 2) / np.tan(
-                                                         np.radians(cam.get_perspective_angle() / 2)),
+                                                     "focalx": int((cam.get_resolution()[0] / 2) / np.tan(
+                                                        np.radians(cam.get_perspective_angle() / 2.0))),
+                                                     "focaly": int((cam.get_resolution()[1] / 2) / np.tan(
+                                                         np.radians(cam.get_perspective_angle() / 2))),
                                                      "rgb": np.array(0),
                                                      "depth": np.ndarray(0),
                                                      "is_ready": False,
@@ -238,7 +238,7 @@ class SpecificWorker(GenericWorker):
             self.read_robot_pose()
             self.move_robot()
             self.read_laser_raw()
-            self.read_cameras([self.tablet_camera_name, self.top_camera_name])
+            self.read_cameras([self.top_camera_name])
             #self.read_cameras([self.omni_camera_rgb_name, self.omni_camera_depth_name, self.top_camera_name])
             #self.read_people()
             self.read_joystick()
