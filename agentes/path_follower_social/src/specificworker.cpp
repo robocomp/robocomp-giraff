@@ -182,8 +182,12 @@ void SpecificWorker::compute()
             auto robot_nose = Eigen::Vector2f(nose_3d.x(), nose_3d.y());
             auto robot_pose = Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
             auto speeds = update(path, QPolygonF(), robot_pose, robot_nose, current_target);
-            auto speeds_social = socialize_speeds(speeds, path);
-            auto[adv, side, rot] =  send_command_to_robot(speeds_social);
+            std::cout << "Advance-> " << get<0>(speeds) <<"Side-> " << get<1>(speeds) << "Rot-> " << get<2>(speeds)  <<std::endl;
+            speeds = socialize_speeds(speeds, path);
+            std::cout << "Advance-> " << get<0>(speeds) <<"Side-> " << get<1>(speeds) << "Rot-> " << get<2>(speeds)  <<std::endl;
+            auto[adv, side, rot] =  send_command_to_robot(speeds);
+//            auto[adv, side, rot] =  send_command_to_robot(std::make_tuple(0.f,0.f,0.f));
+//            auto[adv, side, rot] =  send_command_to_robot(speeds);
             remove_trailing_path(path, robot_pose);
 
             std::cout << "---------------------------" << std::endl;
@@ -212,40 +216,105 @@ std::tuple<float, float, float> SpecificWorker::socialize_speeds(std::tuple<floa
     auto robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
     auto robot_pose = Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
 
-    if(auto personal_space = G->get_nodes_by_type("personal_space"); not personal_space.empty()) {
-        float dMin = smallest_distance_to_person(personal_space);
-        adv_ *= sigmoid(dMin);
-        if (++iter % 2 == 0){
+//    if(auto personal_space = G->get_nodes_by_type("personal_space"); not personal_space.empty()) {
+    if(auto person_nodes = G->get_nodes_by_type("person"); person_nodes.size() > 0){
+        float dMin = smallest_distance_to_person(person_nodes);
 
+        if(dMin >= 3800.0 or dMin == 0.0) {return std::make_tuple(adv_, side_, rot_);}
+
+
+        adv_ *= sigmoid(dMin);
+        if (++iter % 2 == 0)
+        {
             cout    << iter << "    " << adv_ << "   " << dMin << endl;
             fichero << iter << ";" << adv_ << ";" << dMin << endl;
         }
-    }else {
+    }
+    else {
         cout << "NO PERSONAL SPACE" << endl;
     }
-    cout << "ADV: " << adv_ << endl;
+    cout << "SOC ADV: " << adv_ << endl;
+
+//    if(auto world_node = G->get_node(world_name); world_node.has_value())
+//    {
+//        if(auto person_nodes = G->get_nodes_by_type("person"); person_nodes.size() > 0)
+//        {
+//            for (const auto &person : person_nodes)
+//            {
+//                if (auto person_edge = G-> get_edge(world_node.value().id(), person.id(),"RT"); person_edge.has_value())
+//                {
+//                    if (auto edge_RT_trans = G->get_attrib_by_name<rt_translation_att>(person_edge.value()); edge_RT_trans.has_value())
+//                    {
+//                        if (auto person_robot_pose = inner_eigen -> transform(robot_name, person.name()); person_robot_pose.has_value())
+//                        {
+//                            auto person_angle_to_robot = -(atan2(person_robot_pose.value().y(), person_robot_pose.value().x()) - (M_PI / 2));
+//                            if(person_angle_to_robot > - (M_PI / 4) && person_angle_to_robot < (M_PI / 4))
+//                            {
+//                                std::cout << person.name() << " can be considered" << std::endl;
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
+
 
     return std::make_tuple(adv_, side_, rot_);
 }
 
 float SpecificWorker::sigmoid(float dMin){
-    float x = 2.f / (1.f + exp(-dMin * 0.0015)) - 1.f;
+    std::cout << "dMin " << dMin << std::endl;
+    float x = 2.f / (1.f + exp(-dMin * 0.001)) - 1.f;
     cout << "dMin: " << dMin << "   sigmoid:  " << x << endl;
     return (x);
 }
 
-float SpecificWorker::smallest_distance_to_person(std::vector<DSR::Node> personal_space)
+//float SpecificWorker::smallest_distance_to_person(std::vector<DSR::Node> personal_space)
+float SpecificWorker::smallest_distance_to_person(std::vector<DSR::Node> personal_pose)
 {
     std::vector<QPointF> all_gauss;
-    for (int i = 0; i < personal_space.size(); ++i)
+    for (int i = 0; i < personal_pose.size(); ++i)
     {
-        const auto &gauss_x= G->get_attrib_by_name<ps_intimate_x_pos_att>(personal_space[i]).value().get();
-        const auto &gauss_y = G->get_attrib_by_name<ps_intimate_y_pos_att>(personal_space[i]).value().get();
-        for(int j = 0; j < 9; j++)
+        std::cout << "1" << std::endl;
+        if (auto person_robot_pose = inner_eigen -> transform(robot_name, personal_pose[i].name()); person_robot_pose.has_value())
         {
-            QPointF newPoint(gauss_x[j], gauss_y[j]);
-            all_gauss.push_back(newPoint);
-        }
+            std::cout << "1" << std::endl;
+//        const auto &gauss_x= G->get_attrib_by_name<ps_intimate_x_pos_att>(personal_pose[i]).value().get();
+//        const auto &gauss_y = G->get_attrib_by_name<ps_intimate_y_pos_att>(personal_pose[i]).value().get();
+//        int vector_size = static_cast<int>(gauss_x.size());
+        // int max_value = std::clamp(vector_size, 0, 9);
+//        int max_value = 9;
+//        std::cout << "gauss_x size " << gauss_x.size() << std::endl;
+        // for(int j = 0; j < 9; j++)
+        // if(auto world_node = G->get_node(world_name); world_node.has_value())
+        // {
+//            for (int j = 0; j < max_value; j++)
+//            {
+//                Eigen::Vector3f pose_aux = {gauss_x[j], gauss_y[j], 0.0};
+//                Eigen::Vector3f pose_aux = {personal_pose.value().x(), personal_pose.value().y(), 0.0};
+
+//                auto person_pos_double = pose_aux.cast<double>();
+//                if(auto person_robot_pose = inner_eigen->transform(robot_name, person_pos_double, world_name); person_robot_pose.has_value())
+//                {
+                    if(person_robot_pose.value().y() > 0){
+                        auto person_angle_to_robot = -(atan2(person_robot_pose.value().y(), person_robot_pose.value().x()) - (M_PI / 2));
+//                        if(person_angle_to_robot < - (M_PI / 6) && person_angle_to_robot < (M_PI / 6))
+                        if(abs(person_angle_to_robot) < (M_PI / 2))
+                        {
+                            QPointF newPoint(person_robot_pose.value().x(), person_robot_pose.value().y());
+                            all_gauss.push_back(newPoint);
+                            std::cout << "VALID POINT " << abs(person_angle_to_robot) << " " << M_PI / 6 << person_robot_pose.value().x()<< " " << person_robot_pose.value().y()<<std::endl;
+                        }
+                    }
+
+//                }
+//            }
+         }
+    }
+    if(all_gauss.size() == 0)
+    {
+        return 0.0;
     }
     auto robot_pose_3d = inner_eigen->transform(world_name, robot_name).value();
     auto robot_pose = Eigen::Vector2f(robot_pose_3d.x(), robot_pose_3d.y());
@@ -254,7 +323,6 @@ float SpecificWorker::smallest_distance_to_person(std::vector<DSR::Node> persona
         float distB = sqrt(pow(b.x() - robot_pose[0], 2) + pow(b.y() - robot_pose[1], 2));
         return distA < distB;
     });
-
     return sqrt(pow(min->x() - robot_pose[0], 2) + pow(min->y() - robot_pose[1], 2));
 }
 
@@ -355,8 +423,9 @@ std::tuple<float, float, float> SpecificWorker::update(const std::vector<Eigen::
     angle +=  correction;
     sideVel = consts.lateral_correction_for_side_velocity * correction;
 
-    // rot speed gain
-    rotVel = consts.rotation_gain * angle;
+    // rot speed gain.
+    if(abs(signed_distance)>50)
+        rotVel = consts.rotation_gain * angle;
     qInfo() << __FUNCTION__  << " angle error: " << angle << " correction: " << correction << " rorVel" << rotVel << " gain" << consts.rotation_gain << " max_rot_speed" << consts.max_rot_speed;
 
     // limit angular  values to physical limits
@@ -366,8 +435,13 @@ std::tuple<float, float, float> SpecificWorker::update(const std::vector<Eigen::
         rotVel = 0.f;
 
     /// Compute advance speed
-    advVel = std::min(consts.max_adv_speed * exponentialFunction(rotVel, consts.advance_gaussian_cut_x, consts.advance_gaussian_cut_y, 0),
-                      euc_dist_to_target);
+//    advVel = std::min(consts.max_adv_speed * exponentialFunction(rotVel, consts.advance_gaussian_cut_x, consts.advance_gaussian_cut_y, 0),
+//                      euc_dist_to_target);
+    if (rotVel > 1.2)
+        advVel = consts.max_adv_speed * exponentialFunction(rotVel, consts.advance_gaussian_cut_x, consts.advance_gaussian_cut_y, 0);
+    else
+        advVel = consts.max_adv_speed;
+    std::cout << "UPDATE "<< advVel << " " << sideVel << " " << rotVel << std::endl;
 
     return std::make_tuple(advVel, sideVel, rotVel);
 }
@@ -418,8 +492,8 @@ std::vector<QPointF> SpecificWorker::get_points_along_extended_robot_polygon(int
 std::tuple<float, float, float> SpecificWorker::send_command_to_robot(const std::tuple<float, float, float> &speeds) //adv, side, rot
 {
     auto &[adv_, side_, rot_] = speeds;
-    if(abs(adv_) < 1200 && abs(rot_) < 1)
-    {
+//    if(abs(adv_) < 1200 && abs(rot_) < 1)
+//    {
         if(auto robot_node = G->get_node(robot_name); robot_node.has_value())
         {
             G->add_or_modify_attrib_local<robot_ref_adv_speed_att>(robot_node.value(), (float) adv_);
@@ -429,8 +503,8 @@ std::tuple<float, float, float> SpecificWorker::send_command_to_robot(const std:
         }
         else qWarning() << __FUNCTION__ << "No robot node found";
         return std::make_tuple(adv_, side_, rot_);
-    }
-    else return std::make_tuple( 0.0, 0.0, 0.0);
+//    }
+//    else return std::make_tuple( 0.0, 0.0, 0.0);
 }
 
 // compute max de gauss(value) where gauss(x)=y  y min
