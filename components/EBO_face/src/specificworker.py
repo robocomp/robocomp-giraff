@@ -19,8 +19,8 @@
 #    along with RoboComp.  If not, see <http://www.gnu.org/licenses/>.
 #
 
-from PySide2.QtCore import QTimer
-from PySide2.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
 from rich.console import Console
 from genericworker import *
 
@@ -28,6 +28,8 @@ from PIL import Image, ImageDraw
 import threading
 import sys, os, traceback, time, copy, json
 from random import *
+
+import pygame
 
 sys.path.append('/opt/robocomp/lib')
 console = Console(highlight=False)
@@ -39,7 +41,7 @@ console = Console(highlight=False)
 # import librobocomp_innermodel
 
 res_x = 1280
-res_y = 800
+res_y = 720
 
 fact_x = res_x / 480
 fact_y = res_y / 320
@@ -47,6 +49,18 @@ fact_y = res_y / 320
 # print(fact_x)
 # print(fact_y)
 
+# Initialize Pygame
+pygame.init()
+
+# Set up the display
+screen = pygame.display.set_mode((res_x, res_y), pygame.FULLSCREEN)
+pygame.display.set_caption("PIL Image Display")
+
+# Shared data dictionary to hold the image
+shared_data = {
+    'image': None,
+    'lock': threading.Lock()
+}
 
 configPath = os.path.join(os.path.dirname(os.path.dirname(__file__)),'etc','config')
 # DEFAULTCONFIGNEUTRAL = {"cejaD": {"P2": {"y": 73, "x": 314}, "P3": {"y": 99, "x": 355}, "P1": {"y": 99, "x": 278}, "P4": {"y": 94, "x": 313}}, 
@@ -115,8 +129,7 @@ class Face(threading.Thread):
 
     def __init__(self):
         threading.Thread.__init__(self)
-        self.img = Image.new('RGBA', (res_x, res_y), (0, 0, 0))
-        self.background = Image.new('RGBA', (res_x, res_y), (255, 255, 255))
+        self.img = Image.new('RGB', (res_x, res_y), (255, 255, 255))
 
         self.pup_x = 0
         self.pup_y = 0
@@ -131,7 +144,7 @@ class Face(threading.Thread):
         self.isTalking = False
         self.isListening = False
         self.pupilaFlag = False
-        self.val_lim = 20*fact_x
+        self.val_lim = 10*fact_x
 
         self.val_lim_x = 20*fact_x
         self.val_lim_y = 20*fact_x
@@ -141,35 +154,22 @@ class Face(threading.Thread):
         start = time.time()
         sec = randint(2,6)
         while not self.stopped:
-            # time.sleep(0.1)
+            time.sleep(0.1)
             pestaneoFlag = False
             if time.time() - start > sec:
 
                 pestaneoFlag = True
-                sec = randint(2, 6)
+                sec = randint(2, 4)
                 start = time.time()
                 # print("entro")
 
             self.moveFace(pestaneoFlag, self.isTalking, self.isListening)
 
             path = self.render()
-            if self.isListening:
-                self.recordPoint()
-            if self.pupilaFlag:
-                self.movePupila()
-                print("asdfartgadfgadfg", self.pup_x)
-                print("asdfartgadfgadfg", self.pup_y)                
-            if path is not None:
-                path = "/dev/fb0"
-                rotated_image = self.img.rotate(270)
-                area = (280, 0 ,1000, res_y-1)
-                cropped_img = rotated_image.crop(area)
-                self.background.paste(cropped_img,(300,0))
-                print("guardando")
-                self.background.save("EBO_face.png", format="png")
-                with open(path, "wb") as f:
-                    f.write(self.background.tobytes())
-                #self.display_proxy.setImageFromFile(path)
+            # if self.isListening:
+            #     self.recordPoint()
+            # if self.pupilaFlag:
+            #     self.movePupila()          
 
     def movePupila(self):
         configaux = copy.copy(self.config)
@@ -181,18 +181,12 @@ class Face(threading.Thread):
         valuer1 = 316*fact_x
         valuer2 = 151*fact_y
 
-        print("val",valuel1)
-
-
         configaux["pupilaI"]["Center"]["x"] = valuel1+self.val_lim*self.pup_x
         configaux["pupilaI"]["Center"]["y"] = valuel2+self.val_lim*self.pup_y
         configaux["pupilaD"]["Center"]["x"] = valuer1+self.val_lim*self.pup_x
         configaux["pupilaD"]["Center"]["y"] = valuer2+self.val_lim*self.pup_y
 
-        print(configaux["pupilaI"]["Center"]["x"])
-        print(configaux["pupilaI"]["Center"]["y"])
-        print(configaux["pupilaD"]["Center"]["x"])
-        print(configaux["pupilaD"]["Center"]["y"])
+
         
         # config1 = getBecierConfig(configaux, configPestaneo, t)
         self.drawConfig(configaux)
@@ -276,15 +270,18 @@ class Face(threading.Thread):
                 configaux["boca"]["P5"]["y"] = bezier((value5x, value5y), (value5x, value5y + 30*fact_y), t)[1]
             # config1 = getBecierConfig(configaux, configPestaneo, t)
             self.drawConfig(configaux)
-            # self.img = self.img.rotate(270)
-            path = "/dev/fb0"
-            rotated_image = self.img.rotate(270)
-            area = (280, 0 ,1000, res_y-1)
-            cropped_img = rotated_image.crop(area)
-            self.background.paste(cropped_img,(300,0))
-            self.background.save("EBO_face.png", format="png")
-            with open(path, "wb") as f:
-                f.write(self.background.tobytes())
+
+            # Convert the PIL image to a format that Pygame can use
+            mode = self.img.mode
+            size = self.img.size
+            data = self.img.tobytes()
+
+            pygame_image = pygame.image.fromstring(data, size, mode)
+            
+            # Update the shared data with the new image
+            with shared_data['lock']:
+                shared_data['image'] = pygame_image
+
             # img = np.array(self.img)
             # img = cv2.flip(img, 1)
             # cv2.imwrite("/tmp/ebofaceimg.png", img)
@@ -294,15 +291,15 @@ class Face(threading.Thread):
         self.draw.rounded_rectangle(((0, 0), (res_x-1, res_y-1)),fill=(255, 255, 255), outline=(0, 0, 0))
         self.renderOjo(config["ojoI"])
         self.renderOjo(config["ojoD"])
-        self.renderParpado(config["parpadoI"])
-        self.renderParpado(config["parpadoD"])
+        # self.renderParpado(config["parpadoI"])
+        # self.renderParpado(config["parpadoD"])
         self.renderCeja(config["cejaI"])
         self.renderCeja(config["cejaD"])
         self.renderBoca(config["boca"])
         self.renderPupila(config["pupilaI"])
         self.renderPupila(config["pupilaD"])
-        self.renderMejilla(config["mejillaI"])
-        self.renderMejilla(config["mejillaD"])
+        # self.renderMejilla(config["mejillaI"])
+        # self.renderMejilla(config["mejillaD"])
         self.renderLengua(config["lengua"])
         # if self.isListening:
         #     P1 = (640 - 10, 200 - 10)
@@ -312,19 +309,19 @@ class Face(threading.Thread):
     def render(self):
         if self.t <= 1 and self.config_target is not None:
             config = self.config = getBecierConfig(self.old_config, self.config_target, self.t)
-
+            print("E")
             self.drawConfig(config)
             self.t += OFFSET
-            path = "/dev/fb0"
-            rotated_image = self.img.rotate(270)
-            area = (280, 0 ,1000, res_y-1)
-            cropped_img = rotated_image.crop(area)
-            self.background.paste(cropped_img,(300,0))
-            # print("guardando")
-            self.background.save("EBO_face.png", format="png")
-            with open(path, "wb") as f:
-                f.write(self.background.tobytes())
-            # return path
+            # Convert the PIL image to a format that Pygame can use
+            mode = self.img.mode
+            size = self.img.size
+            data = self.img.tobytes()
+
+            pygame_image = pygame.image.fromstring(data, size, mode)
+        
+            # Update the shared data with the new image
+            with shared_data['lock']:
+                shared_data['image'] = pygame_image
         else:
        # elif self.config_target is not None:
             # with self.mutex:
@@ -444,7 +441,7 @@ class Face(threading.Thread):
         rotated_image = self.img.rotate(270)
         area = (280, 0 ,1000, res_y-1)
         cropped_img = rotated_image.crop(area)
-        self.background.paste(cropped_img,(300,0))
+        self.backmoveFaceground.paste(cropped_img,(300,0))
         with open(path, "wb") as f:
             f.write(self.background.tobytes())
 
@@ -484,7 +481,7 @@ class Face(threading.Thread):
 class SpecificWorker(GenericWorker):
     def __init__(self, proxy_map, startup_check=False):
         super(SpecificWorker, self).__init__(proxy_map)
-        self.Period = 10
+        self.Period = 50
         if startup_check:
             self.startup_check()
         else:
@@ -524,62 +521,76 @@ class SpecificWorker(GenericWorker):
 
     @QtCore.Slot()
     def compute(self):
-        # print(self.face.pup_x)
-        pass
+        try:
+            # Handle events
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                    pygame.quit()
+                    sys.exit()
+
+            # Check if there's a new image to display
+            with shared_data['lock']:
+                if shared_data['image']:
+                    screen.blit(shared_data['image'], (0, 0))
+                    pygame.display.flip()
+
+        except KeyboardInterrupt:
+            pygame.quit()
+            sys.exit()
 
 	#
 	# expressFear
 	#
-    def expressFear(self):
+    def EmotionalMotor_expressFear(self):
         self.face.setConfig(self.configEmotions["Fear"])
         # self.display_proxy.setImageFromFile("/home/robocomp/learnbot/learnbot_components/emotionalMotor/imgs/frameBuffer/miedo.fb")
 
 	#
 	# expressSurprise
 	#
-    def expressSurprise(self):
+    def EmotionalMotor_expressSurprise(self):
         self.face.setConfig(self.configEmotions["Surprise"])
         # self.display_proxy.setImageFromFile("/home/robocomp/learnbot/learnbot_components/emotionalMotor/imgs/frameBuffer/sorpresa.fb")
 
 	#
 	# expressAnger
 	#
-    def expressAnger(self):
+    def EmotionalMotor_expressAnger(self):
         self.face.setConfig(self.configEmotions["Anger"])
         # self.display_proxy.setImageFromFile("/home/robocomp/learnbot/learnbot_components/emotionalMotor/imgs/frameBuffer/ira.fb")
 
     #
     # expressSadness
     #
-    def expressSadness(self):
+    def EmotionalMotor_expressSadness(self):
         self.face.setConfig(self.configEmotions["Sadness"])
         # self.display_proxy.setImageFromFile("/home/robocomp/learnbot/learnbot_components/emotionalMotor/imgs/frameBuffer/tristeza.fb")
 
     #
     # expressDisgust
     #
-    def expressDisgust(self):
+    def EmotionalMotor_expressDisgust(self):
         self.face.setConfig(self.configEmotions["Disgust"])
         # self.display_proxy.setImageFromFile("/home/robocomp/learnbot/learnbot_components/emotionalMotor/imgs/frameBuffer/asco.fb")
 
     #
     # expressJoy
     #
-    def expressJoy(self):
+    def EmotionalMotor_expressJoy(self):
         self.face.setConfig(self.configEmotions["Joy"])
         # self.display_proxy.setImageFromFile("/home/robocomp/learnbot/learnbot_components/emotionalMotor/imgs/frameBuffer/alegria.fb")
 
     #
     # expressNeutral
     #
-    def expressNeutral(self):
+    def EmotionalMotor_expressNeutral(self):
         self.face.setConfig(self.configEmotions["Neutral"])
         # self.display_proxy.setImageFromFile("/home/robocomp/learnbot/learnbot_components/emotionalMotor/imgs/frameBuffer/SinEmocion2.fb")
 
-    def talking(self, t):
+    def EmotionalMotor_talking(self, t):
         self.face.setTalking(t)
 
-    def listening(self, t):
+    def EmotionalMotor_listening(self, t):
         self.face.setListening(t)
 
     def startup_check(self):
@@ -611,6 +622,5 @@ class SpecificWorker(GenericWorker):
 
     # ===================================================================
     # ===================================================================
-
 
 
