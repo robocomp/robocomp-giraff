@@ -1,6 +1,21 @@
 # speech
 Intro to component here
 
+## Dependencies
+```bash
+sudo apt-get install sox libsox-fmt-all
+```
+
+## Audio problem
+You should select the audio device 
+
+```bash
+sudo apt install pulseaudio-utils
+
+pactl list short sinks #devices list
+pactl set-default-sink <DEVICE_ID>
+```
+
 
 ## Configuration parameters
 As any other component, *speech* needs a configuration file to start. In

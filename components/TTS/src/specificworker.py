@@ -29,8 +29,8 @@ try:
 except ImportError:
 	from queue import Queue
 
-from PySide2.QtCore import QTimer
-from PySide2.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
 from genericworker import *
 
 max_queue = 100
@@ -47,6 +47,8 @@ class SpecificWorker(GenericWorker):
         super(SpecificWorker, self).__init__(proxy_map)
         self.Period = 2000
         self.audioenviado = False
+        self.pitch = 1
+        self.tempo = 1
         self.text_queue = Queue(max_queue)
         if startup_check:
             self.startup_check()
@@ -113,12 +115,12 @@ class SpecificWorker(GenericWorker):
         # speech.play(sox_effects2)
 
     def Speech_setPitch(self, pitch):
-        # self.pitch = 1
+
         self.pitch = pitch*4
         print(self.pitch)
 
     def Speech_setTempo(self, tempo):
-        # self.tempo = 1
+
         self.tempo = tempo/10
         print(self.tempo)
 

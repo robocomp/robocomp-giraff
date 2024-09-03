@@ -14,8 +14,6 @@ module RoboCompSpeech
 	{
 		bool isBusy ();
 		bool say (string text, bool overwrite);
-		void setPitch (float pitch);
-		void setTempo (float tempo);
 	};
 };
 

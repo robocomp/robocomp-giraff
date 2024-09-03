@@ -12,7 +12,7 @@ module RoboCompRecorder
 {
 	interface Recorder
 	{
-		void recording (bool rec);
+		bool recording (bool rec);
 	};
 };
 

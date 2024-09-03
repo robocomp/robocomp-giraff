@@ -18,7 +18,9 @@ module RoboCompEmotionalMotor
 		void expressJoy ();
 		void expressSadness ();
 		void expressSurprise ();
+		void isanybodythere (bool isAny);
 		void listening (bool setListening);
+		void pupposition (float x, float y);
 		void talking (bool setTalk);
 	};
 };

@@ -1,5 +1,5 @@
 #
-#    Copyright (C) 2021 by YOUR NAME HERE
+#    Copyright (C) 2024 by YOUR NAME HERE
 #
 #    This file is part of RoboComp
 #
@@ -43,9 +43,3 @@ class SpeechI(Speech):
 
     def say(self, text, overwrite, c):
         return self.worker.Speech_say(text, overwrite)
-
-    def setPitch(self, pitch, c):
-        return self.worker.Speech_setPitch(pitch)
-
-    def setTempo(self, tempo, c):
-        return self.worker.Speech_setTempo(tempo)
