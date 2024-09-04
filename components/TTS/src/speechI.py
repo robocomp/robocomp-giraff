@@ -34,6 +34,18 @@ Ice.loadSlice("-I ./src/ --all ./src/Speech.ice")
 from RoboCompSpeech import *
 
 class SpeechI(Speech):
+    """
+    Delegates speech-related functionality to its worker object. It provides two
+    methods: `isBusy` checks if the worker is busy and `say` sends a text message
+    through the worker, optionally overwriting existing messages. These operations
+    are proxied from the underlying worker's methods.
+
+    Attributes:
+        worker (Speech): Referenced to a worker object that supports speech
+            functionality, providing methods for checking if it's busy and speaking.
+            It appears to be an instance of another class inheriting from `Speech`.
+
+    """
     def __init__(self, worker):
         self.worker = worker
 
